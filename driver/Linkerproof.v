@@ -105,6 +105,76 @@ Ltac simplify :=
          end;
   subst; auto.
 
+Lemma total_if_link_program
+      (fT:F Sig_signature) vT
+      (p1 p2 p:(mkLanguage (Fundef_common fT) vT).(progT))
+      (q1 q2:(mkLanguage (Fundef_common fT) vT).(progT))
+      flag transf
+      (TRANSF:
+         forall (Hp: link_program (mkLanguage (Fundef_common fT) vT) p1 p2 = Some p)
+                (H1: transf p1 = q1)
+                (H2: transf p2 = q2),
+         exists q,
+           link_program (mkLanguage (Fundef_common fT) vT) q1 q2 = Some q /\
+           transf p = q)
+      (Hp: link_program (mkLanguage (Fundef_common fT) vT) p1 p2 = Some p)
+      (H1: total_if flag transf p1 = q1)
+      (H2: total_if flag transf p2 = q2):
+  exists q,
+    link_program (mkLanguage (Fundef_common fT) vT) q1 q2 = Some q /\
+    total_if flag transf p = q.
+Proof.
+  unfold total_if in *. destruct (flag tt).
+  - apply TRANSF; auto.
+  - subst. eexists. split; eauto.
+Qed.
+
+Lemma Tree_Forall2_total_if
+      lang flag transf (ptree tptree:Tree.t lang.(progT))
+      (FORALL: Tree.Forall2 (fun p tp => total_if flag transf p = tp) ptree tptree):
+  ptree = tptree \/
+  Tree.Forall2 (fun p tp => transf p = tp) ptree tptree.
+Proof.
+  unfold total_if in *. destruct (flag tt).
+  { right. auto. }
+  left. induction FORALL; subst; auto.
+Qed.
+
+Lemma Tree_Forall2_partial_if
+      lang flag transf (ptree tptree:Tree.t lang.(progT))
+      (FORALL: Tree.Forall2 (fun p tp => partial_if flag transf p = OK tp) ptree tptree):
+  ptree = tptree \/
+  Tree.Forall2 (fun p tp => transf p = OK tp) ptree tptree.
+Proof.
+  unfold partial_if in *. destruct (flag tt).
+  { right. auto. }
+  left. induction FORALL; subst; auto. inv Hpred. auto.
+Qed.
+
+Lemma partial_if_link_program
+      (fT:F Sig_signature) vT
+      (p1 p2 p:(mkLanguage (Fundef_common fT) vT).(progT))
+      (q1 q2:(mkLanguage (Fundef_common fT) vT).(progT))
+      flag transf
+      (TRANSF:
+         forall (Hp: link_program (mkLanguage (Fundef_common fT) vT) p1 p2 = Some p)
+                (H1: transf p1 = OK q1)
+                (H2: transf p2 = OK q2),
+         exists q,
+           link_program (mkLanguage (Fundef_common fT) vT) q1 q2 = Some q /\
+           transf p = OK q)
+      (Hp: link_program (mkLanguage (Fundef_common fT) vT) p1 p2 = Some p)
+      (H1: partial_if flag transf p1 = OK q1)
+      (H2: partial_if flag transf p2 = OK q2):
+  exists q,
+    link_program (mkLanguage (Fundef_common fT) vT) q1 q2 = Some q /\
+    partial_if flag transf p = OK q.
+Proof.
+  unfold partial_if in *. destruct (flag tt).
+  - apply TRANSF; auto.
+  - inv H1. inv H2. eexists. split; eauto.
+Qed.
+
 Lemma linker_correct_determinate_forward
         ctree asmtree cprog
         (CLINK: Tree.reduce (link_program Language.Language_C) ctree = Some cprog)
@@ -174,12 +244,39 @@ Proof.
 
   (* RTL *)
   unfold transf_rtl_program in TRANSF. clarify.
+  repeat match goal with
+           | [H: Tree.Forall2 (fun _ _ => total_if _ _ _ = _) _ _ |- _] =>
+             apply (@Tree_Forall2_total_if Language_RTL) in H; simpl in H
+           | [H: Tree.Forall2 (fun _ _ => partial_if _ _ _ = _) _ _ |- _] =>
+             apply (@Tree_Forall2_partial_if Language_RTL) in H; simpl in H
+         end.
 
-  eapply Tree.Forall2_reduce in T19; eauto;
-    [|eapply transform_program_link_program];
-    [|apply Tailcall_sig].
-  destruct T19 as [rtlprog1 [Hrtlprog1 Hrtlsim1]]. subst.
-  generalize (Tailcallproof.transf_program_correct rtlprog0) as Hrtlsim1. intro.
+  Lemma elim_or
+    (P1 P2 C:Prop)
+    (H: P1 \/ P2)
+    (H1: P1 -> C)
+    (H2: P2 -> C):
+    C.
+  Proof. destruct H; auto. Qed.
+  idtac.
+
+  Lemma Tree_reduce_sim_identity
+        ptree tptree p
+        (EQ: ptree = tptree)
+        (REDUCE: Tree.reduce (link_program Language_RTL) ptree = Some p):
+    exists tp (SIM: forward_simulation (RTL.semantics p) (RTL.semantics tp)),
+      Tree.reduce (link_program Language_RTL) tptree = Some tp.
+  Proof. subst. exists p, (forward_simulation_identity _). auto. Qed.
+  idtac.
+  
+  exploit (elim_or T19 (@Tree_reduce_sim_identity _ _ rtlprog0)); auto.
+  { intro X. eapply Tree.Forall2_reduce in X; eauto;
+      [|eapply transform_program_link_program];
+      [|apply Tailcall_sig].
+    destruct X as [? [? ?]]. subst. intros.
+    exists _, (Tailcallproof.transf_program_correct rtlprog0). auto.
+  }
+  clear T19. intros [rtlprog1 [Hrtlprog1 Hrtlsim1]].
 
   eapply Tree.Forall2_implies in T17; [|apply Inliningproof.Inlining_sepcomp_rel].
   eapply Tree.Forall2_reduce in T17; eauto; [|eapply (@link_program_sepcomp_rel Language.Language_RTL Language.Language_RTL id)]; simplify;
@@ -192,27 +289,43 @@ Proof.
   destruct T15 as [rtlprog3 [Hrtlprog3 Hrtlsim3]]. subst.
   generalize (Renumberproof.transf_program_correct rtlprog2) as Hrtlsim3. intro.
 
-  eapply Tree.Forall2_implies in T13; [|apply Constpropproof.Constprop_sepcomp_rel].
-  eapply Tree.Forall2_reduce in T13; eauto; [|eapply (@link_program_sepcomp_rel Language.Language_RTL Language.Language_RTL id)]; simplify.
-  destruct T13 as [rtlprog4 [Hrtlprog4 Hrtlsim4]].
-  apply Constpropproof.transf_program_correct in Hrtlsim4.
+  exploit (elim_or T13 (@Tree_reduce_sim_identity _ _ (Renumber.transf_program rtlprog2))); auto.
+  { intro X. eapply Tree.Forall2_implies in X; [|apply Constpropproof.Constprop_sepcomp_rel].
+    eapply Tree.Forall2_reduce in X; eauto; [|eapply (@link_program_sepcomp_rel Language.Language_RTL Language.Language_RTL id)]; simplify.
+    destruct X as [rtlprog4 [Hrtlprog4 Hrtlsim4]].
+    apply Constpropproof.transf_program_correct in Hrtlsim4.
+    exists _, Hrtlsim4. auto.
+  }
+  clear T13. intros [rtlprog4 [Hrtlprog4 Hrtlsim4]].
 
-  eapply Tree.Forall2_reduce in T11; eauto;
-    [|eapply transform_program_link_program; auto].
-  destruct T11 as [rtlprog5 [Hrtlprog5 Hrtlsim5]]. subst.
-  generalize (Renumberproof.transf_program_correct rtlprog4) as Hrtlsim5. intro.
+  exploit (elim_or T11 (@Tree_reduce_sim_identity _ _ rtlprog4)); auto.
+  { intro X. eapply Tree.Forall2_reduce in X; eauto; [|eapply transform_program_link_program; auto].
+    destruct X as [rtlprog5 [Hrtlprog5 Hrtlsim5]]. subst.
+    exists _, (Renumberproof.transf_program_correct rtlprog4). auto.
+  }
+  clear T11. intros [rtlprog5 [Hrtlprog5 Hrtlsim5]].
 
-  eapply Tree.Forall2_implies in T9; [|apply CSEproof.CSE_sepcomp_rel].
-  eapply Tree.Forall2_reduce in T9; eauto; [|eapply (@link_program_sepcomp_rel Language.Language_RTL Language.Language_RTL id)]; simplify;
-    [|eapply CSE_sig; eauto].
-  destruct T9 as [rtlprog6 [Hrtlprog6 Hrtlsim6]].
-  apply CSEproof.transf_program_correct in Hrtlsim6.
+  exploit (elim_or T9 (@Tree_reduce_sim_identity _ _ rtlprog5)); auto.
+  { intro X. eapply Tree.Forall2_implies in X; [|apply CSEproof.CSE_sepcomp_rel].
+    eapply Tree.Forall2_reduce in X; eauto;
+      [|eapply (@link_program_sepcomp_rel Language.Language_RTL Language.Language_RTL id)]; simplify;
+      [|eapply CSE_sig; eauto].
+    destruct X as [rtlprog6 [Hrtlprog6 Hrtlsim6]].
+    apply CSEproof.transf_program_correct in Hrtlsim6.
+    exists _, Hrtlsim6. auto.
+  }
+  clear T9. intros [rtlprog6 [Hrtlprog6 Hrtlsim6]].
 
-  eapply Tree.Forall2_implies in T7; [|apply Deadcodeproof.Deadcode_sepcomp_rel].
-  eapply Tree.Forall2_reduce in T7; eauto; [|eapply (@link_program_sepcomp_rel Language.Language_RTL Language.Language_RTL id)]; simplify;
-    [|eapply Deadcode_sig; eauto].
-  destruct T7 as [rtlprog7 [Hrtlprog7 Hrtlsim7]].
-  apply Deadcodeproof.transf_program_correct in Hrtlsim7.
+  exploit (elim_or T7 (@Tree_reduce_sim_identity _ _ rtlprog6)); auto.
+  { intro X. eapply Tree.Forall2_implies in X; [|apply Deadcodeproof.Deadcode_sepcomp_rel].
+    eapply Tree.Forall2_reduce in X; eauto;
+      [|eapply (@link_program_sepcomp_rel Language.Language_RTL Language.Language_RTL id)]; simplify;
+      [|eapply Deadcode_sig; eauto].
+    destruct X as [rtlprog7 [Hrtlprog7 Hrtlsim7]].
+    apply Deadcodeproof.transf_program_correct in Hrtlsim7.
+    exists _, Hrtlsim7. auto.
+  }
+  clear T7. intros [rtlprog7 [Hrtlprog7 Hrtlsim7]].
 
   eapply Tree.Forall2_reduce in T5; eauto;
     [|eapply (transform_partial_program2_link_program Language.Language_RTL Language.Language_LTL)];
