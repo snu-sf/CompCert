@@ -132,18 +132,20 @@ Definition link_globdefs (defs1 defs2:PTree.t (globdef (AST.fundef F) V)): optio
   then Some (PTree.option_map (fun _ x => x) defs)
   else None.
 
-Definition link_prog (prog1 prog2:program (AST.fundef F) V): option (program (AST.fundef F) V) :=
-  if ident_eq prog1.(prog_main) prog2.(prog_main)
-  then
-    match
-      link_globdefs
-        (PTree.unelements prog1.(prog_defs))
-        (PTree.unelements prog2.(prog_defs))
-    with
-      | Some defs => Some (mkprogram (PTree.elements defs) prog1.(prog_main))
-      | None => None
-    end
-  else None.
+Definition link_globdef_list (defs1 defs2:list (positive * globdef (AST.fundef F) V)): option (list (positive * globdef (AST.fundef F) V)) :=
+  match link_globdefs (PTree.unelements defs1) (PTree.unelements defs2) with
+    | Some defs => Some (PTree.elements defs)
+    | None => None
+  end.
+
+Definition link_program (prog1 prog2:program (AST.fundef F) V): option (program (AST.fundef F) V) :=
+  match
+    Pos.eqb prog1.(prog_main) prog2.(prog_main),
+    link_globdef_list prog1.(prog_defs) prog2.(prog_defs)
+  with
+    | true, Some defs => Some (mkprogram defs prog1.(prog_main))
+    | _, _ => None
+  end.
 End LINKER.
 
 

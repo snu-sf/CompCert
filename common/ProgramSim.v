@@ -106,14 +106,51 @@ Definition globdefs_sim
       | _, _ => False
     end.
 
-Definition program_sim
-           (p_src:program (AST.fundef F_src) V) (p_tgt:program (AST.fundef F_tgt) V): Prop :=
+Definition globdef_list_sim
+           (defs_src:list (positive * globdef (AST.fundef F_src) V))
+           (defs_tgt:list (positive * globdef (AST.fundef F_tgt) V)):
+  Prop :=
   list_forall2
     (fun g_src g_tgt =>
        fst g_src = fst g_tgt /\
        globdef_sim (snd g_src) (snd g_tgt))
-    p_src.(prog_defs) p_tgt.(prog_defs) /\
+    defs_src defs_tgt.
+
+Definition program_sim
+           (p_src:program (AST.fundef F_src) V) (p_tgt:program (AST.fundef F_tgt) V): Prop :=
+  globdef_list_sim p_src.(prog_defs) p_tgt.(prog_defs) /\
   p_src.(prog_main) = p_tgt.(prog_main).
+
+Lemma globdefs_sim_globdef_list_sim
+      (defs_src: PTree.t (globdef (AST.fundef F_src) V))
+      (defs_tgt: PTree.t (globdef (AST.fundef F_tgt) V))
+      (Hsim: globdefs_sim defs_src defs_tgt):
+  globdef_list_sim (PTree.elements defs_src) (PTree.elements defs_tgt).
+Proof.
+  apply PTree.elements_canonical_order; intros.
+  - exploit Hsim. instantiate (1 := i). rewrite H. intro X.
+    destruct (defs_tgt ! i) eqn:Hi_tgt; [|inv X].
+    eexists. split; eauto.
+  - exploit Hsim. instantiate (1 := i). rewrite H. intro X.
+    destruct (defs_src ! i) eqn:Hi_src; [|inv X].
+    eexists. split; eauto.
+Qed.
+
+Lemma globdef_list_sim_globdefs_sim
+      (defs_src: list (positive * globdef (AST.fundef F_src) V))
+      (defs_tgt: list (positive * globdef (AST.fundef F_tgt) V))
+      (Hsim: globdef_list_sim defs_src defs_tgt):
+  globdefs_sim (PTree.unelements defs_src) (PTree.unelements defs_tgt).
+Proof.
+  unfold PTree.unelements. rewrite <- ? fold_left_rev_right.
+  unfold globdef_list_sim in Hsim. apply list_forall2_rev in Hsim.
+  revert Hsim. generalize (rev defs_src) (rev defs_tgt). clear defs_src defs_tgt.
+  induction l; intros l2 H; inv H; simpl.
+  { intro. rewrite ? PTree.gempty. auto. }
+  destruct H2, a, b1. simpl in *. subst.
+  intro. rewrite ? PTree.gsspec. destruct (peq i p0); subst; auto.
+  apply IHl. auto.
+Qed.
 
 Lemma link_globdefs_sim
       (defs1_src defs2_src:PTree.t (globdef (AST.fundef F_src) V))
@@ -178,55 +215,52 @@ Proof.
   }
 Qed.
 
-(* TODO *)
-(* Lemma link_module_sim *)
-(*       (m1_src m2_src:module F_src V) *)
-(*       (m1_tgt m2_tgt:module F_tgt V) *)
-(*       m_src (Hm_src: link_module V_dec m1_src m2_src = Some m_src) *)
-(*       (H1: module_sim m1_src m1_tgt) *)
-(*       (H2: module_sim m2_src m2_tgt): *)
-(*   exists m_tgt, *)
-(*     link_module V_dec m1_tgt m2_tgt = Some m_tgt /\ *)
-(*     module_sim m_src m_tgt. *)
-(* Proof. *)
-(*   destruct m1_src as [defs1_src main1_src]. *)
-(*   destruct m1_tgt as [defs1_tgt main1_tgt]. *)
-(*   destruct m2_src as [defs2_src main2_src]. *)
-(*   destruct m2_tgt as [defs2_tgt main2_tgt]. *)
-(*   destruct H1 as [H1d H1m], H2 as [H2d H2m]. *)
-(*   unfold link_module in *. simpl in *. subst. *)
-(*   destruct (link_globdefs V_dec defs1_src defs2_src) as [defs_src|] eqn:Hdef_src; [|inv Hm_src]. *)
-(*   destruct (link_main main1_tgt main2_tgt) as [main|] eqn:Hmain_src; inv Hm_src. *)
-(*   exploit link_globdefs_sim; eauto. *)
-(*   intros [defs_tgt [Hdefs_tgt Hsim]]. *)
-(*   rewrite Hdefs_tgt. eexists. split; eauto. *)
-(*   split; auto. *)
-(* Qed. *)
-      
-(* Lemma close_module_sim *)
-(*       (m_src:module F_src V) *)
-(*       (m_tgt:module F_tgt V) *)
-(*       (p_src:program (AST.fundef F_src) V) *)
-(*       (Hp_src: close_module m_src = Some p_src) *)
-(*       (Hm: module_sim m_src m_tgt): *)
-(*   exists p_tgt, *)
-(*     close_module m_tgt = Some p_tgt /\ *)
-(*     program_sim p_src p_tgt. *)
-(* Proof. *)
-(*   destruct m_src as [defs_src main_src]. *)
-(*   destruct m_tgt as [defs_tgt main_tgt]. *)
-(*   unfold close_module in *. simpl in *. *)
-(*   destruct main_src as [main_src|]; inv Hp_src. *)
-(*   destruct Hm as [Hdefs Hmain]. simpl in *. subst. *)
-(*   eexists. repeat split; eauto. simpl. *)
-(*   apply PTree.elements_canonical_order; intros. *)
-(*   - exploit Hdefs. instantiate (1 := i). rewrite H. intro X. *)
-(*     destruct (defs_tgt ! i) eqn:Hi_tgt; [|inv X]. *)
-(*     eexists. split; eauto. *)
-(*   - exploit Hdefs. instantiate (1 := i). rewrite H. intro X. *)
-(*     destruct (defs_src ! i) eqn:Hi_src; [|inv X]. *)
-(*     eexists. split; eauto. *)
-(* Qed. *)
+Lemma link_globdef_list_sim
+      (defs1_src defs2_src:list (positive * globdef (AST.fundef F_src) V))
+      (defs1_tgt defs2_tgt:list (positive * globdef (AST.fundef F_tgt) V))
+      defs_src (Hdefs_src: link_globdef_list V_dec defs1_src defs2_src = Some defs_src)
+      (H1: globdef_list_sim defs1_src defs1_tgt)
+      (H2: globdef_list_sim defs2_src defs2_tgt):
+  exists defs_tgt,
+    link_globdef_list V_dec defs1_tgt defs2_tgt = Some defs_tgt /\
+    globdef_list_sim defs_src defs_tgt.
+Proof.
+  apply globdef_list_sim_globdefs_sim in H1.
+  apply globdef_list_sim_globdefs_sim in H2.
+  unfold link_globdef_list in Hdefs_src.
+  match goal with
+    | [H: context[link_globdefs ?V_dec ?defs1 ?defs2] |- _] =>
+      destruct (link_globdefs V_dec defs1 defs2) as [defs|] eqn:Hdefs; inv H
+  end.
+  exploit link_globdefs_sim; eauto. intros [defs_tgt [Hdefs_tgt Hsim]].
+  unfold link_globdef_list. rewrite Hdefs_tgt. eexists. split; eauto.
+  apply globdefs_sim_globdef_list_sim. auto.
+Qed.
+
+Lemma link_program_sim
+      (p1_src p2_src:program (AST.fundef F_src) V)
+      (p1_tgt p2_tgt:program (AST.fundef F_tgt) V)
+      p_src (Hm_src: link_program V_dec p1_src p2_src = Some p_src)
+      (H1: program_sim p1_src p1_tgt)
+      (H2: program_sim p2_src p2_tgt):
+  exists m_tgt,
+    link_program V_dec p1_tgt p2_tgt = Some m_tgt /\
+    program_sim p_src m_tgt.
+Proof.
+  destruct p1_src as [defs1_src main1_src].
+  destruct p1_tgt as [defs1_tgt main1_tgt].
+  destruct p2_src as [defs2_src main2_src].
+  destruct p2_tgt as [defs2_tgt main2_tgt].
+  destruct H1 as [H1d H1m], H2 as [H2d H2m].
+  unfold link_program in *. simpl in *. subst.
+  destruct ((main1_tgt =? main2_tgt)%positive) eqn:Hmain; [|inv Hm_src].
+  apply Pos.eqb_eq in Hmain. subst.
+  destruct (link_globdef_list V_dec defs1_src defs2_src) as [defs_src|] eqn:Hdef_src; inv Hm_src.
+  exploit link_globdef_list_sim; eauto.
+  intros [defs_tgt [Hdefs_tgt Hsim]].
+  rewrite Hdefs_tgt. eexists. split; eauto.
+  split; auto.
+Qed.
 
 
 Section INITIALIZE.
