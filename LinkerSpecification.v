@@ -3,23 +3,78 @@ Require String.
 Require Import Coqlib Coqlib_linker.
 Require Import Maps_linker.
 Require Import Integers Floats Values AST Globalenvs.
+Require Import Errors Compiler Smallstep.
 
 Set Implicit Arguments.
+
+
+(* extended external function for C and Clight *)
+
+Definition external_function_ext :=
+  (external_function * Ctypes.typelist * Ctypes.type * calling_convention)%type.
+
+Definition external_function_ext_eq (ef1 ef2: external_function_ext): {ef1 = ef2} + {ef1 <> ef2}.
+Proof.
+  destruct ef1 as [[[ef1 args1] res1] cc1].
+  destruct ef2 as [[[ef2 args2] res2] cc2].
+  decide equality.
+  { destruct b, c.
+    destruct (bool_dec cc_vararg cc_vararg0); [subst|].
+    { destruct (bool_dec cc_structret cc_structret0); [subst|].
+      { left. auto. }
+      { right. contradict n. inv n. auto. }
+    }
+    { right. contradict n. inv n. auto. }
+  }
+  decide equality.
+  { apply Ctypes.type_eq. }
+  decide equality.
+  { apply Ctypes.typelist_eq. }
+  { apply external_function_eq. }
+Defined.
+
+
+(* classify function definitions into internal and external functions  *)
+
+Definition FundefDec T F EF := T -> F + EF.
+
+Definition C_fundef_dec : FundefDec Csyntax.fundef Csyntax.function(external_function * Ctypes.typelist * Ctypes.type * calling_convention) :=
+  fun fundef =>
+    match fundef with
+      | Csyntax.Internal i => inl i
+      | Csyntax.External ef args res cc => inr (ef, args, res, cc)
+    end.
+
+Definition Clight_fundef_dec : FundefDec Clight.fundef Clight.function (external_function * Ctypes.typelist * Ctypes.type * calling_convention) :=
+  fun fundef =>
+    match fundef with
+      | Clight.Internal i => inl i
+      | Clight.External ef args res cc => inr (ef, args, res, cc)
+    end.
+
+Definition common_fundef_dec (F:Type) : FundefDec (AST.fundef F) F external_function :=
+  fun fundef =>
+    match fundef with
+      | Internal i => inl i
+      | External ef => inr ef
+    end.
+
 
 (** Linker definition *)
 Section LINKER.
 
-Variable (F V:Type).  
+Variable (Fundef F EF V:Type).
+Variable (fundef_dec: FundefDec Fundef F EF).
+Variable (EF_dec: forall (v1 v2:EF), {v1 = v2} + {v1 <> v2}).
 Variable (V_dec: forall (v1 v2:V), {v1 = v2} + {v1 <> v2}).
 
 (** `linkable a b` means we can remove `a` and take `b` when the two are linked. *)
 
-Inductive globfun_linkable: forall (f1 f2:AST.fundef F), Prop :=
-| globvar_linkable_ei (* TODO: type check? *)
-    e1 i2:
-    globfun_linkable (External e1) (Internal i2)
-| globvar_linkable_ee e:
-    globfun_linkable (External e) (External e)
+Inductive globfun_linkable (f1 f2:Fundef): Prop :=
+| globfun_linkable_ei (* TODO: type check? *)
+    e1 i2 (H1: fundef_dec f1 = inr e1) (H2: fundef_dec f2 = inl i2)
+| globfun_linkable_ee
+    e (H1: fundef_dec f1 = inr e) (H1: fundef_dec f2 = inr e)
 .
 
 Inductive globvar_linkable (v1 v2:globvar V): Prop :=
@@ -30,7 +85,7 @@ Inductive globvar_linkable (v1 v2:globvar V): Prop :=
     (Hvolatile: v1.(gvar_volatile) = v2.(gvar_volatile))
 .
 
-Inductive globdef_linkable: forall (g1 g2:globdef (AST.fundef F) V), Prop :=
+Inductive globdef_linkable: forall (g1 g2:globdef Fundef V), Prop :=
 | globdef_linkable_fun
     f1 f2 (Hv: globfun_linkable f1 f2):
     globdef_linkable (Gfun f1) (Gfun f2)
@@ -42,15 +97,23 @@ Inductive globdef_linkable: forall (g1 g2:globdef (AST.fundef F) V), Prop :=
 
 (** `linkable` decidabilities. *)
 
-Definition globfun_linkable_dec (f1 f2:AST.fundef F): {globfun_linkable f1 f2} + {~ globfun_linkable f1 f2}.
+Definition globfun_linkable_dec (f1 f2:Fundef): {globfun_linkable f1 f2} + {~ globfun_linkable f1 f2}.
 Proof.
-  destruct f1 as [i1|e1].
-  { right. intro X. inv X. }
-  destruct f2 as [i2|e2].
-  { left. constructor. }
-  { destruct (external_function_eq e1 e2); [subst|].
-    { left. constructor. }
-    { right. contradict n. inv n; auto. }
+  destruct (fundef_dec f1) as [i1|e1] eqn:Hf1.
+  { right. intro X. inv X.
+    - rewrite Hf1 in H1. inv H1.
+    - rewrite Hf1 in H1. inv H1.
+  }
+  destruct (fundef_dec f2) as [i2|e2] eqn:Hf2.
+  { left. econstructor; eauto. }
+  { destruct (EF_dec e1 e2); [subst|].
+    { left. eapply globfun_linkable_ee; eauto. }
+    { right. contradict n. inv n; auto.
+      - rewrite Hf2 in H2. inv H2.
+      - rewrite Hf1 in H1. inv H1.
+        rewrite Hf2 in H0. inv H0.
+        auto.
+    }
   }
 Defined.
 
@@ -87,7 +150,7 @@ Proof.
   { right. contradict n. inv n. auto. }
 Defined.
 
-Definition globdef_linkable_dec (g1 g2:globdef (AST.fundef F) V): {globdef_linkable g1 g2} + {~ globdef_linkable g1 g2}.
+Definition globdef_linkable_dec (g1 g2:globdef Fundef V): {globdef_linkable g1 g2} + {~ globdef_linkable g1 g2}.
 Proof.
   destruct g1 as [f1|v1], g2 as [f2|v2].
   { destruct (globfun_linkable_dec f1 f2).
@@ -105,7 +168,7 @@ Defined.
 
 (** main definition *)
 
-Definition link_globdefs (defs1 defs2:PTree.t (globdef (AST.fundef F) V)): option (PTree.t (globdef (AST.fundef F) V)) :=
+Definition link_globdefs (defs1 defs2:PTree.t (globdef Fundef V)): option (PTree.t (globdef Fundef V)) :=
   let defs :=
     PTree.combine
       (fun odef1 odef2 =>
@@ -132,13 +195,13 @@ Definition link_globdefs (defs1 defs2:PTree.t (globdef (AST.fundef F) V)): optio
   then Some (PTree.option_map (fun _ x => x) defs)
   else None.
 
-Definition link_globdef_list (defs1 defs2:list (positive * globdef (AST.fundef F) V)): option (list (positive * globdef (AST.fundef F) V)) :=
+Definition link_globdef_list (defs1 defs2:list (positive * globdef Fundef V)): option (list (positive * globdef Fundef V)) :=
   match link_globdefs (PTree.unelements defs1) (PTree.unelements defs2) with
     | Some defs => Some (PTree.elements defs)
     | None => None
   end.
 
-Definition link_program (prog1 prog2:program (AST.fundef F) V): option (program (AST.fundef F) V) :=
+Definition link_program (prog1 prog2:program Fundef V): option (program Fundef V) :=
   match
     Pos.eqb prog1.(prog_main) prog2.(prog_main),
     link_globdef_list prog1.(prog_defs) prog2.(prog_defs)
@@ -149,4 +212,19 @@ Definition link_program (prog1 prog2:program (AST.fundef F) V): option (program 
 End LINKER.
 
 
-(** linker specification (TODO) *)
+(** linker correctness statement *)
+
+Inductive separately_compiled: forall (cprog: Csyntax.program) (asmprog: Asm.program), Prop :=
+| separately_compiled_base cprog asmprog (Htransf: transf_c_program cprog = OK asmprog):
+    separately_compiled cprog asmprog
+| separately_compiled_link cprog1 cprog2 asmprog1 asmprog2
+          (H1: separately_compiled cprog1 asmprog1)
+          (H2: separately_compiled cprog2 asmprog2)
+          cprog (Hcprog: Some cprog = link_program C_fundef_dec external_function_ext_eq Ctypes.type_eq cprog1 cprog2)
+          asmprog (Hasmprog: Some asmprog = link_program (@common_fundef_dec Asm.function) external_function_eq unit_eq asmprog1 asmprog2):
+    separately_compiled cprog asmprog
+.
+
+Definition separate_compilation_correctness :=
+  forall cprog asmprog (H: separately_compiled cprog asmprog),
+    backward_simulation (Csem.semantics cprog) (Asm.semantics asmprog).

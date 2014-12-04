@@ -2,6 +2,9 @@ Require Import Coqlib.
 
 Set Implicit Arguments.
 
+Definition unit_eq (v1 v2:unit): {v1 = v2} + {v1 <> v2}.
+Proof. decide equality. Defined.
+
 Definition is_empty (X:Type) (l:list X): bool :=
   match l with
     | nil => true
