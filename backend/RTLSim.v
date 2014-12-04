@@ -9,11 +9,11 @@ Require Import Events.
 Require Import Memory.
 Require Import Globalenvs.
 Require Import Smallstep.
-Require Import Smallstep_linker.
+Require Import IndexedStep.
 Require Import Op.
 Require Import Registers.
 Require Import RTL.
-Require Import MemoryRelation_linker.
+Require Import MemoryRelation.
 
 Definition state_mem (st:state): mem :=
   match st with

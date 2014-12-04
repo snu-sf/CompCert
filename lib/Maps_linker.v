@@ -954,6 +954,12 @@ Module PTree <: TREE.
     rewrite xgoption_map. destruct (get i m); auto. repeat f_equal. exact (prev_involutive i).
   Qed.
 
+  Definition unelements (A : Type) (l : list (elt * A)) : PTree.t A :=
+    List.fold_left
+      (fun acc kv =>
+         PTree.set (fst kv) (snd kv) acc)
+      l
+      (PTree.empty _).
 End PTree.
 
 (** * An implementation of maps over type [positive] *)
