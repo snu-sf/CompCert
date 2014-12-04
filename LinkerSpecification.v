@@ -3,7 +3,7 @@ Require String.
 Require Import Coqlib Coqlib_linker.
 Require Import Maps_linker.
 Require Import Integers Floats Values AST Globalenvs.
-Require Import Errors Compiler Smallstep.
+Require Import Errors Behaviors Compiler Smallstep.
 
 Set Implicit Arguments.
 
@@ -226,5 +226,9 @@ Inductive separately_compiled: forall (cprog: Csyntax.program) (asmprog: Asm.pro
 .
 
 Definition separate_compilation_correctness :=
-  forall cprog asmprog (H: separately_compiled cprog asmprog),
-    backward_simulation (Csem.semantics cprog) (Asm.semantics asmprog).
+  forall
+    cprog asmprog asmbeh
+    (Hsepcomp: separately_compiled cprog asmprog)
+    (Hbeh: program_behaves (Asm.semantics asmprog) asmbeh),
+  exists cbeh,
+    program_behaves (Csem.semantics cprog) cbeh /\ behavior_improves cbeh asmbeh.
