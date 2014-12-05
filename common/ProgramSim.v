@@ -3,74 +3,10 @@ Require String.
 Require Import Coqlib Coqlib_linker.
 Require Import Maps_linker.
 Require Import Integers Floats Values AST Globalenvs.
-Require Import LinkerSpecification.
+Require Import LinkerSpecification LinkerProp Linkeq.
 Require Import Errors.
 
 Set Implicit Arguments.
-
-
-(* properties of linker *)
-Section LINKER_PROP.
-
-Variable (Fundef F EF V:Type).
-Variable (fundef_dec: FundefDec Fundef F EF).
-Variable (EF_dec: forall (v1 v2:EF), {v1 = v2} + {v1 <> v2}).
-Variable (V_dec: forall (v1 v2:V), {v1 = v2} + {v1 <> v2}).
-
-Lemma gflink_globdefs defs1 defs2 (Hlink: link_globdefs fundef_dec EF_dec V_dec defs1 defs2 = None):
-  exists var def1 def2,
-    PTree.get var defs1 = Some def1 /\
-    PTree.get var defs2 = Some def2 /\
-    ~ globdef_linkable fundef_dec def1 def2 /\
-    ~ globdef_linkable fundef_dec def2 def1.
-Proof.
-  unfold link_globdefs in Hlink.
-  match goal with
-    | [H: context[PTree_Properties.for_all ?m ?f] |- _] =>
-      destruct (PTree_Properties.for_all m f) eqn:Hlinkable; inv Hlink
-  end.
-  apply PTree_Properties.for_all_false in Hlinkable.
-  destruct Hlinkable as [i [x [Hx1 Hx2]]].
-  destruct x; inv Hx2. rewrite PTree.gcombine in Hx1; auto.
-  destruct (defs1 ! i) eqn:Hi1, (defs2 ! i) eqn:Hi2; inv Hx1.
-  destruct (globdef_linkable_dec fundef_dec EF_dec V_dec g g0); inv H0.
-  destruct (globdef_linkable_dec fundef_dec EF_dec V_dec g0 g); inv H1.
-  repeat eexists; eauto.
-Qed.
-
-Lemma gtlink_globdefs defs1 defs2 defs (Hlink: link_globdefs fundef_dec EF_dec V_dec defs1 defs2 = Some defs):
-  forall var,
-    match PTree.get var defs1, PTree.get var defs2, PTree.get var defs with
-      | Some g1, Some g2, Some g =>
-        (globdef_linkable fundef_dec g1 g2 /\ g2 = g) \/
-        (globdef_linkable fundef_dec g2 g1 /\ g1 = g)
-      | Some g1, None, Some g => g1 = g
-      | None, Some g2, Some g => g2 = g
-      | None, None, None => True
-      | _, _, _ => False
-    end.
-Proof.
-  intro i. unfold link_globdefs in Hlink.
-  match goal with
-    | [H: context[PTree_Properties.for_all ?m ?f] |- _] =>
-      destruct (PTree_Properties.for_all m f) eqn:Hlinkable; inv Hlink
-  end.
-  rewrite PTree.goption_map, PTree.gcombine; auto.
-  destruct (defs1 ! i) eqn:Hi1, (defs2 ! i) eqn:Hi2; auto.
-  destruct (globdef_linkable_dec fundef_dec EF_dec V_dec g g0).
-  { left. split; auto. }
-  destruct (globdef_linkable_dec fundef_dec EF_dec V_dec g0 g).
-  { right. split; auto. }
-  eapply PTree_Properties.for_all_correct in Hlinkable; eauto.
-  { instantiate (1 := None) in Hlinkable. inv Hlinkable. }
-  instantiate (1 := i). rewrite PTree.gcombine; auto.
-  rewrite Hi1, Hi2.
-  destruct (globdef_linkable_dec fundef_dec EF_dec V_dec g g0); try (contradict n; auto; fail).
-  destruct (globdef_linkable_dec fundef_dec EF_dec V_dec g0 g); try (contradict n0; auto; fail).
-  auto.
-Qed.
-
-End LINKER_PROP.
 
 
 (* lifting function simulation to program simulation *)
@@ -90,27 +26,40 @@ Variable (transf_EF: forall (ef:EF_src), res EF_tgt).
 Variable (transf_V: forall (v:V_src), res V_tgt).
 Definition V_sim (v_src:V_src) (v_tgt:V_tgt) := transf_V v_src = OK v_tgt.
 
-Parameter F_sim: forall (f_src:F_src) (f_tgt:F_tgt), Prop.
+Parameter F_sim: forall
+                   (defs_src:PTree.t (globdef Fundef_src V_src))
+                   (defs_tgt:PTree.t (globdef Fundef_tgt V_tgt))
+                   (f_src:F_src) (f_tgt:F_tgt), Prop.
 
-Inductive globfun_sim (g_src:Fundef_src) (g_tgt:Fundef_tgt): Prop :=
+(** definition *)
+Inductive globfun_sim
+          (defs_src:PTree.t (globdef Fundef_src V_src))
+          (defs_tgt:PTree.t (globdef Fundef_tgt V_tgt))
+          (g_src:Fundef_src) (g_tgt:Fundef_tgt): Prop :=
 | globfun_sim_i
     f_src f_tgt
     (Hsrc: fundef_src_dec g_src = inl f_src)
     (Htgt: fundef_tgt_dec g_tgt = inl f_tgt)
-    (Hsim: F_sim f_src f_tgt)
+    (Hsim: forall fdefs_src fdefs_tgt
+                  (Hfdefs_src: globdefs_linkeq fundef_src_dec defs_src fdefs_src)
+                  (Hfdefs_tgt: globdefs_linkeq fundef_tgt_dec defs_tgt fdefs_tgt),
+             F_sim fdefs_src fdefs_tgt f_src f_tgt)
 | globfun_sim_e
     ef_src ef_tgt (Hef: transf_EF ef_src = OK ef_tgt)
     (Hsrc: fundef_src_dec g_src = inr ef_src)
     (Htgt: fundef_tgt_dec g_tgt = inr ef_tgt)
 .
 
-Inductive globdef_sim: forall (g_src:globdef Fundef_src V_src) (g_tgt:globdef Fundef_tgt V_tgt), Prop :=
+Inductive globdef_sim
+          (defs_src:PTree.t (globdef Fundef_src V_src))
+          (defs_tgt:PTree.t (globdef Fundef_tgt V_tgt)):
+  forall (g_src:globdef Fundef_src V_src) (g_tgt:globdef Fundef_tgt V_tgt), Prop :=
 | globdef_sim_fun
-    f_src f_tgt (Hf: globfun_sim f_src f_tgt):
-    globdef_sim (Gfun f_src) (Gfun f_tgt)
+    f_src f_tgt (Hf: globfun_sim defs_src defs_tgt f_src f_tgt):
+    globdef_sim defs_src defs_tgt (Gfun f_src) (Gfun f_tgt)
 | globdef_sim_var
     v_src v_tgt (Hv: transf_globvar transf_V v_src = OK v_tgt):
-    globdef_sim (Gvar v_src) (Gvar v_tgt)
+    globdef_sim defs_src defs_tgt (Gvar v_src) (Gvar v_tgt)
 .
 
 Definition globdefs_sim
@@ -119,7 +68,7 @@ Definition globdefs_sim
   Prop :=
   forall i,
     match PTree.get i defs_src, PTree.get i defs_tgt with
-      | Some g1, Some g2 => globdef_sim g1 g2
+      | Some g1, Some g2 => globdef_sim defs_src defs_tgt g1 g2
       | None, None => True
       | _, _ => False
     end.
@@ -131,11 +80,15 @@ Definition globdef_list_sim
   list_forall2
     (fun g_src g_tgt =>
        fst g_src = fst g_tgt /\
-       globdef_sim (snd g_src) (snd g_tgt))
+       globdef_sim
+         (PTree.unelements defs_src)
+         (PTree.unelements defs_tgt)
+         (snd g_src) (snd g_tgt))
     defs_src defs_tgt.
 
 Definition program_sim
-           (p_src:program Fundef_src V_src) (p_tgt:program Fundef_tgt V_tgt): Prop :=
+           (p_src:program Fundef_src V_src)
+           (p_tgt:program Fundef_tgt V_tgt): Prop :=
   globdef_list_sim p_src.(prog_defs) p_tgt.(prog_defs) /\
   p_src.(prog_main) = p_tgt.(prog_main).
 
@@ -149,9 +102,11 @@ Proof.
   - exploit Hsim. instantiate (1 := i). rewrite H. intro X.
     destruct (defs_tgt ! i) eqn:Hi_tgt; [|inv X].
     eexists. split; eauto.
+    admit. (* TODO: PTree.elements, PTree.unelements *)
   - exploit Hsim. instantiate (1 := i). rewrite H. intro X.
     destruct (defs_src ! i) eqn:Hi_src; [|inv X].
     eexists. split; eauto.
+    admit. (* TODO: PTree.elements, PTree.unelements *)
 Qed.
 
 Lemma globdef_list_sim_globdefs_sim
@@ -160,9 +115,15 @@ Lemma globdef_list_sim_globdefs_sim
       (Hsim: globdef_list_sim defs_src defs_tgt):
   globdefs_sim (PTree.unelements defs_src) (PTree.unelements defs_tgt).
 Proof.
+  unfold globdefs_sim, globdef_list_sim in *.
+  revert Hsim.
+  generalize (PTree.unelements defs_tgt) at 1 3 as defs_tgt'.
+  generalize (PTree.unelements defs_src) at 1 3 as defs_src'.
+  intros defs_src' defs_tgt' Hsim.
   unfold PTree.unelements. rewrite <- ? fold_left_rev_right.
-  unfold globdef_list_sim in Hsim. apply list_forall2_rev in Hsim.
-  revert Hsim. generalize (rev defs_src) (rev defs_tgt). clear defs_src defs_tgt.
+  apply list_forall2_rev in Hsim. revert Hsim.
+  generalize (rev defs_src) (rev defs_tgt).
+  clear defs_src defs_tgt.
   induction l; intros l2 H; inv H; simpl.
   { intro. rewrite ? PTree.gempty. auto. }
   destruct H2, a, b1. simpl in *. subst.
@@ -170,6 +131,8 @@ Proof.
   apply IHl. auto.
 Qed.
 
+
+(** properties of linking on simulation *)
 Ltac simplify_decs :=
   repeat
     match goal with
@@ -194,8 +157,12 @@ Lemma link_globdefs_sim
     link_globdefs fundef_tgt_dec EF_tgt_dec V_tgt_dec defs1_tgt defs2_tgt = Some defs_tgt /\
     globdefs_sim defs_src defs_tgt.
 Proof.
+  generalize (link_globdefs_linkeq_l _ _ _ _ _ Hdefs_src). intro Hle1_src.
+  generalize (link_globdefs_linkeq_r _ _ _ _ _ Hdefs_src). intro Hle2_src.
   destruct (link_globdefs fundef_tgt_dec EF_tgt_dec V_tgt_dec defs1_tgt defs2_tgt) eqn:Hdefs_tgt.
-  { eexists. split; [eauto|].
+  { generalize (link_globdefs_linkeq_l _ _ _ _ _ Hdefs_tgt). intro Hle1_tgt.
+    generalize (link_globdefs_linkeq_r _ _ _ _ _ Hdefs_tgt). intro Hle2_tgt.
+    eexists. split; [eauto|].
     intro i. rename t into defs_tgt.
     eapply gtlink_globdefs in Hdefs_src. instantiate (1 := i) in Hdefs_src.
     eapply gtlink_globdefs in Hdefs_tgt. instantiate (1 := i) in Hdefs_tgt.
@@ -203,22 +170,36 @@ Proof.
     destruct (defs1_src ! i) eqn:Hi1_src, (defs2_src ! i) eqn:Hi2_src, (defs_src ! i) eqn:Hi_src; subst; try (inv Hdefs_src; fail);
     destruct (defs1_tgt ! i) eqn:Hi1_tgt, (defs2_tgt ! i) eqn:Hi2_tgt, (defs_tgt ! i) eqn:Hi_tgt; subst; try (inv Hdefs_tgt; fail);
     try (inv H1; fail); try (inv H2; fail); auto.
-    destruct Hdefs_src as [[]|[]], Hdefs_tgt as [[]|[]]; subst; auto.
-    { inv H; inv H1; inv H2; inv H3; inv Hv; inv Hv0; try inv Hf; try inv Hf0; simplify_decs.
-      { repeat constructor. eapply globfun_sim_e; eauto. }
-      { constructor. destruct v1, v2. simpl in *. subst.
-        unfold transf_globvar in *. simpl in *.
-        destruct (transf_V gvar_info0); inv H0. simpl in *.
-        inv Hv1. inv Hv2. simpl in *. subst. auto.
+    { destruct Hdefs_src as [[]|[]], Hdefs_tgt as [[]|[]]; subst; auto.
+      { inv H; inv H1; inv H2; inv H3; inv Hv; inv Hv0; try inv Hf; try inv Hf0; simplify_decs.
+        { repeat constructor. eapply globfun_sim_i; eauto.
+          intros. apply Hsim; etransitivity; eauto.
+        }
+        { repeat constructor. eapply globfun_sim_e; eauto. }
+        { constructor. destruct v1, v2. simpl in *. subst.
+          unfold transf_globvar in *. simpl in *.
+          destruct (transf_V gvar_info0); inv H0. simpl in *.
+          inv Hv1. inv Hv2. simpl in *. subst. auto.
+        }
       }
+      { inv H; inv H1; inv H2; inv H3; inv Hv; inv Hv0; try inv Hf; try inv Hf0; simplify_decs.
+        { repeat constructor. eapply globfun_sim_e; eauto. }
+        { constructor. destruct v1, v2. simpl in *. subst.
+          unfold transf_globvar in *. simpl in *.
+          destruct (transf_V gvar_info0); inv H0. simpl in *.
+          inv Hv1. inv Hv2. simpl in *. subst. auto.
+        }
+      }
+      { admit. (* TODO *) }
+      { admit. (* TODO *) }
     }
-    { inv H; inv H1; inv H2; inv H3; inv Hv; inv Hv0; try inv Hf; try inv Hf0; simplify_decs.
-      { repeat constructor. eapply globfun_sim_e; eauto. }
-      { constructor. destruct v1, v2. simpl in *. subst.
-        unfold transf_globvar in *. simpl in *.
-        destruct (transf_V gvar_info0); inv H0. simpl in *.
-        inv Hv1. inv Hv2. simpl in *. subst. auto.
-      }
+    { inv H1; constructor; auto.
+      inv Hf; [eapply globfun_sim_i|eapply globfun_sim_e]; eauto.
+      intros. apply Hsim; etransitivity; eauto.
+    }
+    { inv H2; constructor; auto.
+      inv Hf; [eapply globfun_sim_i|eapply globfun_sim_e]; eauto.
+      intros. apply Hsim; etransitivity; eauto.
     }
   }
   { apply gflink_globdefs in Hdefs_tgt.
@@ -302,15 +283,19 @@ Proof.
   split; auto.
 Qed.
 
-
 Section INITIALIZE.
 
 Variable (p_src: program Fundef_src V_src).
 Variable (p_tgt: program Fundef_tgt V_tgt).
 Variable (Hp: program_sim p_src p_tgt).
 
+Definition match_fundef :=
+  globfun_sim
+    (PTree.unelements p_src.(prog_defs))
+    (PTree.unelements p_tgt.(prog_defs)).
+
 Lemma program_sim_match_program:
-  match_program globfun_sim V_sim nil p_src.(prog_main) p_src p_tgt.
+  match_program match_fundef V_sim nil p_src.(prog_main) p_src p_tgt.
 Proof.
   destruct Hp as [Hdefs Hmain].
   unfold match_program. split; eauto.
@@ -326,7 +311,7 @@ Proof.
 Qed.
 
 Lemma globalenvs_match:
-  Genv.match_genvs globfun_sim V_sim nil (Genv.globalenv p_src) (Genv.globalenv p_tgt).
+  Genv.match_genvs match_fundef V_sim nil (Genv.globalenv p_src) (Genv.globalenv p_tgt).
 Proof.
   generalize program_sim_match_program. intro Hmatch.
   eapply Genv.globalenvs_match; eauto; auto.
@@ -353,7 +338,7 @@ Theorem find_funct_ptr_match:
   forall (b : block) (f : Fundef_src),
   Genv.find_funct_ptr (Genv.globalenv p_src) b = Some f ->
   exists tf : Fundef_tgt,
-  Genv.find_funct_ptr (Genv.globalenv p_tgt) b = Some tf /\ globfun_sim f tf.
+  Genv.find_funct_ptr (Genv.globalenv p_tgt) b = Some tf /\ match_fundef f tf.
 Proof.
   generalize program_sim_match_program. intros Hmatch b f Hf.
   eapply Genv.find_funct_ptr_match; eauto.
