@@ -11,18 +11,19 @@ Set Implicit Arguments.
 (* Future programs of a partial program after linkings *)
 Section Linkeq.
 
-Variable (F V:Type).  
+Variable (Fundef F EF V:Type).
+Variable (fundef_dec: FundefDec Fundef F EF).
 
 (** `linkeq a b` means `b` is a possible future global definition of `a` after linkings *)
 
-Definition globfun_linkeq (f1 f2:AST.fundef F): Prop :=
-  f1 = f2 \/ globfun_linkable f1 f2.
+Definition globfun_linkeq (f1 f2:Fundef): Prop :=
+  f1 = f2 \/ globfun_linkable fundef_dec f1 f2.
 
 
 Definition globvar_linkeq (v1 v2:globvar V): Prop :=
   v1 = v2 \/ globvar_linkable v1 v2.
 
-Inductive globdef_linkeq: forall (g1 g2:globdef (AST.fundef F) V), Prop :=
+Inductive globdef_linkeq: forall (g1 g2:globdef Fundef V), Prop :=
 | globdef_linkeq_fun
     f1 f2 (Hv: globfun_linkeq f1 f2):
     globdef_linkeq (Gfun f1) (Gfun f2)
@@ -31,7 +32,7 @@ Inductive globdef_linkeq: forall (g1 g2:globdef (AST.fundef F) V), Prop :=
     globdef_linkeq (Gvar v1) (Gvar v2)
 .
 
-Definition globaldefs_linkeq (defs1 defs2:PTree.t (globdef (AST.fundef F) V)): Prop :=
+Definition globaldefs_linkeq (defs1 defs2:PTree.t (globdef Fundef V)): Prop :=
   forall var def1 (Hsrc: PTree.get var defs1 = Some def1),
   exists def2,
     PTree.get var defs2 = Some def2 /\
@@ -50,13 +51,13 @@ Next Obligation.
   { left. auto. }
   { right. auto. }
   { right. auto. }
-  inv H; inv H0.
-  - right. apply globvar_linkable_ei.
-  - right. apply globvar_linkable_ee.
+  inv H; inv H0; rewrite H2 in H3; inv H3.
+  - right. eapply globfun_linkable_ei; eauto.
+  - right. eapply globfun_linkable_ee; eauto.
 Qed.
 
 Lemma globdef_linkable_linkeq
-      g1 g2 (Hlinkable: globdef_linkable g1 g2):
+      g1 g2 (Hlinkable: globdef_linkable fundef_dec g1 g2):
   globdef_linkeq g1 g2.
 Proof.
   inv Hlinkable; constructor; auto.
