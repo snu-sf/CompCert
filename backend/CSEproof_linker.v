@@ -30,6 +30,7 @@ Hypothesis TRANSF: transf_program prog = OK tprog.
 Let ge := Genv.globalenv prog.
 Let tge := Genv.globalenv tprog.
 Let rm := romem_for_program prog.
+Let trm := romem_for_program tprog.
 
 Inductive match_local: state -> state -> Prop :=
   | match_states_intro:
@@ -53,15 +54,6 @@ Inductive match_local: state -> state -> Prop :=
       Mem.extends m m' ->
       match_local (Returnstate s v m)
                   (Returnstate s' v' m').
-
-Ltac TransfInstr :=
-  match goal with
-  | H1: (PTree.get ?pc ?c = Some ?instr), f: function, approx: PMap.t numbering |- _ =>
-      cut ((transf_function' f approx).(fn_code)!pc = Some(transf_instr approx!!pc instr));
-      [ simpl transf_instr
-      | unfold transf_function', transf_code; simpl; rewrite PTree.gmap; 
-        unfold option_map; rewrite H1; reflexivity ]
-  end.
 
 (** The proof of simulation is a case analysis over the transition
   in the source code. *)
