@@ -23,6 +23,8 @@ Require Import CSE.
 Require Import CSEproof.
 Require Import LinkerSpecification.
 Require Import Linkeq ProgramSim.
+Require Import RTLSim MemoryRelation.
+Require Import WFType paco.
 
 Section PRESERVATION.
 
@@ -66,28 +68,268 @@ Hypothesis (Hfprog: program_linkeq (@common_fundef_dec function) prog fprog).
 Hypothesis (Hftprog: program_linkeq (@common_fundef_dec function) tprog ftprog).
 Let rm := romem_for_program prog.
 
-Inductive match_local: state -> state -> Prop :=
+Variable (s s':list stackframe).
+
+Inductive match_local_aux: state -> state -> Prop :=
   | match_states_intro:
-      forall s sp pc rs m s' rs' m' f approx
+      forall sp pc rs m rs' m' f approx
              (ANALYZE: analyze f (vanalyze rm f) = Some approx)
              (SAT: exists valu, numbering_holds valu ge sp rs m approx!!pc)
              (RLD: regs_lessdef rs rs')
              (MEXT: Mem.extends m m'),
-      match_local (State s f sp pc rs m)
-                  (State s' (transf_function' f approx) sp pc rs' m')
+      match_local_aux (State s f sp pc rs m)
+                      (State s' (transf_function' f approx) sp pc rs' m')
   | match_states_call:
-      forall s f tf args m s' args' m',
+      forall f tf args m args' m',
       transf_fundef rm f = OK tf ->
       Val.lessdef_list args args' ->
       Mem.extends m m' ->
-      match_local (Callstate s f args m)
-                  (Callstate s' tf args' m')
+      match_local_aux  (Callstate s f args m)
+                       (Callstate s' tf args' m')
   | match_states_return:
-      forall s s' v v' m m',
+      forall v v' m m',
       Val.lessdef v v' ->
       Mem.extends m m' ->
-      match_local (Returnstate s v m)
-                  (Returnstate s' v' m').
+      match_local_aux  (Returnstate s v m)
+                       (Returnstate s' v' m').
+
+Definition match_local (s1 s1':state): Prop :=
+  match_local_aux s1 s1' /\
+  sound_state fprog s1.
+
+Ltac splits :=
+  repeat match goal with
+           | [|- _ /\ _] => split
+         end.
+
+Ltac TransfInstr :=
+  match goal with
+  | H1: (PTree.get ?pc ?c = Some ?instr), f: function, approx: PMap.t numbering |- _ =>
+      cut ((transf_function' f approx).(fn_code)!pc = Some(transf_instr approx!!pc instr));
+      [ simpl transf_instr
+      | unfold transf_function', transf_code; simpl; rewrite PTree.gmap; 
+        unfold option_map; rewrite H1; reflexivity ]
+  end.
+
+Lemma match_local_state_lsim:
+  match_local <2= state_lsim mrelT_ops_extends ge tge s s' tt tt WF.elt.
+Proof.
+  pcofix CIH. intros s1 s1' [MS SOUND]. pfold.
+  inv MS.
+  { (* normal state *)
+    apply _state_lsim_step. intros. left. exists WF.elt.
+    inv Hst2_src; try (TransfInstr; intro C).
+
+    - (* Inop *)
+      econstructor. exists tt. splits; simpl; auto.
+      + apply plus_one. eapply exec_Inop; eauto.
+      + auto.
+      + right. apply CIH. split.
+        * constructor; auto.
+          eapply analysis_correct_1; eauto. simpl; auto. 
+          unfold transfer; rewrite H7; auto.
+        * eapply sound_step; eauto.
+          constructor; auto.
+
+    - (* Iop *) destruct (is_trivial_op op) eqn:TRIV.
+      + (* unchanged *)
+        exploit eval_operation_lessdef. eapply regs_lessdef_regs; eauto. eauto. eauto.
+        intros [v' [A B]].
+        econstructor; split.
+        eapply exec_Iop with (v := v'); eauto.
+        rewrite <- A. apply eval_operation_preserved. exact symbols_preserved.
+        econstructor; eauto. 
+        eapply analysis_correct_1; eauto. simpl; auto.
+        unfold transfer; rewrite H. 
+        destruct SAT as [valu NH]. eapply add_op_holds; eauto.
+        apply set_reg_lessdef; auto.
+      + (* possibly optimized *)
+        destruct (valnum_regs approx!!pc args) as [n1 vl] eqn:?.
+        destruct SAT as [valu1 NH1].
+        exploit valnum_regs_holds; eauto. intros (valu2 & NH2 & EQ & AG & P & Q).
+        destruct (find_rhs n1 (Op op vl)) as [r|] eqn:?.
+        * (* replaced by move *)
+          exploit find_rhs_sound; eauto. intros (v' & EV & LD). 
+          assert (v' = v) by (inv EV; congruence). subst v'.
+          econstructor; split.
+          eapply exec_Iop; eauto. simpl; eauto.
+          econstructor; eauto. 
+          eapply analysis_correct_1; eauto. simpl; auto.
+          unfold transfer; rewrite H. 
+          eapply add_op_holds; eauto. 
+          apply set_reg_lessdef; auto.
+          eapply Val.lessdef_trans; eauto.
+        * (* possibly simplified *)
+          destruct (reduce operation combine_op n1 op args vl) as [op' args'] eqn:?.
+          assert (RES: eval_operation ge sp op' rs##args' m = Some v).
+          eapply reduce_sound with (sem := fun op vl => eval_operation ge sp op vl m); eauto. 
+          intros; eapply combine_op_sound; eauto.
+          exploit eval_operation_lessdef. eapply regs_lessdef_regs; eauto. eauto. eauto.
+          intros [v' [A B]].
+          econstructor; split.
+          eapply exec_Iop with (v := v'); eauto.   
+          rewrite <- A. apply eval_operation_preserved. exact symbols_preserved.
+          econstructor; eauto.
+          eapply analysis_correct_1; eauto. simpl; auto.
+          unfold transfer; rewrite H. 
+          eapply add_op_holds; eauto. 
+          apply set_reg_lessdef; auto. 
+
+    - (* Iload *)
+      destruct (valnum_regs approx!!pc args) as [n1 vl] eqn:?.
+      destruct SAT as [valu1 NH1].
+      exploit valnum_regs_holds; eauto. intros (valu2 & NH2 & EQ & AG & P & Q).
+      destruct (find_rhs n1 (Load chunk addr vl)) as [r|] eqn:?.
+      + (* replaced by move *)
+        exploit find_rhs_sound; eauto. intros (v' & EV & LD). 
+        assert (v' = v) by (inv EV; congruence). subst v'.
+        econstructor; split.
+        eapply exec_Iop; eauto. simpl; eauto.
+        econstructor; eauto. 
+        eapply analysis_correct_1; eauto. simpl; auto.
+        unfold transfer; rewrite H. 
+        eapply add_load_holds; eauto. 
+        apply set_reg_lessdef; auto. eapply Val.lessdef_trans; eauto.
+      + (* load is preserved, but addressing is possibly simplified *)
+        destruct (reduce addressing combine_addr n1 addr args vl) as [addr' args'] eqn:?.
+        assert (ADDR: eval_addressing ge sp addr' rs##args' = Some a).
+        { eapply reduce_sound with (sem := fun addr vl => eval_addressing ge sp addr vl); eauto. 
+          intros; eapply combine_addr_sound; eauto. }
+        exploit eval_addressing_lessdef. apply regs_lessdef_regs; eauto. eexact ADDR.
+        intros [a' [A B]].
+        assert (ADDR': eval_addressing tge sp addr' rs'##args' = Some a').
+        { rewrite <- A. apply eval_addressing_preserved. exact symbols_preserved. }
+        exploit Mem.loadv_extends; eauto. 
+        intros [v' [X Y]].
+        econstructor; split.
+        eapply exec_Iload; eauto.
+        econstructor; eauto.
+        eapply analysis_correct_1; eauto. simpl; auto. 
+        unfold transfer; rewrite H. 
+        eapply add_load_holds; eauto.
+        apply set_reg_lessdef; auto.
+
+    - (* Istore *)
+      destruct (valnum_regs approx!!pc args) as [n1 vl] eqn:?.
+      destruct SAT as [valu1 NH1].
+      exploit valnum_regs_holds; eauto. intros (valu2 & NH2 & EQ & AG & P & Q).
+      destruct (reduce addressing combine_addr n1 addr args vl) as [addr' args'] eqn:?.
+      assert (ADDR: eval_addressing ge sp addr' rs##args' = Some a).
+      { eapply reduce_sound with (sem := fun addr vl => eval_addressing ge sp addr vl); eauto. 
+        intros; eapply combine_addr_sound; eauto. }
+      exploit eval_addressing_lessdef. apply regs_lessdef_regs; eauto. eexact ADDR.
+      intros [a' [A B]].
+      assert (ADDR': eval_addressing tge sp addr' rs'##args' = Some a').
+      { rewrite <- A. apply eval_addressing_preserved. exact symbols_preserved. }
+      exploit Mem.storev_extends; eauto. intros [m'' [X Y]].
+      econstructor; split.
+      eapply exec_Istore; eauto.
+      econstructor; eauto.
+      eapply analysis_correct_1; eauto. simpl; auto. 
+      unfold transfer; rewrite H.
+      inv SOUND.
+      eapply add_store_result_hold; eauto. 
+      eapply kill_loads_after_store_holds; eauto.
+
+    - (* Icall *)
+      exploit find_function_translated; eauto. intros [tf [FIND' TRANSF']]. 
+      econstructor; split.
+      eapply exec_Icall; eauto.
+      apply sig_preserved; auto.
+      econstructor; eauto. 
+      econstructor; eauto. 
+      intros. eapply analysis_correct_1; eauto. simpl; auto. 
+      unfold transfer; rewrite H. 
+      exists (fun _ => Vundef); apply empty_numbering_holds.
+      apply regs_lessdef_regs; auto.
+
+    - (* Itailcall *)
+      exploit find_function_translated; eauto. intros [tf [FIND' TRANSF']]. 
+      exploit Mem.free_parallel_extends; eauto. intros [m'' [A B]].
+      econstructor; split.
+      eapply exec_Itailcall; eauto.
+      apply sig_preserved; auto.
+      econstructor; eauto. 
+      apply regs_lessdef_regs; auto.
+
+    - (* Ibuiltin *)
+      exploit external_call_mem_extends; eauto.
+      instantiate (1 := rs'##args). apply regs_lessdef_regs; auto.
+      intros (v' & m1' & P & Q & R & S).
+      econstructor; split.
+      eapply exec_Ibuiltin; eauto. 
+      eapply external_call_symbols_preserved; eauto.
+      exact symbols_preserved. exact varinfo_preserved.
+      econstructor; eauto.
+      eapply analysis_correct_1; eauto. simpl; auto.
+      * unfold transfer; rewrite H.
+        destruct SAT as [valu NH].
+        assert (CASE1: exists valu, numbering_holds valu ge sp (rs#res <- v) m' empty_numbering).
+        { exists valu; apply empty_numbering_holds. }
+        assert (CASE2: m' = m -> exists valu, numbering_holds valu ge sp (rs#res <- v) m' (set_unknown approx#pc res)).
+        { intros. rewrite H1. exists valu. apply set_unknown_holds; auto. }
+        assert (CASE3: exists valu, numbering_holds valu ge sp (rs#res <- v) m'
+                                                    (set_unknown (kill_all_loads approx#pc) res)).
+        { exists valu. apply set_unknown_holds. eapply kill_all_loads_hold; eauto. }
+        destruct ef.
+      + apply CASE1.
+      + apply CASE3. 
+      + apply CASE2; inv H0; auto.
+      + apply CASE3.
+      + apply CASE2; inv H0; auto. 
+      + apply CASE3; auto.
+      + apply CASE1.
+      + apply CASE1.
+      + destruct args as [ | rdst args]; auto.
+        destruct args as [ | rsrc args]; auto. 
+        destruct args; auto.
+        simpl in H0. inv H0. 
+        exists valu. 
+        apply set_unknown_holds. 
+        inv SOUND. eapply add_memcpy_holds; eauto. 
+        eapply kill_loads_after_storebytes_holds; eauto. 
+        eapply Mem.loadbytes_length; eauto. 
+        simpl. apply Ple_refl. 
+      + apply CASE2; inv H0; auto.
+      + apply CASE2; inv H0; auto.
+      + apply CASE1.
+        * apply set_reg_lessdef; auto.
+
+    - (* Icond *)
+      destruct (valnum_regs approx!!pc args) as [n1 vl] eqn:?.
+      elim SAT; intros valu1 NH1.
+      exploit valnum_regs_holds; eauto. intros (valu2 & NH2 & EQ & AG & P & Q).
+      destruct (reduce condition combine_cond n1 cond args vl) as [cond' args'] eqn:?.
+      assert (RES: eval_condition cond' rs##args' m = Some b).
+      { eapply reduce_sound with (sem := fun cond vl => eval_condition cond vl m); eauto. 
+        intros; eapply combine_cond_sound; eauto. }
+      econstructor; split.
+      eapply exec_Icond; eauto. 
+      eapply eval_condition_lessdef; eauto. apply regs_lessdef_regs; auto.
+      econstructor; eauto.
+      destruct b; eapply analysis_correct_1; eauto; simpl; auto;
+      unfold transfer; rewrite H; auto.
+
+    - (* Ijumptable *)
+      generalize (RLD arg); rewrite H0; intro LD; inv LD.
+      econstructor; split.
+      eapply exec_Ijumptable; eauto. 
+      econstructor; eauto.
+      eapply analysis_correct_1; eauto. simpl. eapply list_nth_z_in; eauto.
+      unfold transfer; rewrite H; auto.
+
+    - (* Ireturn *)
+      exploit Mem.free_parallel_extends; eauto. intros [m'' [A B]].
+      econstructor; split.
+      eapply exec_Ireturn; eauto.
+      econstructor; eauto.
+      destruct or; simpl; auto. 
+  }
+  { (* call state *)
+  }
+  { (* return state *)
+  }
+Qed.
 
 (** The proof of simulation is a case analysis over the transition
   in the source code. TODO *)

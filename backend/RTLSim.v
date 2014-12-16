@@ -15,6 +15,8 @@ Require Import Registers.
 Require Import RTL.
 Require Import MemoryRelation.
 
+Set Implicit Arguments.
+
 Definition state_mem (st:state): mem :=
   match st with
     | State _ _ _ _ _ m => m
@@ -39,9 +41,6 @@ Variable (mrel_entry:mrelT).
 Inductive _state_lsim
           (state_lsim: mrelT -> WF.t -> state -> state -> Prop)
           (mrel:mrelT) (i:WF.t) (st_src st_tgt:state): Prop :=
-| _state_lsim_error
-    st2_src (Hst_src: star step ge_src st_src E0 st2_src)
-    (Hnostep: nostep step ge_src st2_src)
 | _state_lsim_return
     st2_src (Hst_src: star step ge_src st_src E0 st2_src)
     val2_src mem2_src (Hst2_src: st2_src = Returnstate cs_entry_src val2_src mem2_src)
@@ -70,17 +69,19 @@ Inductive _state_lsim
          state_lsim mrel3 i3 st3_src st3_tgt)
 
 | _state_lsim_step
-    (Hprogress: exists evt st2_tgt, step ge_tgt st_tgt evt st2_tgt)
     (Hpreserve:
-       forall evt st3_tgt (Hst3_tgt: step ge_tgt st_tgt evt st3_tgt),
-       exists st2_src,
-         star step ge_src st_src E0 st2_src /\
-       exists i3 st3_src,
-         indexed_step step ge_src (Indexed.mk i st2_src) evt (Indexed.mk i3 st3_src) /\
-       exists (mrel3:mrelT),
-         mrelT_ops.(le) mrel mrel3 /\
-         mrelT_ops.(sem) mrel3 (state_mem st3_src) (state_mem st3_tgt) /\
-         state_lsim mrel3 i3 st3_src st3_tgt)
+       forall evt st2_src (Hst2_src: step ge_src st_src evt st2_src),
+         (exists i2 st2_tgt (mrel2:mrelT),
+            plus step ge_tgt st_tgt evt st2_tgt /\
+            mrelT_ops.(le) mrel mrel2 /\
+            mrelT_ops.(sem) mrel2 (state_mem st2_src) (state_mem st2_tgt) /\
+            state_lsim mrel2 i2 st2_src st2_tgt) \/
+         (exists i2 (mrel2:mrelT),
+            WF.rel i2 i /\
+            evt = E0 /\
+            mrelT_ops.(le) mrel mrel2 /\
+            mrelT_ops.(sem) mrel2 (state_mem st2_src) (state_mem st_tgt) /\
+            state_lsim mrel2 i2 st2_src st_tgt))
 .
 Hint Constructors _state_lsim.
 
@@ -92,9 +93,13 @@ Proof.
     intros [i3 Hsim]. exists i3. auto.
   - eapply _state_lsim_step; eauto.
     intros. exploit Hpreserve; eauto.
-    intros [st2_src [Hst2_src [i3 [st3_src [Hst3_src [mrel3 [Hmrel3_le [Hmrel3 Hr]]]]]]]].
-    eexists. split; eauto.
-    eexists. eexists. split; eauto.
+    intros [|]; intros; [left|right].
+    + destruct H as [i2 [st2_tgt [mrel2 [Hstep [Hle [Hmrel Hsim]]]]]].
+      eexists. eexists. eexists.
+      repeat split; eauto.
+    + destruct H as [i2 [mrel2 [Hi2 [Hevt [Hle [Hmrel Hsim]]]]]].
+      eexists. eexists.
+      repeat split; eauto.
 Qed.
 
 Definition state_lsim: _ -> _ -> _ -> _ -> Prop :=
