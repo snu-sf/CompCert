@@ -17,9 +17,17 @@ Require Import ValueDomain.
 Require Import ValueAOp.
 Require Import Liveness.
 Require Import ValueAnalysis.
-Require Import ValueDomain_linker.
 
 Set Implicit Arguments.
+
+Inductive romem_le (rm1 rm2:romem): Prop :=
+| romem_le_intro
+    (H: forall b ab (Hrm1: rm1 ! b = Some ab),
+          rm2 ! b = Some ab)
+.
+
+Lemma romem_le_refl rm: romem_le rm rm.
+Proof. constructor. intros. auto. Qed.
 
 (** ** Semantic invariant *)
 
@@ -29,12 +37,9 @@ Variable prog: program.
 
 Let ge : genv := Genv.globalenv prog.
 
-Let rm := romem_for_program prog.
-
 Section PAST.
 
-Variable (prm:romem).
-Hypothesis (Hprm: romem_le prm rm).
+Variable (rm:romem).
 
 Inductive sound_stack: block_classification -> list stackframe -> mem -> block -> Prop :=
   | sound_stack_nil: forall bc m bound,
@@ -48,7 +53,7 @@ Inductive sound_stack: block_classification -> list stackframe -> mem -> block -
         (SP': bc' sp = BCstack)
         (SAME: forall b, Plt b bound' -> b <> sp -> bc b = bc' b)
         (GE: genv_match bc' ge)
-        (AN: VA.ge (analyze prm f)!!pc (VA.State (AE.set res Vtop ae) mafter_public_call))
+        (AN: VA.ge (analyze rm f)!!pc (VA.State (AE.set res Vtop ae) mafter_public_call))
         (EM: ematch bc' e ae),
       sound_stack bc (Stackframe res f (Vptr sp Int.zero) pc e :: stk) m bound
   | sound_stack_private_call:
@@ -60,7 +65,7 @@ Inductive sound_stack: block_classification -> list stackframe -> mem -> block -
         (SP': bc' sp = BCstack)
         (SAME: forall b, Plt b bound' -> b <> sp -> bc b = bc' b)
         (GE: genv_match bc' ge)
-        (AN: VA.ge (analyze prm f)!!pc (VA.State (AE.set res (Ifptr Nonstack) ae) (mafter_private_call am)))
+        (AN: VA.ge (analyze rm f)!!pc (VA.State (AE.set res (Ifptr Nonstack) ae) (mafter_private_call am)))
         (EM: ematch bc' e ae)
         (CONTENTS: bmatch bc' m sp am.(am_stack)),
       sound_stack bc (Stackframe res f (Vptr sp Int.zero) pc e :: stk) m bound.
@@ -69,7 +74,7 @@ Inductive sound_state: state -> Prop :=
   | sound_regular_state:
       forall s f sp pc e m ae am bc
         (STK: sound_stack bc s m sp)
-        (AN: (analyze prm f)!!pc = VA.State ae am)
+        (AN: (analyze rm f)!!pc = VA.State ae am)
         (EM: ematch bc e ae)
         (RO: romatch bc m rm)
         (MM: mmatch bc m am)
@@ -199,10 +204,10 @@ Qed.
 
 Lemma sound_succ_state:
   forall bc pc ae am instr ae' am'  s f sp pc' e' m',
-  (analyze prm f)!!pc = VA.State ae am ->
+  (analyze rm f)!!pc = VA.State ae am ->
   f.(fn_code)!pc = Some instr ->
   In pc' (successors_instr instr) ->
-  transfer f prm pc ae am = VA.State ae' am' ->
+  transfer f rm pc ae am = VA.State ae' am' ->
   ematch bc e' ae' ->
   mmatch bc m' am' ->
   romatch bc m' rm ->
@@ -246,9 +251,7 @@ Proof.
 - (* load *)
   eapply sound_succ_state; eauto. simpl; auto. 
   unfold transfer; rewrite H. eauto. 
-  apply ematch_update; auto. eapply vmatch_ge.
-  apply vge_loadv_rm; eauto.
-  eapply loadv_sound; eauto with va.
+  apply ematch_update; auto. eapply loadv_sound; eauto with va. 
   eapply eval_static_addressing_sound; eauto with va.
 
 - (* store *)
@@ -260,7 +263,7 @@ Proof.
   eapply sound_stack_storev; eauto. 
 
 - (* call *)
-  assert (TR: transfer f prm pc ae am = transfer_call ae am args res).
+  assert (TR: transfer f rm pc ae am = transfer_call ae am args res).
   { unfold transfer; rewrite H; auto. }
   unfold transfer_call in TR. 
   destruct (pincl (am_nonstack am) Nonstack && 
@@ -304,7 +307,7 @@ Proof.
 
 - (* builtin *)
   assert (SPVALID: Plt sp0 (Mem.nextblock m)) by (eapply mmatch_below; eauto with va).
-  assert (TR: transfer f prm pc ae am = transfer_builtin ae am prm ef args res).
+  assert (TR: transfer f rm pc ae am = transfer_builtin ae am rm ef args res).
   { unfold transfer; rewrite H; auto. }
   unfold transfer_builtin in TR.
   exploit classify_builtin_sound; eauto. destruct (classify_builtin ef args ae). 
@@ -321,7 +324,7 @@ Proof.
   * (* normal memory access *)
     exploit loadv_sound; eauto. simpl; eauto. intros V.
     destruct (va_strict tt). 
-    apply vmatch_lub_l. eapply vmatch_ge; eauto. apply vge_loadv_rm; auto.
+    apply vmatch_lub_l. auto.
     eapply vnormalize_cast; eauto. eapply vmatch_top; eauto. 
 + (* volatile store *)
   intros (addr & src & VSTORE & VADDR & VSRC). inv VSTORE. inv H7.
@@ -342,9 +345,7 @@ Proof.
   eapply storebytes_sound; eauto. 
   apply match_aptr_of_aval; auto. 
   eapply Mem.loadbytes_length; eauto. 
-  intros. eapply pmatch_ge. apply pge_loadbytes_rm; eauto.
-  eapply loadbytes_sound; eauto.
-  apply match_aptr_of_aval; auto. 
+  intros. eapply loadbytes_sound; eauto. apply match_aptr_of_aval; auto. 
   eapply romatch_storebytes; eauto. 
   eapply sound_stack_storebytes; eauto. 
 + (* annot *)
@@ -429,7 +430,7 @@ Proof.
 - (* internal function *)
   exploit allocate_stack; eauto. 
   intros (bc' & A & B & C & D & E & F & G).
-  exploit (analyze_entrypoint prm f args m' bc'); eauto. 
+  exploit (analyze_entrypoint rm f args m' bc'); eauto. 
   intros (ae & am & AN & EM & MM').
   econstructor; eauto. 
   erewrite Mem.alloc_result by eauto. 
@@ -453,7 +454,7 @@ Proof.
    exploit return_from_public_call; eauto. 
    intros; rewrite SAME; auto.
    intros (bc1 & A & B & C & D & E & F & G). 
-   destruct (analyze prm f)#pc as [ |ae' am'] eqn:EQ; simpl in AN; try contradiction. destruct AN as [A1 A2].
+   destruct (analyze rm f)#pc as [ |ae' am'] eqn:EQ; simpl in AN; try contradiction. destruct AN as [A1 A2].
    eapply sound_regular_state with (bc := bc1); eauto.
    apply sound_stack_exten with bc'; auto.
    eapply ematch_ge; eauto. apply ematch_update. auto. auto. 
@@ -461,7 +462,7 @@ Proof.
    exploit return_from_private_call; eauto. 
    intros; rewrite SAME; auto.
    intros (bc1 & A & B & C & D & E & F & G). 
-   destruct (analyze prm f)#pc as [ |ae' am'] eqn:EQ; simpl in AN; try contradiction. destruct AN as [A1 A2].
+   destruct (analyze rm f)#pc as [ |ae' am'] eqn:EQ; simpl in AN; try contradiction. destruct AN as [A1 A2].
    eapply sound_regular_state with (bc := bc1); eauto.
    apply sound_stack_exten with bc'; auto.
    eapply ematch_ge; eauto. apply ematch_update. auto. auto.
@@ -472,7 +473,7 @@ End PAST.
 Inductive sound_state_ext (st:state): Prop :=
 | sound_state_ext_intro
     (Hsound:
-       forall prm (Hprm: romem_le prm rm),
+       forall prm (Hprm: romem_le prm (romem_for_program prog)),
        sound_state prm st)
 .
 
@@ -498,7 +499,7 @@ Proof.
   apply sound_call_state with bc. 
 - constructor. 
 - simpl; tauto. 
-- exact RM.
+- repeat intro. inv Hprm. exploit H5; eauto.
 - apply mmatch_inj_top with m0.
   replace (inj_of_bc bc) with (Mem.flat_inj (Mem.nextblock m0)).
   eapply Genv.initmem_inject; eauto.
