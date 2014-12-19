@@ -21,7 +21,6 @@ Require Import CombineOp.
 Require Import CombineOpproof.
 Require Import CSE.
 Require Import CSEproof.
-Require Import ValueDomain_linker.
 Require Import ValueAnalysis_linker.
 Require Import LinkerSpecification.
 Require Import Linkeq ProgramSim.
@@ -49,22 +48,6 @@ Let globfun_weak_sim :=
 Let ge := Genv.globalenv fprog.
 Let tge := Genv.globalenv ftprog.
 
-Lemma find_function_translated:
-  forall ros rs fd rs',
-  find_function ge ros rs = Some fd ->
-  regs_lessdef rs rs' ->
-  exists tfd, find_function tge ros rs' = Some tfd /\ globfun_weak_sim fd tfd.
-Proof.
-  unfold find_function; intros; destruct ros.
-- specialize (H0 r). inv H0.
-  eapply find_funct_match; eauto.
-  rewrite <- H2 in H; discriminate.
-- unfold ge, tge in *. erewrite find_symbol_match; eauto.
-  destruct (Genv.find_symbol (Genv.globalenv fprog) i).
-  eapply find_funct_ptr_match; eauto.
-  discriminate.
-Qed.
-
 Variable prog: program.
 Variable tprog: program.
 Hypothesis TRANSF: transf_program prog = OK tprog.
@@ -90,6 +73,40 @@ Proof.
   - inv H.
 Qed.
 
+Lemma funct_ptr_translated:
+  forall (b: block) (f: RTL.fundef),
+  Genv.find_funct_ptr ge b = Some f ->
+  exists tf, Genv.find_funct_ptr tge b = Some tf /\ fundef_sim ge tge f tf.
+Proof.
+  intros. exploit find_funct_ptr_match; eauto. intros [tf [Htf Hsim]].
+  exists tf. split; auto. econstructor; eauto.
+Qed.
+
+Lemma functions_translated:
+  forall (v: val) (f: RTL.fundef),
+  Genv.find_funct ge v = Some f ->
+  exists tf, Genv.find_funct tge v = Some tf /\ fundef_sim ge tge f tf.
+Proof.
+  unfold Genv.find_funct. destruct v; intros sf Hsf; inv Hsf.
+  destruct (Int.eq_dec i Int.zero); inv H0.
+  apply funct_ptr_translated. auto.
+Qed.
+
+Lemma find_function_translated:
+  forall ros rs fd rs',
+  find_function ge ros rs = Some fd ->
+  regs_lessdef rs rs' ->
+  exists tfd, find_function tge ros rs' = Some tfd /\ fundef_sim ge tge fd tfd.
+Proof.
+  unfold find_function; intros; destruct ros.
+- specialize (H0 r). inv H0.
+  apply functions_translated; auto.
+  rewrite <- H2 in H; discriminate.
+- rewrite symbols_preserved. destruct (Genv.find_symbol ge i).
+  apply funct_ptr_translated; auto.
+  discriminate.
+Qed.
+
 Inductive match_local (s s':list stackframe): state -> state -> Prop :=
   | match_states_intro:
       forall sp pc rs m rs' m' f approx
@@ -102,12 +119,16 @@ Inductive match_local (s s':list stackframe): state -> state -> Prop :=
                   (State s' (transf_function' f approx) sp pc rs' m')
   | match_states_call:
       forall f tf args m args' m',
-      transf_fundef rm f = OK tf ->
+      forall pres psp ppc prs pf papprox prs'
+             (PANALYZE: analyze pf (vanalyze rm pf) = Some papprox)
+             (PSAT: forall v m, exists valu, numbering_holds valu ge psp (prs#pres <- v) m papprox!!ppc)
+             (PRLD: regs_lessdef prs prs'),
+      fundef_sim ge tge f tf ->
       Val.lessdef_list args args' ->
       Mem.extends m m' ->
       match_local s s'
-                  (Callstate s f args m)
-                  (Callstate s' tf args' m')
+                  (Callstate (Stackframe pres pf psp ppc prs :: s) f args m)
+                  (Callstate (Stackframe pres (transf_function' pf papprox) psp ppc prs' :: s') tf args' m')
   | match_states_return:
       forall v v' m m',
       Val.lessdef v v' ->
@@ -128,6 +149,7 @@ Ltac TransfInstr :=
 
 Lemma transf_step_correct:
   forall s s' s1 t s2, step ge s1 t s2 ->
+  forall (Hnormal: is_true (is_normal_state s1)),
   forall s1' (MS: match_local s s' s1 s1') (SOUND: sound_state_ext fprog s1),
   exists s2', step tge s1' t s2' /\ match_local s s' s2 s2'.
 Proof.
@@ -242,26 +264,24 @@ Proof.
   eapply kill_loads_after_store_holds; eauto.
 
 - (* Icall *)
-  admit.
-  (* exploit find_function_translated; eauto. intros [tf [FIND' TRANSF']].  *)
-  (* econstructor; split. *)
-  (* eapply exec_Icall; eauto. *)
-  (* apply sig_preserved; auto. *)
-  (* econstructor; eauto.  *)
-  (* econstructor; eauto.  *)
-  (* intros. eapply analysis_correct_1; eauto. simpl; auto.  *)
-  (* unfold transfer; rewrite H.  *)
-  (* exists (fun _ => Vundef); apply empty_numbering_holds. *)
-  (* apply regs_lessdef_regs; auto. *)
+  exploit find_function_translated; eauto. intros [tf [FIND' TRANSF']].
+  econstructor; split.
+  eapply exec_Icall; eauto.
+  admit. (* apply sig_preserved; auto. *)
+  econstructor; eauto.
+  intros. eapply analysis_correct_1; eauto. simpl; auto.
+  unfold transfer; rewrite H.
+  exists (fun _ => Vundef); apply empty_numbering_holds.
+  apply regs_lessdef_regs; auto.
 
 - (* Itailcall *)
+  exploit find_function_translated; eauto. intros [tf [FIND' TRANSF']].
+  exploit Mem.free_parallel_extends; eauto. intros [m'' [A B]].
+  econstructor; split.
+  eapply exec_Itailcall; eauto.
+  admit. (* apply sig_preserved; auto. *)
   admit.
-  (* exploit find_function_translated; eauto. intros [tf [FIND' TRANSF']].  *)
-  (* exploit Mem.free_parallel_extends; eauto. intros [m'' [A B]]. *)
-  (* econstructor; split. *)
-  (* eapply exec_Itailcall; eauto. *)
-  (* apply sig_preserved; auto. *)
-  (* econstructor; eauto.  *)
+  (* econstructor; eauto. *)
   (* apply regs_lessdef_regs; auto. *)
 
 - (* Ibuiltin *)
@@ -339,42 +359,38 @@ Proof.
   destruct or; simpl; auto. 
 
 - (* internal function *)
-  admit.
-  (* monadInv H6. unfold transf_function in EQ.  *)
-  (* destruct (analyze f (vanalyze rm f)) as [approx|] eqn:?; inv EQ.  *)
-  (* exploit Mem.alloc_extends; eauto. apply Zle_refl. apply Zle_refl.  *)
-  (* intros (m'' & A & B). *)
-  (* econstructor; split. *)
-  (* eapply exec_function_internal; simpl; eauto.  *)
-  (* simpl. econstructor; eauto. *)
-  (* eapply analysis_correct_entry; eauto. *)
-  (* apply init_regs_lessdef; auto. *)
-
+  inv Hnormal.
 - (* external function *)
-  admit.
-  (* monadInv H6.  *)
-  (* exploit external_call_mem_extends; eauto. *)
-  (* intros (v' & m1' & P & Q & R & S). *)
-  (* econstructor; split. *)
-  (* eapply exec_function_external; eauto. *)
-  (* eapply external_call_symbols_preserved; eauto. *)
-  (* exact symbols_preserved. exact varinfo_preserved. *)
-  (* econstructor; eauto. *)
-
+  inv Hnormal.
 - (* return *)
-  admit.
-  (* inv H2. *)
-  (* econstructor; split. *)
-  (* eapply exec_return; eauto. *)
-  (* econstructor; eauto. *)
-  (* apply set_reg_lessdef; auto. *)
+  inv Hnormal.
 Qed.
 
 Lemma match_local_state_lsim s s':
   match_local s s' <2= state_lsim mrelT_ops_extends ge tge s s' tt tt WF.elt.
 Proof.
   pcofix CIH. intros s1 s1' MS. pfold.
-  admit.
+  inversion MS; subst.
+  - apply _state_lsim_step. intros. left. exists WF.elt.
+    exploit transf_step_correct; eauto.
+    { admit. (* sound_state *) }
+    intros [s2' [Hs2' Hmatch']].
+    eexists. exists tt.
+    split; [apply plus_one; eauto|].
+    split; [reflexivity|].
+    split; [inv Hmatch'; auto|].
+    right. auto.
+  - eapply _state_lsim_call; eauto.
+    + apply star_refl.
+    + apply mrelT_ops_extends_lessdef_list. auto.
+    + instantiate (1 := tt). reflexivity.
+    + intros. exists WF.elt. destruct mrel3.
+      right. apply CIH. subst. constructor; auto.
+      apply set_reg_lessdef; auto.
+  - eapply _state_lsim_return; eauto.
+    + apply star_refl.
+    + instantiate (1 := tt). reflexivity.
+    + reflexivity.
 Qed.
 
 End PRESERVATION.

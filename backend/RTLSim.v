@@ -17,6 +17,12 @@ Require Import MemoryRelation.
 
 Set Implicit Arguments.
 
+Definition is_normal_state (st:state): bool :=
+  match st with
+    | State _ _ _ _ _ _ => true
+    | _ => false
+  end.
+
 Definition state_mem (st:state): mem :=
   match st with
     | State _ _ _ _ _ m => m
@@ -32,6 +38,12 @@ Variable (mrelT_ops:mrelT_opsT mrelT).
 Section FUNCTION_LSIM.
 
 Variable (ge_src ge_tgt:genv).
+Inductive fundef_sim (fundef_src fundef_tgt:fundef): Prop :=
+| fundef_sim_intro
+    b
+    (Hsrc: ge_src.(Genv.genv_funs) ! b = Some fundef_src)
+    (Htgt: ge_tgt.(Genv.genv_funs) ! b = Some fundef_tgt)
+.
 
 Section STATE_LSIM.
 
@@ -54,7 +66,7 @@ Inductive _state_lsim
     (Hst2_src: st2_src = Callstate ((Stackframe res2_src fundef2_src sp2_src pc2_src rs2_src)::stack2_src) fundef3_src args2_src mem2_src)
     res2_tgt fundef2_tgt sp2_tgt pc2_tgt rs2_tgt stack2_tgt fundef3_tgt args2_tgt mem2_tgt
     (Hst_tgt: st_tgt = Callstate ((Stackframe res2_tgt fundef2_tgt sp2_tgt pc2_tgt rs2_tgt)::stack2_tgt) fundef3_tgt args2_tgt mem2_tgt)
-    (Hfundef2: exists b, ge_src.(Genv.genv_funs) ! b = Some fundef3_src /\ ge_tgt.(Genv.genv_funs) ! b = Some fundef3_tgt)
+    (Hfundef2: fundef_sim fundef3_src fundef3_tgt)
     (Hargs: list_forall2 (mrelT_ops.(sem_value) mrel) args2_src args2_tgt)
     (mrel2:mrelT) (Hmrel2: mrelT_ops.(sem) mrel2 mem2_src mem2_tgt)
     (Hmrel2_le: mrelT_ops.(le) mrel mrel2)

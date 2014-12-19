@@ -1,3 +1,4 @@
+Require Import Coqlib.
 Require Import Memory.
 Require Import Values.
 
@@ -49,6 +50,14 @@ Definition mrelT_ops_extends: mrelT_opsT unit :=
 
 Program Definition mrelT_props_extends: mrelT_props mrelT_ops_extends := mkmrelT_props _ _.
 
+Lemma mrelT_ops_extends_lessdef_list mrel v1 v2:
+  Val.lessdef_list v1 v2 <-> list_forall2 (mrelT_ops_extends.(sem_value) mrel) v1 v2.
+Proof.
+  revert v2.
+  induction v1; intros; constructor; intro H; inv H; constructor; auto.
+  - apply IHv1. auto.
+  - apply IHv1. auto.
+Qed.
 
 (* inject *)
 
