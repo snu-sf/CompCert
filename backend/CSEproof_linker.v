@@ -391,7 +391,8 @@ Proof.
     + apply star_refl.
     + apply mrelT_ops_extends_lessdef_list. auto.
     + instantiate (1 := tt). reflexivity.
-    + reflexivity.
+    + intros. exists WF.elt. destruct mrel3.
+      right. apply CIH. subst. constructor; auto.
   - eapply _state_lsim_return; eauto.
     + apply star_refl.
     + instantiate (1 := tt). reflexivity.
