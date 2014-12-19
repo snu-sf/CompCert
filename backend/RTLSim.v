@@ -60,6 +60,7 @@ Inductive _state_lsim
     (mrel2:mrelT) (Hmrel2: mrelT_ops.(sem) mrel2 mem2_src mem_tgt)
     (Hmrel2_le: mrelT_ops.(le) mrel mrel2)
     (Hmrel2_le_public: mrelT_ops.(le_public) mrel_entry mrel2)
+
 | _state_lsim_call
     st2_src (Hst_src: star step ge_src st_src E0 st2_src)
     res2_src fundef2_src sp2_src pc2_src rs2_src stack2_src fundef3_src args2_src mem2_src
@@ -79,6 +80,18 @@ Inductive _state_lsim
               (Hst3_mem: mrelT_ops.(sem) mrel3 mem3_src mem3_tgt),
        exists i3,
          state_lsim mrel3 i3 st3_src st3_tgt)
+
+| _state_lsim_tailcall
+    st2_src (Hst_src: star step ge_src st_src E0 st2_src)
+    stack2_src fundef3_src args2_src mem2_src
+    (Hst2_src: st2_src = Callstate stack2_src fundef3_src args2_src mem2_src)
+    stack2_tgt fundef3_tgt args2_tgt mem2_tgt
+    (Hst_tgt: st_tgt = Callstate stack2_tgt fundef3_tgt args2_tgt mem2_tgt)
+    (Hfundef2: fundef_sim fundef3_src fundef3_tgt)
+    (Hargs: list_forall2 (mrelT_ops.(sem_value) mrel) args2_src args2_tgt)
+    (mrel2:mrelT) (Hmrel2: mrelT_ops.(sem) mrel2 mem2_src mem2_tgt)
+    (Hmrel2_le: mrelT_ops.(le) mrel mrel2)
+    (Hmrel2_le_public: mrelT_ops.(le_public) mrel_entry mrel2)
 
 | _state_lsim_step
     (Hpreserve:

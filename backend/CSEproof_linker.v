@@ -129,6 +129,14 @@ Inductive match_local (s s':list stackframe): state -> state -> Prop :=
       match_local s s'
                   (Callstate (Stackframe pres pf psp ppc prs :: s) f args m)
                   (Callstate (Stackframe pres (transf_function' pf papprox) psp ppc prs' :: s') tf args' m')
+  | match_states_tailcall:
+      forall f tf args m args' m',
+      fundef_sim ge tge f tf ->
+      Val.lessdef_list args args' ->
+      Mem.extends m m' ->
+      match_local s s'
+                  (Callstate s f args m)
+                  (Callstate s' tf args' m')
   | match_states_return:
       forall v v' m m',
       Val.lessdef v v' ->
@@ -153,7 +161,7 @@ Lemma transf_step_correct:
   forall s1' (MS: match_local s s' s1 s1') (SOUND: sound_state_ext fprog s1),
   exists s2', step tge s1' t s2' /\ match_local s s' s2 s2'.
 Proof.
-  induction 1; intros; inv MS; try (TransfInstr; intro C).
+  induction 1; intros; inv Hnormal; inv MS; try (TransfInstr; intro C).
 
   (* Inop *)
 - econstructor; split.
@@ -280,9 +288,8 @@ Proof.
   econstructor; split.
   eapply exec_Itailcall; eauto.
   admit. (* apply sig_preserved; auto. *)
-  admit.
-  (* econstructor; eauto. *)
-  (* apply regs_lessdef_regs; auto. *)
+  econstructor; eauto.
+  apply regs_lessdef_regs; auto.
 
 - (* Ibuiltin *)
   exploit external_call_mem_extends; eauto.
@@ -357,13 +364,6 @@ Proof.
   eapply exec_Ireturn; eauto.
   econstructor; eauto.
   destruct or; simpl; auto. 
-
-- (* internal function *)
-  inv Hnormal.
-- (* external function *)
-  inv Hnormal.
-- (* return *)
-  inv Hnormal.
 Qed.
 
 Lemma match_local_state_lsim s s':
@@ -387,6 +387,11 @@ Proof.
     + intros. exists WF.elt. destruct mrel3.
       right. apply CIH. subst. constructor; auto.
       apply set_reg_lessdef; auto.
+  - eapply _state_lsim_tailcall; eauto.
+    + apply star_refl.
+    + apply mrelT_ops_extends_lessdef_list. auto.
+    + instantiate (1 := tt). reflexivity.
+    + reflexivity.
   - eapply _state_lsim_return; eauto.
     + apply star_refl.
     + instantiate (1 := tt). reflexivity.
