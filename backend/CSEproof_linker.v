@@ -385,9 +385,15 @@ Proof.
     + apply mrelT_ops_extends_lessdef_list. auto.
     + instantiate (1 := tt). reflexivity.
     + intros. exists WF.elt. destruct mrel3.
-      right. apply CIH. subst. constructor; auto.
+      left. subst. pfold. constructor. intros.
+      left. exists WF.elt. eexists. exists tt.
+      inversion Hst2_src. subst.
+      split; [apply plus_one; constructor|].
+      split; [reflexivity|].
+      split; auto.
+      right. apply CIH. constructor; auto.
       apply set_reg_lessdef; auto.
-  - eapply _state_lsim_tailcall; eauto.
+  - eapply _state_lsim_call; eauto.
     + apply star_refl.
     + apply mrelT_ops_extends_lessdef_list. auto.
     + instantiate (1 := tt). reflexivity.

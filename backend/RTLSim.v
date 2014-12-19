@@ -63,26 +63,6 @@ Inductive _state_lsim
 
 | _state_lsim_call
     st2_src (Hst_src: star step ge_src st_src E0 st2_src)
-    res2_src fundef2_src sp2_src pc2_src rs2_src stack2_src fundef3_src args2_src mem2_src
-    (Hst2_src: st2_src = Callstate ((Stackframe res2_src fundef2_src sp2_src pc2_src rs2_src)::stack2_src) fundef3_src args2_src mem2_src)
-    res2_tgt fundef2_tgt sp2_tgt pc2_tgt rs2_tgt stack2_tgt fundef3_tgt args2_tgt mem2_tgt
-    (Hst_tgt: st_tgt = Callstate ((Stackframe res2_tgt fundef2_tgt sp2_tgt pc2_tgt rs2_tgt)::stack2_tgt) fundef3_tgt args2_tgt mem2_tgt)
-    (Hfundef2: fundef_sim fundef3_src fundef3_tgt)
-    (Hargs: list_forall2 (mrelT_ops.(sem_value) mrel) args2_src args2_tgt)
-    (mrel2:mrelT) (Hmrel2: mrelT_ops.(sem) mrel2 mem2_src mem2_tgt)
-    (Hmrel2_le: mrelT_ops.(le) mrel mrel2)
-    (Hreturn:
-       forall mrel3 st3_src st3_tgt mem3_src mem3_tgt vres_src vres_tgt
-              (Hvres: mrelT_ops.(sem_value) mrel3 vres_src vres_tgt)
-              (Hst3_src: st3_src = State stack2_src fundef2_src sp2_src pc2_src (rs2_src#res2_src <- vres_src) mem3_src)
-              (Hst3_tgt: st3_tgt = State stack2_tgt fundef2_tgt sp2_tgt pc2_tgt (rs2_tgt#res2_tgt <- vres_tgt) mem3_tgt)
-              (Hmrel3_le: mrelT_ops.(le_public) mrel2 mrel3)
-              (Hst3_mem: mrelT_ops.(sem) mrel3 mem3_src mem3_tgt),
-       exists i3,
-         state_lsim mrel3 i3 st3_src st3_tgt)
-
-| _state_lsim_tailcall
-    st2_src (Hst_src: star step ge_src st_src E0 st2_src)
     stack2_src fundef3_src args2_src mem2_src
     (Hst2_src: st2_src = Callstate stack2_src fundef3_src args2_src mem2_src)
     stack2_tgt fundef3_tgt args2_tgt mem2_tgt
@@ -122,9 +102,6 @@ Lemma state_lsim_mon: monotone4 _state_lsim.
 Proof.
   repeat intro; destruct IN; eauto.
   - eapply _state_lsim_call; eauto.
-    intros. exploit Hreturn; eauto.
-    intros [i3 Hsim]. exists i3. auto.
-  - eapply _state_lsim_tailcall; eauto.
     intros. exploit Hreturn; eauto.
     intros [i3 Hsim]. exists i3. auto.
   - eapply _state_lsim_step; eauto.
