@@ -390,39 +390,49 @@ Proof.
   destruct or; simpl; auto. 
 Qed.
 
+Inductive match_local_ext s s' st tst: Prop :=
+| match_local_ext_intro
+    (Hmatch: match_local s s' st tst)
+    (Hsrc: sound_state_ext fprog st)
+    (Htgt: sound_state_ext ftprog tst)
+.
+
 Lemma match_local_state_lsim s s':
-  match_local s s' <2= state_lsim mrelT_ops_extends ge tge s s' tt tt WF.elt.
+  match_local_ext s s' <2= state_lsim mrelT_ops_extends fprog ftprog s s' tt tt WF.elt.
 Proof.
   pcofix CIH. intros s1 s1' MS. pfold.
-  inversion MS; subst.
-  - apply _state_lsim_step. intros. left. exists WF.elt.
+  inv MS. inversion Hmatch; subst.
+  - apply _state_lsim_step; auto. intros. left. exists WF.elt.
     exploit transf_step_correct; eauto.
-    { admit. (* sound_state *) }
     intros [s2' [Hs2' Hmatch']].
     eexists. exists tt.
     split; [apply plus_one; eauto|].
     split; [reflexivity|].
     split; [inv Hmatch'; auto|].
-    right. auto.
+    right. apply CIH. constructor; auto.
+    { eapply sound_past_step; eauto. }
+    { eapply sound_past_step; eauto. }
   - eapply _state_lsim_call; eauto.
     + apply star_refl.
     + apply mrelT_ops_extends_lessdef_list. auto.
     + instantiate (1 := tt). reflexivity.
     + intros. exists WF.elt. destruct mrel3.
-      left. subst. pfold. constructor. intros.
+      left. subst. pfold. constructor; auto. intros.
       left. exists WF.elt. eexists. exists tt.
       inversion Hst2_src. subst.
       split; [apply plus_one; constructor|].
       split; [reflexivity|].
       split; auto.
-      right. apply CIH. constructor; auto.
-      apply set_reg_lessdef; auto.
+      right. apply CIH. constructor.
+      { constructor; auto. apply set_reg_lessdef; auto. }
+      { eapply sound_past_step; eauto. }
+      { eapply sound_past_step; eauto. econstructor. }
   - eapply _state_lsim_call; eauto.
     + apply star_refl.
     + apply mrelT_ops_extends_lessdef_list. auto.
     + instantiate (1 := tt). reflexivity.
     + intros. exists WF.elt. destruct mrel3.
-      right. apply CIH. subst. constructor; auto.
+      right. apply CIH. subst. repeat (constructor; auto).
   - eapply _state_lsim_return; eauto.
     + apply star_refl.
     + instantiate (1 := tt). reflexivity.

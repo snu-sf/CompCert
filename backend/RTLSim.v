@@ -15,6 +15,7 @@ Require Import Registers.
 Require Import RTL.
 Require Import LinkerSpecification.
 Require Import ProgramSim MemoryRelation.
+Require Import ValueAnalysis_linker.
 
 Set Implicit Arguments.
 
@@ -35,10 +36,10 @@ Section LSIM.
 
 Variable (mrelT:Type).
 Variable (mrelT_ops:mrelT_opsT mrelT).
+Variable (prog_src prog_tgt:program).
 
-Section FUNCTION_LSIM.
-
-Variable (ge_src ge_tgt:genv).
+Let ge_src := Genv.globalenv prog_src.
+Let ge_tgt := Genv.globalenv prog_tgt.
 
 Section STATE_LSIM.
 
@@ -49,6 +50,8 @@ Inductive _state_lsim
           (state_lsim: mrelT -> WF.t -> state -> state -> Prop)
           (mrel:mrelT) (i:WF.t) (st_src st_tgt:state): Prop :=
 | _state_lsim_return
+    (Hsound_src: sound_state_ext prog_src st_src)
+    (Hsound_tgt: sound_state_ext prog_tgt st_tgt)
     st2_src (Hst_src: star step ge_src st_src E0 st2_src)
     val2_src mem2_src (Hst2_src: st2_src = Returnstate cs_entry_src val2_src mem2_src)
     val_tgt mem_tgt (Hst_tgt: st_tgt = Returnstate cs_entry_tgt val_tgt mem_tgt)
@@ -57,6 +60,8 @@ Inductive _state_lsim
     (Hmrel2_le_public: mrelT_ops.(le_public) mrel_entry mrel2)
 
 | _state_lsim_call
+    (Hsound_src: sound_state_ext prog_src st_src)
+    (Hsound_tgt: sound_state_ext prog_tgt st_tgt)
     st2_src (Hst_src: star step ge_src st_src E0 st2_src)
     stack2_src fundef3_src args2_src mem2_src
     (Hst2_src: st2_src = Callstate stack2_src fundef3_src args2_src mem2_src)
@@ -74,12 +79,16 @@ Inductive _state_lsim
               (Hvres: mrelT_ops.(sem_value) mrel3 vres_src vres_tgt)
               (Hst3_src: st3_src = Returnstate stack2_src vres_src mem3_src)
               (Hst3_tgt: st3_tgt = Returnstate stack2_tgt vres_tgt mem3_tgt)
+              (Hsound_src: sound_state_ext prog_src st3_src)
+              (Hsound_tgt: sound_state_ext prog_tgt st3_tgt)
               (Hmrel3_le: mrelT_ops.(le_public) mrel2 mrel3)
               (Hst3_mem: mrelT_ops.(sem) mrel3 mem3_src mem3_tgt),
        exists i3,
          state_lsim mrel3 i3 st3_src st3_tgt)
 
 | _state_lsim_step
+    (Hsound_src: sound_state_ext prog_src st_src)
+    (Hsound_tgt: sound_state_ext prog_tgt st_tgt)
     (Hpreserve:
        forall evt st2_src (Hst2_src: step ge_src st_src evt st2_src),
          (exists i2 st2_tgt (mrel2:mrelT),
@@ -147,11 +156,7 @@ Inductive function_lsim
     (Hsig: func_src.(fn_sig) = func_tgt.(fn_sig))
 .
 
-End FUNCTION_LSIM.
-
-Definition program_lsim prog_src prog_tgt: Prop :=
-  let ge_src := Genv.globalenv prog_src in
-  let ge_tgt := Genv.globalenv prog_tgt in
+Definition program_lsim: Prop :=
   forall st_tgt (Hinit_tgt: initial_state prog_tgt st_tgt),
   exists st_src,
     initial_state prog_src st_src /\
@@ -161,7 +166,7 @@ Definition program_lsim prog_src prog_tgt: Prop :=
     exists func_src,
       Genv.find_funct_ptr ge_src b = Some (Internal func_src) /\
       True /\ (* TODO: condition on mrel_init and ge_src/tgt. *)
-      function_lsim ge_src ge_tgt mrel_init func_src func_tgt
+      function_lsim mrel_init func_src func_tgt
 .
 
 End LSIM.
