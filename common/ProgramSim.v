@@ -9,6 +9,13 @@ Require Import paco.
 
 Set Implicit Arguments.
 
+(* external function prservation function *)
+Lemma external_function_OK_sig:
+  forall ef1 ef2, (OK ef1 = OK ef2) -> ef_sig ef1 = ef_sig ef2.
+Proof.
+  intros. inv H. auto.
+Qed.
+
 (* lifting function simulation to program simulation *)
 Section PROGRAM_SIM.
 
@@ -37,6 +44,9 @@ Let fundef_sig_tgt (fundef:fundefT_tgt): signature :=
   end.
 
 Variable (transf_EF: forall (ef:EF_src), res EF_tgt).
+Hypothesis Htransf_sig:
+  forall (ef_src:EF_src) (ef_tgt:EF_tgt) (HEF: transf_EF ef_src = OK ef_tgt),
+    EF_sig_src ef_src = EF_sig_tgt ef_tgt.
 Variable (transf_V: forall (v:V_src), res V_tgt).
 Let V_sim (v_src:V_src) (v_tgt:V_tgt) := transf_V v_src = OK v_tgt.
 
@@ -455,9 +465,16 @@ Proof.
     intros. repeat intro. specialize (PR Hdefs0). auto.
 Qed.
 
-Inductive fundef_weak_sim (ge_src:Genv.t fundefT_src V_src) (ge_tgt:Genv.t fundefT_tgt V_tgt) (f_src:fundefT_src) (f_tgt:fundefT_tgt): Prop :=
-| fundef_weak_sim_intro
+Inductive fundef_sig_sim (f_src:fundefT_src) (f_tgt:fundefT_tgt): Prop :=
+| fundef_sig_sim_intro
     (Hsig: fundef_sig_src f_src = fundef_sig_tgt f_tgt)
+.
+
+Inductive fundef_weak_sim
+          (ge_src:Genv.t fundefT_src V_src) (ge_tgt:Genv.t fundefT_tgt V_tgt)
+          (f_src:fundefT_src) (f_tgt:fundefT_tgt): Prop :=
+| fundef_weak_sim_intro
+    (Hsig: fundef_sig_sim f_src f_tgt)
     b
     (Hsrc: Maps.PTree.get b ge_src.(Genv.genv_funs) = Some f_src)
     (Htgt: Maps.PTree.get b ge_tgt.(Genv.genv_funs) = Some f_tgt)
@@ -474,7 +491,7 @@ Let ge_src := Genv.globalenv p_src.
 Let ge_tgt := Genv.globalenv p_tgt.
 
 Lemma program_sim_match_program:
-  match_program (fundef_weak_sim ge_src ge_tgt) V_sim nil p_src.(prog_main) p_src p_tgt.
+  match_program fundef_sig_sim V_sim nil p_src.(prog_main) p_src p_tgt.
 Proof.
   unfold match_program. split; eauto.
   exists p_tgt.(prog_defs). split; [|rewrite app_nil_r; auto].
@@ -483,14 +500,22 @@ Proof.
   induction l1; intros l2 Hsim; inv Hsim; constructor; auto.
   destruct a, b1, H1. simpl in *. subst.
   inv H0.
-  - admit.
+  - repeat constructor. inv Hf; unfold fundef_sig_src, fundef_sig_tgt; rewrite Hsrc, Htgt.
+    + exploit (Hsim nil nil); eauto.
+      * unfold globdef_list_linkeq. repeat intro.
+        rewrite PTree.gempty in Hsrc0. inv Hsrc0.
+      * unfold globdef_list_linkeq. repeat intro.
+        rewrite PTree.gempty in Hsrc0. inv Hsrc0.
+      * destruct (signature_eq (F_sig_src f_src0) (F_sig_tgt f_tgt0)); auto.
+        intro X. inv X.
+    + apply Htransf_sig. auto.
   - destruct v_src, v_tgt. inv Hv. unfold transf_globvar in Hv0. simpl in *.
     destruct (transf_V gvar_info) eqn:Hgvar_info; inv Hv0. constructor; auto.
 Qed.
 Local Hint Resolve program_sim_match_program.
 
 Lemma globalenvs_match:
-  Genv.match_genvs (fundef_weak_sim ge_src ge_tgt) V_sim nil (Genv.globalenv p_src) (Genv.globalenv p_tgt).
+  Genv.match_genvs fundef_sig_sim V_sim nil (Genv.globalenv p_src) (Genv.globalenv p_tgt).
 Proof.
   eapply Genv.globalenvs_match; eauto.
 Qed.
@@ -530,25 +555,29 @@ Proof.
     intros [v [Hv Hsim]]. rewrite H in Hv. inv Hv.
 Qed.
 
-Lemma functions_translated:
-  forall v f,
-  Genv.find_funct (Genv.globalenv p_src) v = Some f ->
-  exists tf, Genv.find_funct (Genv.globalenv p_tgt) v = Some tf /\ fundef_weak_sim ge_src ge_tgt f tf.
-Proof.
-  intros. eapply Genv.find_funct_match; eauto.
-Qed.
-
 Lemma funct_ptr_translated:
   forall (b : block) (f : fundefT_src),
   Genv.find_funct_ptr (Genv.globalenv p_src) b = Some f ->
   exists tf : fundefT_tgt,
   Genv.find_funct_ptr (Genv.globalenv p_tgt) b = Some tf /\ fundef_weak_sim ge_src ge_tgt f tf.
 Proof.
-  intros. eapply Genv.find_funct_ptr_match; eauto.
+  intros. exploit Genv.find_funct_ptr_match; eauto. intros [tf [Htf Hsim]].
+  eexists. split; eauto. inv Hsim. unfold Genv.find_funct_ptr in *.
+  repeat econstructor; eauto.
+Qed.
+
+Lemma functions_translated:
+  forall v f,
+  Genv.find_funct (Genv.globalenv p_src) v = Some f ->
+  exists tf, Genv.find_funct (Genv.globalenv p_tgt) v = Some tf /\ fundef_weak_sim ge_src ge_tgt f tf.
+Proof.
+  intros. destruct v; inv H. 
+  destruct (Int.eq_dec i Int.zero); inv H1.
+  apply funct_ptr_translated. auto.
 Qed.
 
 Lemma sig_preserved:
-  forall f tf (Hsim: fundef_weak_sim ge_src ge_tgt f tf),
+  forall f tf (Hsim: fundef_sig_sim f tf),
     fundef_sig_src f = fundef_sig_tgt tf.
 Proof.
   intros. inv Hsim. auto.

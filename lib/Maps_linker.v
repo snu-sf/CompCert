@@ -916,12 +916,11 @@ Module PTree <: TREE.
     intros. apply fold1_xelements with (l := @nil (positive * A)). 
   Qed.
 
-  Definition unelements (A : Type) (l : list (elt * A)) : PTree.t A :=
+  Definition unelements (A : Type) (l : list (elt * A)) : t A :=
     List.fold_left
-      (fun acc kv =>
-         PTree.set (fst kv) (snd kv) acc)
+      (fun acc kv => set (fst kv) (snd kv) acc)
       l
-      (PTree.empty _).
+      (empty _).
 
   Lemma gespec {A:Type} (m:t A) (i:positive):
     get i m = option_map snd (find (fun id => peq i (fst id)) (elements m)).
@@ -952,8 +951,8 @@ Module PTree <: TREE.
       destruct (peq i p); simpl in *; subst; auto.
   Qed.
 
-  Lemma unelements_elements A (m:PTree.t A) b:
-    get b (PTree.unelements (PTree.elements m)) = get b m.
+  Lemma unelements_elements A (m:t A) b:
+    get b (unelements (elements m)) = get b m.
   Proof.
     rewrite guespec, gespec.
     generalize (elements_keys_norepet m).

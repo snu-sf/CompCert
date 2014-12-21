@@ -63,14 +63,13 @@ Qed.
 
 Lemma symbols_preserved:
   forall (s: ident), Genv.find_symbol tge s = Genv.find_symbol ge s.
-Proof (symbols_preserved ef_sig ef_sig fprog ftprog Hweak_sim Hmain).
+Proof (symbols_preserved ef_sig ef_sig external_function_OK_sig fprog ftprog Hweak_sim Hmain).
 
 Lemma varinfo_preserved:
   forall b, Genv.find_var_info tge b = Genv.find_var_info ge b.
 Proof.
   intros. exploit varinfo_preserved; try apply Hweak_sim; auto.
-  { apply ef_sig. }
-  { apply ef_sig. }
+  { apply external_function_OK_sig. }
   instantiate (1 := b). unfold ge, tge.
   destruct (Genv.find_var_info (Genv.globalenv ftprog) b), (Genv.find_var_info (Genv.globalenv fprog) b); intros; auto; inv H.
   destruct g0; auto.
@@ -84,7 +83,7 @@ Lemma funct_ptr_translated:
                (@common_fundef_dec function) fn_sig ef_sig
                (@common_fundef_dec function) fn_sig ef_sig
                ge tge f tf.
-Proof (funct_ptr_translated ef_sig ef_sig fprog ftprog Hweak_sim Hmain).
+Proof (funct_ptr_translated ef_sig ef_sig external_function_OK_sig fprog ftprog Hweak_sim Hmain).
 
 Lemma functions_translated:
   forall (v: val) (f: RTL.fundef),
@@ -94,7 +93,7 @@ Lemma functions_translated:
                (@common_fundef_dec function) fn_sig ef_sig
                (@common_fundef_dec function) fn_sig ef_sig
                ge tge f tf.
-Proof (functions_translated ef_sig ef_sig fprog ftprog Hweak_sim Hmain).
+Proof (functions_translated ef_sig ef_sig external_function_OK_sig fprog ftprog Hweak_sim Hmain).
 
 Lemma find_function_translated:
   forall ros rs fd rs',
@@ -123,7 +122,7 @@ Lemma sig_preserved:
       ge tge f tf ->
     funsig tf = funsig f.
 Proof.
-  intros. inv H. unfold common_fundef_dec in *.
+  intros. inv H. inv Hsig. unfold common_fundef_dec in *.
   destruct f, tf; simpl in *; auto.
 Qed.
 
