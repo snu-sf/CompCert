@@ -57,7 +57,9 @@ Hypothesis (Hftprog: program_linkeq (@common_fundef_dec function) tprog ftprog).
 Let rm := romem_for_program prog.
 
 Lemma rm_frm: romem_le rm (romem_for_program fprog).
-Proof. admit. Qed.
+Proof.
+  apply program_linkeq_romem_le. auto.
+Qed.
 
 Lemma symbols_preserved:
   forall (s: ident), Genv.find_symbol tge s = Genv.find_symbol ge s.

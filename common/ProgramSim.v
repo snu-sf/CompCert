@@ -182,12 +182,13 @@ Lemma globdef_list_sim_globdefs_sim
       (Hsim: globdef_list_sim F_sim defs_src defs_tgt ds_src ds_tgt):
   globdefs_sim F_sim defs_src defs_tgt (PTree.unelements ds_src) (PTree.unelements ds_tgt).
 Proof.
-  unfold globdefs_sim, globdef_list_sim in *. revert ds_tgt Hsim.
-  induction ds_src; intros ds_tgt Hsim i; inv Hsim; simpl; auto.
-  { rewrite ? PTree.gempty. auto. }
+  unfold globdefs_sim, globdef_list_sim in *. intro i.
+  rewrite ? PTree.guespec. apply list_forall2_rev in Hsim.
+  revert Hsim i. generalize (rev ds_src) (rev ds_tgt).
+  induction l; intros l0 Hsim i; inv Hsim; simpl; auto.
   destruct a, b1, H1. simpl in *. subst.
-  rewrite ? PTree.gsspec. destruct (peq i p0); simpl; subst; auto.
-  apply IHds_src. auto.
+  destruct (peq i p0); simpl; subst; auto.
+  apply IHl. auto.
 Qed.
 
 (** an instantiation of weak simulation: matching any function definitions *)

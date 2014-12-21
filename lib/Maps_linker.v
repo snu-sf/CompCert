@@ -917,11 +917,11 @@ Module PTree <: TREE.
   Qed.
 
   Definition unelements (A : Type) (l : list (elt * A)) : PTree.t A :=
-    List.fold_right
-      (fun kv acc =>
+    List.fold_left
+      (fun acc kv =>
          PTree.set (fst kv) (snd kv) acc)
-      (PTree.empty _)
-      l.
+      l
+      (PTree.empty _).
 
   Lemma PTree_gespec {A:Type} (m:t A) (i:positive):
     get i m = option_map snd (find (fun id => peq i (fst id)) (elements m)).
@@ -943,9 +943,10 @@ Module PTree <: TREE.
   Qed.
 
   Lemma guespec {A:Type} (l:list (positive * A)) (i:positive):
-    get i (unelements l) = option_map snd (find (fun id => peq i (fst id)) l).
+    get i (unelements l) = option_map snd (find (fun id => peq i (fst id)) (rev l)).
   Proof.
-    unfold unelements. induction l; simpl.
+    unfold unelements. rewrite <- fold_left_rev_right.
+    induction (rev l); simpl.
     - rewrite gempty. auto.
     - rewrite gsspec. destruct a. simpl in *.
       destruct (peq i p); simpl in *; subst; auto.

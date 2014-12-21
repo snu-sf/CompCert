@@ -1,3 +1,4 @@
+Require Import RelationClasses.
 Require Import Coqlib.
 Require Import Maps.
 Require Import Compopts.
@@ -17,6 +18,7 @@ Require Import ValueDomain.
 Require Import ValueAOp.
 Require Import Liveness.
 Require Import ValueAnalysis.
+Require Import LinkerSpecification Linkeq.
 
 Set Implicit Arguments.
 
@@ -26,8 +28,84 @@ Inductive romem_le (rm1 rm2:romem): Prop :=
           rm2 ! b = Some ab)
 .
 
-Lemma romem_le_refl rm: romem_le rm rm.
-Proof. constructor. intros. auto. Qed.
+Program Instance romem_le_PreOrder : PreOrder romem_le.
+Next Obligation.
+  constructor. intros. auto.
+Qed.
+Next Obligation.
+  repeat intro. inv H. inv H0. constructor. intros.
+  exploit H1; eauto.
+Qed.
+
+Lemma program_linkeq_romem_le
+      prog fprog
+      (Hlinkeq: program_linkeq (@common_fundef_dec function) prog fprog):
+  romem_le (romem_for_program prog) (romem_for_program fprog).
+Proof.
+  unfold romem_for_program. rewrite <- ? fold_left_rev_right.
+  constructor. intro b.
+  destruct Hlinkeq as [Hdefs _]. specialize (Hdefs b).
+  rewrite ? Maps_linker.PTree.guespec in Hdefs.
+  revert b Hdefs.
+  fold ident fundef in *.
+  generalize (@rev (prod ident _) (prog_defs fprog)) as l2.
+  generalize (@rev (prod ident _) (prog_defs prog)) as l1.
+  clear prog fprog.
+  induction l1; intros l2 b H ab Hab; simpl in *.
+  { rewrite PTree.gempty in Hab. inv Hab. }
+  destruct a. simpl in Hab.
+  destruct g.
+  { rewrite PTree.grspec in Hab.
+    destruct (PTree.elt_eq b i); inv Hab. rewrite H1.
+    apply IHl1; auto. intros.
+    exploit H; eauto.
+    simpl in *. destruct (peq b i); subst; try (contradict n; auto; fail).
+    simpl in *. auto.
+  }
+  { match goal with
+      | [H: (if ?b then _ else _) ! _ = _ |- _] =>
+        destruct b eqn:Hb; InvBooleans
+    end.
+    { rewrite PTree.gsspec in Hab. destruct (peq b i); subst.
+      { inv Hab. exploit H; eauto.
+        { simpl. destruct (peq i i); subst; try (contradict n; auto; fail).
+          simpl. eauto.
+        }
+        intros [defs2 [Hdefs2 Hsim]].
+        inv Hsim. inv Hv.
+        { revert Hdefs2. induction l2; simpl; intro X; inv X.
+          destruct a. simpl in *. destruct (peq i i0); subst; simpl in *.
+          { inv H4. rewrite H2. rewrite H3. rewrite H1. simpl.
+            rewrite PTree.gss. auto.
+          }
+          { destruct g.
+            { rewrite PTree.gro; auto. }
+            { match goal with
+                | [|- (if ?b then _ else _) ! _ = _] =>
+                  destruct b
+              end.
+              { rewrite PTree.gso; auto. }
+              { rewrite PTree.gro; auto. }
+            }
+          }
+        }
+        { inv H0. rewrite Hinit in H1. inv H1. }
+      }
+      { apply IHl1; auto. intros.
+        exploit H; eauto.
+        simpl in *. destruct (peq b i); subst; try (contradict n; auto; fail).
+        simpl in *. auto.
+      }
+    }
+    { rewrite PTree.grspec in Hab.
+      destruct (PTree.elt_eq b i); inv Hab. rewrite H1.
+      apply IHl1; auto. intros.
+      exploit H; eauto.
+      simpl in *. destruct (peq b i); subst; try (contradict n; auto; fail).
+      simpl in *. auto.
+    }
+  }
+Qed.
 
 (** ** Semantic invariant *)
 
