@@ -13,13 +13,13 @@ Set Implicit Arguments.
 (* lifting function simulation to program simulation *)
 Section PROGRAM_SIM.
 
-Variable (Fundef_src F_src EF_src V_src:Type).
-Variable (fundef_src_dec: FundefDec Fundef_src F_src EF_src).
+Variable (fundefT_src F_src EF_src V_src:Type).
+Variable (fundef_src_dec: fundef_decT fundefT_src F_src EF_src).
 Variable (EF_src_dec: forall (v1 v2:EF_src), {v1 = v2} + {v1 <> v2}).
 Variable (V_src_dec: forall (v1 v2:V_src), {v1 = v2} + {v1 <> v2}).
 
-Variable (Fundef_tgt F_tgt EF_tgt V_tgt:Type).
-Variable (fundef_tgt_dec: FundefDec Fundef_tgt F_tgt EF_tgt).
+Variable (fundefT_tgt F_tgt EF_tgt V_tgt:Type).
+Variable (fundef_tgt_dec: fundef_decT fundefT_tgt F_tgt EF_tgt).
 Variable (EF_tgt_dec: forall (v1 v2:EF_tgt), {v1 = v2} + {v1 <> v2}).
 Variable (V_tgt_dec: forall (v1 v2:V_tgt), {v1 = v2} + {v1 <> v2}).
 
@@ -29,15 +29,15 @@ Definition V_sim (v_src:V_src) (v_tgt:V_tgt) := transf_V v_src = OK v_tgt.
 
 Definition F_simT :=
   forall
-    (defs_src:list (positive * globdef Fundef_src V_src))
-    (defs_tgt:list (positive * globdef Fundef_tgt V_tgt))
+    (defs_src:list (positive * globdef fundefT_src V_src))
+    (defs_tgt:list (positive * globdef fundefT_tgt V_tgt))
     (f_src:F_src) (f_tgt:F_tgt), Prop.
 
 Section CORE.
 
 Variable (F_sim:F_simT).
-Variable (defs_src:list (positive * globdef Fundef_src V_src)).
-Variable (defs_tgt:list (positive * globdef Fundef_tgt V_tgt)).
+Variable (defs_src:list (positive * globdef fundefT_src V_src)).
+Variable (defs_tgt:list (positive * globdef fundefT_tgt V_tgt)).
 
 Inductive globvar_sim (v_src:globvar V_src) (v_tgt:globvar V_tgt): Prop :=
 | globvar_sim_intro
@@ -46,7 +46,7 @@ Inductive globvar_sim (v_src:globvar V_src) (v_tgt:globvar V_tgt): Prop :=
 
 (** simulation *)
 Inductive globfun_sim
-          (g_src:Fundef_src) (g_tgt:Fundef_tgt): Prop :=
+          (g_src:fundefT_src) (g_tgt:fundefT_tgt): Prop :=
 | globfun_sim_i
     f_src f_tgt
     (Hsrc: fundef_src_dec g_src = inl f_src)
@@ -62,7 +62,7 @@ Inductive globfun_sim
 .
 
 Inductive globdef_sim:
-  forall (g_src:globdef Fundef_src V_src) (g_tgt:globdef Fundef_tgt V_tgt), Prop :=
+  forall (g_src:globdef fundefT_src V_src) (g_tgt:globdef fundefT_tgt V_tgt), Prop :=
 | globdef_sim_fun
     f_src f_tgt (Hf: globfun_sim f_src f_tgt):
     globdef_sim (Gfun f_src) (Gfun f_tgt)
@@ -72,8 +72,8 @@ Inductive globdef_sim:
 .
 
 Definition globdefs_sim
-           (ds_src:PTree.t (globdef Fundef_src V_src))
-           (ds_tgt:PTree.t (globdef Fundef_tgt V_tgt)): Prop :=
+           (ds_src:PTree.t (globdef fundefT_src V_src))
+           (ds_tgt:PTree.t (globdef fundefT_tgt V_tgt)): Prop :=
   forall i,
     match PTree.get i ds_src, PTree.get i ds_tgt with
       | Some g1, Some g2 => globdef_sim g1 g2
@@ -82,8 +82,8 @@ Definition globdefs_sim
     end.
 
 Definition globdef_list_sim
-           (ds_src:list (positive * globdef Fundef_src V_src))
-           (ds_tgt:list (positive * globdef Fundef_tgt V_tgt)): Prop :=
+           (ds_src:list (positive * globdef fundefT_src V_src))
+           (ds_tgt:list (positive * globdef fundefT_tgt V_tgt)): Prop :=
   list_forall2
     (fun g_src g_tgt =>
        fst g_src = fst g_tgt /\
@@ -95,8 +95,8 @@ End CORE.
 (** properties on F_sim and simulation *)
 Lemma globfun_sim_le
       (F_sim1 F_sim2:F_simT)
-      (defs1_src defs2_src:list (positive * globdef Fundef_src V_src))
-      (defs1_tgt defs2_tgt:list (positive * globdef Fundef_tgt V_tgt))
+      (defs1_src defs2_src:list (positive * globdef fundefT_src V_src))
+      (defs1_tgt defs2_tgt:list (positive * globdef fundefT_tgt V_tgt))
       (HF_sim: F_sim1 <4= F_sim2)
       (Hdefs_src: globdef_list_linkeq fundef_src_dec defs1_src defs2_src)
       (Hdefs_tgt: globdef_list_linkeq fundef_tgt_dec defs1_tgt defs2_tgt):
@@ -112,8 +112,8 @@ Qed.
 
 Lemma globdef_sim_le
       (F_sim1 F_sim2:F_simT)
-      (defs1_src defs2_src:list (positive * globdef Fundef_src V_src))
-      (defs1_tgt defs2_tgt:list (positive * globdef Fundef_tgt V_tgt))
+      (defs1_src defs2_src:list (positive * globdef fundefT_src V_src))
+      (defs1_tgt defs2_tgt:list (positive * globdef fundefT_tgt V_tgt))
       (HF_sim: F_sim1 <4= F_sim2)
       (Hdefs_src: globdef_list_linkeq fundef_src_dec defs1_src defs2_src)
       (Hdefs_tgt: globdef_list_linkeq fundef_tgt_dec defs1_tgt defs2_tgt):
@@ -127,8 +127,8 @@ Qed.
 
 Lemma globdef_list_sim_le
       (F_sim1 F_sim2:F_simT)
-      (defs1_src defs2_src:list (positive * globdef Fundef_src V_src))
-      (defs1_tgt defs2_tgt:list (positive * globdef Fundef_tgt V_tgt))
+      (defs1_src defs2_src:list (positive * globdef fundefT_src V_src))
+      (defs1_tgt defs2_tgt:list (positive * globdef fundefT_tgt V_tgt))
       (HF_sim: F_sim1 <4= F_sim2)
       (Hdefs_src: globdef_list_linkeq fundef_src_dec defs1_src defs2_src)
       (Hdefs_tgt: globdef_list_linkeq fundef_tgt_dec defs1_tgt defs2_tgt):
@@ -144,10 +144,10 @@ Qed.
 
 Lemma globdefs_sim_globdef_list_sim
       (F_sim:F_simT)
-      (defs_src:list (positive * globdef Fundef_src V_src))
-      (defs_tgt:list (positive * globdef Fundef_tgt V_tgt))
-      (ds_src: PTree.t (globdef Fundef_src V_src))
-      (ds_tgt: PTree.t (globdef Fundef_tgt V_tgt))
+      (defs_src:list (positive * globdef fundefT_src V_src))
+      (defs_tgt:list (positive * globdef fundefT_tgt V_tgt))
+      (ds_src: PTree.t (globdef fundefT_src V_src))
+      (ds_tgt: PTree.t (globdef fundefT_tgt V_tgt))
       (Hsim: globdefs_sim F_sim defs_src defs_tgt ds_src ds_tgt):
   globdef_list_sim F_sim defs_src defs_tgt (PTree.elements ds_src) (PTree.elements ds_tgt).
 Proof.
@@ -162,10 +162,10 @@ Qed.
 
 Lemma globdef_list_sim_globdefs_sim
       (F_sim:F_simT)
-      (defs_src:list (positive * globdef Fundef_src V_src))
-      (defs_tgt:list (positive * globdef Fundef_tgt V_tgt))
-      (ds_src:list (positive * globdef Fundef_src V_src))
-      (ds_tgt:list (positive * globdef Fundef_tgt V_tgt))
+      (defs_src:list (positive * globdef fundefT_src V_src))
+      (defs_tgt:list (positive * globdef fundefT_tgt V_tgt))
+      (ds_src:list (positive * globdef fundefT_src V_src))
+      (ds_tgt:list (positive * globdef fundefT_tgt V_tgt))
       (Hsim: globdef_list_sim F_sim defs_src defs_tgt ds_src ds_tgt):
   globdefs_sim F_sim defs_src defs_tgt (PTree.unelements ds_src) (PTree.unelements ds_tgt).
 Proof.
@@ -197,8 +197,8 @@ Ltac simplify_decs :=
 
 Lemma link_globdefs_sim
       (F_sim:F_simT)
-      (defs1_src defs2_src:list (positive * globdef Fundef_src V_src))
-      (defs1_tgt defs2_tgt:list (positive * globdef Fundef_tgt V_tgt))
+      (defs1_src defs2_src:list (positive * globdef fundefT_src V_src))
+      (defs1_tgt defs2_tgt:list (positive * globdef fundefT_tgt V_tgt))
       defs_src (Hdefs_src: link_globdefs fundef_src_dec EF_src_dec V_src_dec (PTree.unelements defs1_src) (PTree.unelements defs2_src) = Some defs_src)
       (H1: globdefs_sim F_sim defs1_src defs1_tgt (PTree.unelements defs1_src) (PTree.unelements defs1_tgt))
       (H2: globdefs_sim F_sim defs2_src defs2_tgt (PTree.unelements defs2_src) (PTree.unelements defs2_tgt)):
@@ -259,8 +259,8 @@ Qed.
 
 Lemma link_globdef_list_sim_aux
       (F_sim:F_simT)
-      (defs1_src defs2_src:list (positive * globdef Fundef_src V_src))
-      (defs1_tgt defs2_tgt:list (positive * globdef Fundef_tgt V_tgt))
+      (defs1_src defs2_src:list (positive * globdef fundefT_src V_src))
+      (defs1_tgt defs2_tgt:list (positive * globdef fundefT_tgt V_tgt))
       defs_src (Hdefs_src: link_globdef_list fundef_src_dec EF_src_dec V_src_dec defs1_src defs2_src = Some defs_src)
       (H1: globdef_list_sim F_sim defs1_src defs1_tgt defs1_src defs1_tgt)
       (H2: globdef_list_sim F_sim defs2_src defs2_tgt defs2_src defs2_tgt):
@@ -282,8 +282,8 @@ Qed.
 
 Lemma link_globdef_list_sim
       (F_sim:F_simT)
-      (defs1_src defs2_src:list (positive * globdef Fundef_src V_src))
-      (defs1_tgt defs2_tgt:list (positive * globdef Fundef_tgt V_tgt))
+      (defs1_src defs2_src:list (positive * globdef fundefT_src V_src))
+      (defs1_tgt defs2_tgt:list (positive * globdef fundefT_tgt V_tgt))
       defs_src (Hdefs_src: link_globdef_list fundef_src_dec EF_src_dec V_src_dec defs1_src defs2_src = Some defs_src)
       (H1: globdef_list_sim F_sim defs1_src defs1_tgt defs1_src defs1_tgt)
       (H2: globdef_list_sim F_sim defs2_src defs2_tgt defs2_src defs2_tgt):
@@ -306,14 +306,14 @@ Definition F_sim_weak_sim :=
     F_sim defs_src defs_tgt f_src f_tgt.
 
 Definition program_sim
-           (p_src: program Fundef_src V_src)
-           (p_tgt: program Fundef_tgt V_tgt): Prop :=
+           (p_src: program fundefT_src V_src)
+           (p_tgt: program fundefT_tgt V_tgt): Prop :=
   globdef_list_sim F_sim_weak_sim p_src.(prog_defs) p_tgt.(prog_defs) p_src.(prog_defs) p_tgt.(prog_defs) /\
   p_src.(prog_main) = p_tgt.(prog_main).
 
 Lemma link_program_sim
-      (p1_src p2_src:program Fundef_src V_src)
-      (p1_tgt p2_tgt:program Fundef_tgt V_tgt)
+      (p1_src p2_src:program fundefT_src V_src)
+      (p1_tgt p2_tgt:program fundefT_tgt V_tgt)
       p_src (Hp_src: link_program fundef_src_dec EF_src_dec V_src_dec p1_src p2_src = Some p_src)
       (H1: program_sim p1_src p1_tgt)
       (H2: program_sim p2_src p2_tgt):
@@ -352,7 +352,7 @@ Proof.
     intros. repeat intro. specialize (PR Hdefs0). auto.
 Qed.
 
-Inductive fundef_weak_sim (ge_src:Genv.t Fundef_src V_src) (ge_tgt:Genv.t Fundef_tgt V_tgt) (f_src:Fundef_src) (f_tgt:Fundef_tgt): Prop :=
+Inductive fundef_weak_sim (ge_src:Genv.t fundefT_src V_src) (ge_tgt:Genv.t fundefT_tgt V_tgt) (f_src:fundefT_src) (f_tgt:fundefT_tgt): Prop :=
 | fundef_weak_sim_intro
     b
     (Hsrc: Maps.PTree.get b ge_src.(Genv.genv_funs) = Some f_src)
@@ -361,8 +361,8 @@ Inductive fundef_weak_sim (ge_src:Genv.t Fundef_src V_src) (ge_tgt:Genv.t Fundef
 
 Section INITIALIZE.
 
-Variable (p_src: program Fundef_src V_src).
-Variable (p_tgt: program Fundef_tgt V_tgt).
+Variable (p_src: program fundefT_src V_src).
+Variable (p_tgt: program fundefT_tgt V_tgt).
 Variable (Hdefs: globdef_list_weak_sim p_src.(prog_defs) p_tgt.(prog_defs)).
 Variable (Hmain: p_src.(prog_main) = p_tgt.(prog_main)).
 
@@ -435,9 +435,9 @@ Proof.
 Qed.
 
 Lemma funct_ptr_translated:
-  forall (b : block) (f : Fundef_src),
+  forall (b : block) (f : fundefT_src),
   Genv.find_funct_ptr (Genv.globalenv p_src) b = Some f ->
-  exists tf : Fundef_tgt,
+  exists tf : fundefT_tgt,
   Genv.find_funct_ptr (Genv.globalenv p_tgt) b = Some tf /\ fundef_weak_sim ge_src ge_tgt f tf.
 Proof.
   intros. eapply Genv.find_funct_ptr_match; eauto.

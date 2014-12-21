@@ -10,8 +10,8 @@ Set Implicit Arguments.
 
 Section LINKER_PROP.
 
-Variable (Fundef F EF V:Type).
-Variable (fundef_dec: FundefDec Fundef F EF).
+Variable (fundefT F EF V:Type).
+Variable (fundef_dec: fundef_decT fundefT F EF).
 Variable (EF_dec: forall (v1 v2:EF), {v1 = v2} + {v1 <> v2}).
 Variable (V_dec: forall (v1 v2:V), {v1 = v2} + {v1 <> v2}).
 

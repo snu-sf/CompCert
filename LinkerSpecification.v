@@ -36,23 +36,23 @@ Defined.
 
 (* classify function definitions into internal and external functions  *)
 
-Definition FundefDec T F EF := T -> F + EF.
+Definition fundef_decT T F EF := T -> F + EF.
 
-Definition C_fundef_dec : FundefDec Csyntax.fundef Csyntax.function(external_function * Ctypes.typelist * Ctypes.type * calling_convention) :=
+Definition C_fundef_dec : fundef_decT Csyntax.fundef Csyntax.function(external_function * Ctypes.typelist * Ctypes.type * calling_convention) :=
   fun fundef =>
     match fundef with
       | Csyntax.Internal i => inl i
       | Csyntax.External ef args res cc => inr (ef, args, res, cc)
     end.
 
-Definition Clight_fundef_dec : FundefDec Clight.fundef Clight.function (external_function * Ctypes.typelist * Ctypes.type * calling_convention) :=
+Definition Clight_fundef_dec : fundef_decT Clight.fundef Clight.function (external_function * Ctypes.typelist * Ctypes.type * calling_convention) :=
   fun fundef =>
     match fundef with
       | Clight.Internal i => inl i
       | Clight.External ef args res cc => inr (ef, args, res, cc)
     end.
 
-Definition common_fundef_dec (F:Type) : FundefDec (AST.fundef F) F external_function :=
+Definition common_fundef_dec (F:Type) : fundef_decT (AST.fundef F) F external_function :=
   fun fundef =>
     match fundef with
       | Internal i => inl i
@@ -63,14 +63,14 @@ Definition common_fundef_dec (F:Type) : FundefDec (AST.fundef F) F external_func
 (** Linker definition *)
 Section LINKER.
 
-Variable (Fundef F EF V:Type).
-Variable (fundef_dec: FundefDec Fundef F EF).
+Variable (fundefT F EF V:Type).
+Variable (fundef_dec: fundef_decT fundefT F EF).
 Variable (EF_dec: forall (v1 v2:EF), {v1 = v2} + {v1 <> v2}).
 Variable (V_dec: forall (v1 v2:V), {v1 = v2} + {v1 <> v2}).
 
 (** `linkable a b` means we can remove `a` and take `b` when the two are linked. *)
 
-Inductive globfun_linkable (f1 f2:Fundef): Prop :=
+Inductive globfun_linkable (f1 f2:fundefT): Prop :=
 | globfun_linkable_ei (* TODO: type check? *)
     e1 i2 (H1: fundef_dec f1 = inr e1) (H2: fundef_dec f2 = inl i2)
 | globfun_linkable_ee
@@ -85,7 +85,7 @@ Inductive globvar_linkable (v1 v2:globvar V): Prop :=
     (Hvolatile: v1.(gvar_volatile) = v2.(gvar_volatile))
 .
 
-Inductive globdef_linkable: forall (g1 g2:globdef Fundef V), Prop :=
+Inductive globdef_linkable: forall (g1 g2:globdef fundefT V), Prop :=
 | globdef_linkable_fun
     f1 f2 (Hv: globfun_linkable f1 f2):
     globdef_linkable (Gfun f1) (Gfun f2)
@@ -97,7 +97,7 @@ Inductive globdef_linkable: forall (g1 g2:globdef Fundef V), Prop :=
 
 (** `linkable` decidabilities. *)
 
-Definition globfun_linkable_dec (f1 f2:Fundef): {globfun_linkable f1 f2} + {~ globfun_linkable f1 f2}.
+Definition globfun_linkable_dec (f1 f2:fundefT): {globfun_linkable f1 f2} + {~ globfun_linkable f1 f2}.
 Proof.
   destruct (fundef_dec f1) as [i1|e1] eqn:Hf1.
   { right. intro X. inv X.
@@ -150,7 +150,7 @@ Proof.
   { right. contradict n. inv n. auto. }
 Defined.
 
-Definition globdef_linkable_dec (g1 g2:globdef Fundef V): {globdef_linkable g1 g2} + {~ globdef_linkable g1 g2}.
+Definition globdef_linkable_dec (g1 g2:globdef fundefT V): {globdef_linkable g1 g2} + {~ globdef_linkable g1 g2}.
 Proof.
   destruct g1 as [f1|v1], g2 as [f2|v2].
   { destruct (globfun_linkable_dec f1 f2).
@@ -168,7 +168,7 @@ Defined.
 
 (** main definition *)
 
-Definition link_globdefs (defs1 defs2:PTree.t (globdef Fundef V)): option (PTree.t (globdef Fundef V)) :=
+Definition link_globdefs (defs1 defs2:PTree.t (globdef fundefT V)): option (PTree.t (globdef fundefT V)) :=
   let defs :=
     PTree.combine
       (fun odef1 odef2 =>
@@ -195,13 +195,13 @@ Definition link_globdefs (defs1 defs2:PTree.t (globdef Fundef V)): option (PTree
   then Some (PTree.option_map (fun _ x => x) defs)
   else None.
 
-Definition link_globdef_list (defs1 defs2:list (positive * globdef Fundef V)): option (list (positive * globdef Fundef V)) :=
+Definition link_globdef_list (defs1 defs2:list (positive * globdef fundefT V)): option (list (positive * globdef fundefT V)) :=
   match link_globdefs (PTree.unelements defs1) (PTree.unelements defs2) with
     | Some defs => Some (PTree.elements defs)
     | None => None
   end.
 
-Definition link_program (prog1 prog2:program Fundef V): option (program Fundef V) :=
+Definition link_program (prog1 prog2:program fundefT V): option (program fundefT V) :=
   match
     Pos.eqb prog1.(prog_main) prog2.(prog_main),
     link_globdef_list prog1.(prog_defs) prog2.(prog_defs)

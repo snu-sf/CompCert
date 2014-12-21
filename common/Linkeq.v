@@ -11,21 +11,21 @@ Set Implicit Arguments.
 (* Future programs of a partial program after linkings *)
 Section Linkeq.
 
-Variable (Fundef F EF V:Type).
-Variable (fundef_dec: FundefDec Fundef F EF).
+Variable (fundefT F EF V:Type).
+Variable (fundef_dec: fundef_decT fundefT F EF).
 Variable (EF_dec: forall (v1 v2:EF), {v1 = v2} + {v1 <> v2}).
 Variable (V_dec: forall (v1 v2:V), {v1 = v2} + {v1 <> v2}).
 
 (** `linkeq a b` means `b` is a possible future global definition of `a` after linkings *)
 
-Definition globfun_linkeq (f1 f2:Fundef): Prop :=
+Definition globfun_linkeq (f1 f2:fundefT): Prop :=
   f1 = f2 \/ globfun_linkable fundef_dec f1 f2.
 
 
 Definition globvar_linkeq (v1 v2:globvar V): Prop :=
   v1 = v2 \/ globvar_linkable v1 v2.
 
-Inductive globdef_linkeq: forall (g1 g2:globdef Fundef V), Prop :=
+Inductive globdef_linkeq: forall (g1 g2:globdef fundefT V), Prop :=
 | globdef_linkeq_fun
     f1 f2 (Hv: globfun_linkeq f1 f2):
     globdef_linkeq (Gfun f1) (Gfun f2)
@@ -34,16 +34,16 @@ Inductive globdef_linkeq: forall (g1 g2:globdef Fundef V), Prop :=
     globdef_linkeq (Gvar v1) (Gvar v2)
 .
 
-Definition globdefs_linkeq (defs1 defs2:PTree.t (globdef Fundef V)): Prop :=
+Definition globdefs_linkeq (defs1 defs2:PTree.t (globdef fundefT V)): Prop :=
   forall var def1 (Hsrc: PTree.get var defs1 = Some def1),
   exists def2,
     PTree.get var defs2 = Some def2 /\
     globdef_linkeq def1 def2.
 
-Definition globdef_list_linkeq (defs1 defs2:list (positive * globdef Fundef V)): Prop :=
+Definition globdef_list_linkeq (defs1 defs2:list (positive * globdef fundefT V)): Prop :=
   globdefs_linkeq (PTree.unelements defs1) (PTree.unelements defs2).
 
-Definition program_linkeq (p1 p2:program Fundef V): Prop :=
+Definition program_linkeq (p1 p2:program fundefT V): Prop :=
   globdef_list_linkeq p1.(prog_defs) p2.(prog_defs) /\
   p1.(prog_main) = p2.(prog_main).
 
