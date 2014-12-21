@@ -20,3 +20,29 @@ Proof.
   simpl. apply list_forall2_app; auto.
   repeat constructor; auto.
 Qed.
+
+Lemma list_norepet_option_map_find A (l:list (positive * A)) (var:positive):
+  list_norepet (@map _ positive (@fst _ _) l) ->
+  @option_map _ _ (@snd _ _)
+              (find (fun id : positive * A => peq var (fst id)) (rev l)) =
+  @option_map _ _ (@snd _ _)
+              (find (fun id : positive * A => peq var (fst id)) l).
+Proof.
+  induction l; simpl; intros Hnor; auto.
+  destruct a. simpl in *. inv Hnor.
+  destruct (peq var p); subst; simpl.
+  - rewrite in_rev, <- map_rev in H1.
+    revert H1 IHl. generalize (rev l).
+    induction l0; simpl; intros; auto.
+    + destruct (peq p p); subst; simpl; auto.
+      contradict n. auto.
+    + destruct a0. simpl in *.
+      destruct (peq p p0); simpl; subst; auto. 
+      contradict H1. left. auto.
+  - rewrite <- IHl; auto.
+    induction (rev l); simpl; auto.
+    + destruct (peq var p); simpl; subst; auto.
+      contradict n. auto.
+    + destruct a0. simpl in *.
+      destruct (peq var p0); simpl; subst; auto.
+Qed.

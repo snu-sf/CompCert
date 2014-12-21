@@ -182,7 +182,12 @@ Proof.
     | [H: context[link_globdefs ?fundef_dec ?EF_dec ?V_dec ?defs1 ?defs2] |- _] =>
       destruct (link_globdefs fundef_dec EF_dec V_dec defs1 defs2) as [defs'|] eqn:Hdefs'; inv H
   end.
-  admit. (* TODO: PTree.elements, PTree.unelements *)
+  repeat intro. exploit link_globdefs_linkeq_l; eauto.
+  intros [def2 [Hdef2 Hlinkeq]]. exists def2. split; auto.
+  rewrite PTree.guespec.
+  rewrite <- Hdef2. rewrite PTree.gespec.
+  generalize (PTree.elements_keys_norepet defs').
+  apply list_norepet_option_map_find.
 Qed.
 
 Lemma link_globdef_list_linkeq_r
@@ -195,7 +200,12 @@ Proof.
     | [H: context[link_globdefs ?fundef_dec ?EF_dec ?V_dec ?defs1 ?defs2] |- _] =>
       destruct (link_globdefs fundef_dec EF_dec V_dec defs1 defs2) as [defs'|] eqn:Hdefs'; inv H
   end.
-  admit. (* TODO: PTree.elements, PTree.unelements *)
+  repeat intro. exploit link_globdefs_linkeq_r; eauto.
+  intros [def2 [Hdef2 Hlinkeq]]. exists def2. split; auto.
+  rewrite PTree.guespec.
+  rewrite <- Hdef2. rewrite PTree.gespec.
+  generalize (PTree.elements_keys_norepet defs').
+  apply list_norepet_option_map_find.
 Qed.
 
 Lemma link_program_linkeq_l

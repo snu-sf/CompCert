@@ -923,7 +923,7 @@ Module PTree <: TREE.
       l
       (PTree.empty _).
 
-  Lemma PTree_gespec {A:Type} (m:t A) (i:positive):
+  Lemma gespec {A:Type} (m:t A) (i:positive):
     get i m = option_map snd (find (fun id => peq i (fst id)) (elements m)).
   Proof.
     generalize (elements_correct m i).
