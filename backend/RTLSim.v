@@ -13,7 +13,7 @@ Require Import IndexedStep.
 Require Import Op.
 Require Import Registers.
 Require Import RTL.
-Require Import MemoryRelation.
+Require Import ProgramSim MemoryRelation.
 
 Set Implicit Arguments.
 
@@ -38,12 +38,6 @@ Variable (mrelT_ops:mrelT_opsT mrelT).
 Section FUNCTION_LSIM.
 
 Variable (ge_src ge_tgt:genv).
-Inductive fundef_sim (fundef_src fundef_tgt:fundef): Prop :=
-| fundef_sim_intro
-    b
-    (Hsrc: ge_src.(Genv.genv_funs) ! b = Some fundef_src)
-    (Htgt: ge_tgt.(Genv.genv_funs) ! b = Some fundef_tgt)
-.
 
 Section STATE_LSIM.
 
@@ -67,7 +61,7 @@ Inductive _state_lsim
     (Hst2_src: st2_src = Callstate stack2_src fundef3_src args2_src mem2_src)
     stack2_tgt fundef3_tgt args2_tgt mem2_tgt
     (Hst_tgt: st_tgt = Callstate stack2_tgt fundef3_tgt args2_tgt mem2_tgt)
-    (Hfundef2: fundef_sim fundef3_src fundef3_tgt)
+    (Hfundef2: fundef_weak_sim ge_src ge_tgt fundef3_src fundef3_tgt)
     (Hargs: list_forall2 (mrelT_ops.(sem_value) mrel) args2_src args2_tgt)
     (mrel2:mrelT) (Hmrel2: mrelT_ops.(sem) mrel2 mem2_src mem2_tgt)
     (Hmrel2_le: mrelT_ops.(le) mrel mrel2)

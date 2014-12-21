@@ -916,6 +916,41 @@ Module PTree <: TREE.
     intros. apply fold1_xelements with (l := @nil (positive * A)). 
   Qed.
 
+  Definition unelements (A : Type) (l : list (elt * A)) : PTree.t A :=
+    List.fold_right
+      (fun kv acc =>
+         PTree.set (fst kv) (snd kv) acc)
+      (PTree.empty _)
+      l.
+
+  Lemma PTree_gespec {A:Type} (m:t A) (i:positive):
+    get i m = option_map snd (find (fun id => peq i (fst id)) (elements m)).
+  Proof.
+    generalize (elements_correct m i).
+    generalize (elements_complete m i).
+    generalize (get i m).
+    generalize (elements m).
+    induction l; intros v H1 H2; simpl.
+    - destruct v;[|auto].
+      exploit H2; eauto.
+      intro X. inv X.
+    - destruct a. simpl in *. destruct (peq i p); [subst|]; simpl.
+      + apply H1. left. auto.
+      + apply IHl; auto.
+        * intros. exploit H2; eauto.
+          intros [X|X]; auto.
+          contradict n. inv X. auto.
+  Qed.
+
+  Lemma guespec {A:Type} (l:list (positive * A)) (i:positive):
+    get i (unelements l) = option_map snd (find (fun id => peq i (fst id)) l).
+  Proof.
+    unfold unelements. induction l; simpl.
+    - rewrite gempty. auto.
+    - rewrite gsspec. destruct a. simpl in *.
+      destruct (peq i p); simpl in *; subst; auto.
+  Qed.
+
   Fixpoint xoption_map (A B : Type) (f : positive -> A -> option B) (m : t A) (i : positive)
            {struct m} : t B :=
     match m with
@@ -954,12 +989,6 @@ Module PTree <: TREE.
     rewrite xgoption_map. destruct (get i m); auto. repeat f_equal. exact (prev_involutive i).
   Qed.
 
-  Definition unelements (A : Type) (l : list (elt * A)) : PTree.t A :=
-    List.fold_left
-      (fun acc kv =>
-         PTree.set (fst kv) (snd kv) acc)
-      l
-      (PTree.empty _).
 End PTree.
 
 (** * An implementation of maps over type [positive] *)

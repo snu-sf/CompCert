@@ -38,12 +38,13 @@ Let fundef_dec := (@common_fundef_dec function).
 Variable fprog: program.
 Variable ftprog: program.
 Hypothesis (Hweak_sim:
-              program_weak_sim
+              globdef_list_weak_sim
                 fundef_dec fundef_dec transf_EF transf_V
-                fprog ftprog).
+                fprog.(prog_defs) ftprog.(prog_defs)).
+Hypothesis (Hmain: fprog.(prog_main) = ftprog.(prog_main)).
 
 Let globfun_weak_sim :=
-  globfun_sim fundef_dec fundef_dec transf_EF (fun _ _ _ _ => True) fprog ftprog.
+  globfun_sim fundef_dec fundef_dec transf_EF (fun _ _ _ _ => True) fprog.(prog_defs) ftprog.(prog_defs).
 
 Let ge := Genv.globalenv fprog.
 Let tge := Genv.globalenv ftprog.
@@ -60,43 +61,34 @@ Proof. admit. Qed.
 
 Lemma symbols_preserved:
   forall (s: ident), Genv.find_symbol tge s = Genv.find_symbol ge s.
-Proof (find_symbol_match Hweak_sim).
+Proof (symbols_preserved fprog ftprog Hweak_sim Hmain).
 
 Lemma varinfo_preserved:
   forall b, Genv.find_var_info tge b = Genv.find_var_info ge b.
 Proof.
-  intros. exploit find_var_info_match; eauto. instantiate (1 := b).
+  intros. exploit varinfo_preserved; eauto. instantiate (1 := b).
   unfold ge, tge.
-  destruct (Genv.find_var_info (Genv.globalenv ftprog) b), (Genv.find_var_info (Genv.globalenv fprog) b); intros; auto.
-  - inv H. destruct g0; auto.
-  - inv H.
-  - inv H.
+  destruct (Genv.find_var_info (Genv.globalenv ftprog) b), (Genv.find_var_info (Genv.globalenv fprog) b); intros; auto; inv H.
+  destruct g0; auto.
 Qed.
 
 Lemma funct_ptr_translated:
   forall (b: block) (f: RTL.fundef),
   Genv.find_funct_ptr ge b = Some f ->
-  exists tf, Genv.find_funct_ptr tge b = Some tf /\ fundef_sim ge tge f tf.
-Proof.
-  intros. exploit find_funct_ptr_match; eauto. intros [tf [Htf Hsim]].
-  exists tf. split; auto. econstructor; eauto.
-Qed.
+  exists tf, Genv.find_funct_ptr tge b = Some tf /\ fundef_weak_sim ge tge f tf.
+Proof (funct_ptr_translated fprog ftprog Hweak_sim Hmain).
 
 Lemma functions_translated:
   forall (v: val) (f: RTL.fundef),
   Genv.find_funct ge v = Some f ->
-  exists tf, Genv.find_funct tge v = Some tf /\ fundef_sim ge tge f tf.
-Proof.
-  unfold Genv.find_funct. destruct v; intros sf Hsf; inv Hsf.
-  destruct (Int.eq_dec i Int.zero); inv H0.
-  apply funct_ptr_translated. auto.
-Qed.
+  exists tf, Genv.find_funct tge v = Some tf /\ fundef_weak_sim ge tge f tf.
+Proof (functions_translated fprog ftprog Hweak_sim Hmain).
 
 Lemma find_function_translated:
   forall ros rs fd rs',
   find_function ge ros rs = Some fd ->
   regs_lessdef rs rs' ->
-  exists tfd, find_function tge ros rs' = Some tfd /\ fundef_sim ge tge fd tfd.
+  exists tfd, find_function tge ros rs' = Some tfd /\ fundef_weak_sim ge tge fd tfd.
 Proof.
   unfold find_function; intros; destruct ros.
 - specialize (H0 r). inv H0.
@@ -123,7 +115,7 @@ Inductive match_local (s s':list stackframe): state -> state -> Prop :=
              (PANALYZE: analyze pf (vanalyze rm pf) = Some papprox)
              (PSAT: forall v m, exists valu, numbering_holds valu ge psp (prs#pres <- v) m papprox!!ppc)
              (PRLD: regs_lessdef prs prs'),
-      fundef_sim ge tge f tf ->
+      fundef_weak_sim ge tge f tf ->
       Val.lessdef_list args args' ->
       Mem.extends m m' ->
       match_local s s'
@@ -131,7 +123,7 @@ Inductive match_local (s s':list stackframe): state -> state -> Prop :=
                   (Callstate (Stackframe pres (transf_function' pf papprox) psp ppc prs' :: s') tf args' m')
   | match_states_tailcall:
       forall f tf args m args' m',
-      fundef_sim ge tge f tf ->
+      fundef_weak_sim ge tge f tf ->
       Val.lessdef_list args args' ->
       Mem.extends m m' ->
       match_local s s'
