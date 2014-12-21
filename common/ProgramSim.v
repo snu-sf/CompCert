@@ -9,7 +9,6 @@ Require Import paco.
 
 Set Implicit Arguments.
 
-
 (* lifting function simulation to program simulation *)
 Section PROGRAM_SIM.
 
@@ -17,15 +16,29 @@ Variable (fundefT_src F_src EF_src V_src:Type).
 Variable (fundef_src_dec: fundef_decT fundefT_src F_src EF_src).
 Variable (EF_src_dec: forall (v1 v2:EF_src), {v1 = v2} + {v1 <> v2}).
 Variable (V_src_dec: forall (v1 v2:V_src), {v1 = v2} + {v1 <> v2}).
+Variable (F_sig_src: forall (f:F_src), signature).
+Variable (EF_sig_src: forall (ef:EF_src), signature).
+Let fundef_sig_src (fundef:fundefT_src): signature :=
+  match fundef_src_dec fundef with
+    | inl f => F_sig_src f
+    | inr ef => EF_sig_src ef
+  end.
 
 Variable (fundefT_tgt F_tgt EF_tgt V_tgt:Type).
 Variable (fundef_tgt_dec: fundef_decT fundefT_tgt F_tgt EF_tgt).
 Variable (EF_tgt_dec: forall (v1 v2:EF_tgt), {v1 = v2} + {v1 <> v2}).
 Variable (V_tgt_dec: forall (v1 v2:V_tgt), {v1 = v2} + {v1 <> v2}).
+Variable (F_sig_tgt: forall (f:F_tgt), signature).
+Variable (EF_sig_tgt: forall (ef:EF_tgt), signature).
+Let fundef_sig_tgt (fundef:fundefT_tgt): signature :=
+  match fundef_tgt_dec fundef with
+    | inl f => F_sig_tgt f
+    | inr ef => EF_sig_tgt ef
+  end.
 
 Variable (transf_EF: forall (ef:EF_src), res EF_tgt).
 Variable (transf_V: forall (v:V_src), res V_tgt).
-Definition V_sim (v_src:V_src) (v_tgt:V_tgt) := transf_V v_src = OK v_tgt.
+Let V_sim (v_src:V_src) (v_tgt:V_tgt) := transf_V v_src = OK v_tgt.
 
 Definition F_simT :=
   forall
@@ -178,7 +191,13 @@ Proof.
 Qed.
 
 (** an instantiation of weak simulation: matching any function definitions *)
-Definition globdef_list_weak_sim := globdef_list_sim (fun _ _ _ _ => True) nil nil.
+Definition globdef_list_weak_sim :=
+  globdef_list_sim
+    (fun _ _ fundef_src fundef_tgt =>
+       if signature_eq (F_sig_src fundef_src) (F_sig_tgt fundef_tgt)
+       then True
+       else False)
+    nil nil.
 
 (** properties of linking on simulation *)
 Ltac simplify_decs :=
@@ -354,6 +373,7 @@ Qed.
 
 Inductive fundef_weak_sim (ge_src:Genv.t fundefT_src V_src) (ge_tgt:Genv.t fundefT_tgt V_tgt) (f_src:fundefT_src) (f_tgt:fundefT_tgt): Prop :=
 | fundef_weak_sim_intro
+    (Hsig: fundef_sig_src f_src = fundef_sig_tgt f_tgt)
     b
     (Hsrc: Maps.PTree.get b ge_src.(Genv.genv_funs) = Some f_src)
     (Htgt: Maps.PTree.get b ge_tgt.(Genv.genv_funs) = Some f_tgt)
@@ -441,6 +461,13 @@ Lemma funct_ptr_translated:
   Genv.find_funct_ptr (Genv.globalenv p_tgt) b = Some tf /\ fundef_weak_sim ge_src ge_tgt f tf.
 Proof.
   intros. eapply Genv.find_funct_ptr_match; eauto.
+Qed.
+
+Lemma sig_preserved:
+  forall f tf (Hsim: fundef_weak_sim ge_src ge_tgt f tf),
+    fundef_sig_src f = fundef_sig_tgt tf.
+Proof.
+  intros. inv Hsim. auto.
 Qed.
 
 End INITIALIZE.

@@ -39,7 +39,7 @@ Variable fprog: program.
 Variable ftprog: program.
 Hypothesis (Hweak_sim:
               globdef_list_weak_sim
-                fundef_dec fundef_dec transf_EF transf_V
+                fundef_dec fn_sig fundef_dec fn_sig transf_EF transf_V
                 fprog.(prog_defs) ftprog.(prog_defs)).
 Hypothesis (Hmain: fprog.(prog_main) = ftprog.(prog_main)).
 
@@ -61,13 +61,15 @@ Proof. admit. Qed.
 
 Lemma symbols_preserved:
   forall (s: ident), Genv.find_symbol tge s = Genv.find_symbol ge s.
-Proof (symbols_preserved fprog ftprog Hweak_sim Hmain).
+Proof (symbols_preserved ef_sig ef_sig fprog ftprog Hweak_sim Hmain).
 
 Lemma varinfo_preserved:
   forall b, Genv.find_var_info tge b = Genv.find_var_info ge b.
 Proof.
-  intros. exploit varinfo_preserved; eauto. instantiate (1 := b).
-  unfold ge, tge.
+  intros. exploit varinfo_preserved; try apply Hweak_sim; auto.
+  { apply ef_sig. }
+  { apply ef_sig. }
+  instantiate (1 := b). unfold ge, tge.
   destruct (Genv.find_var_info (Genv.globalenv ftprog) b), (Genv.find_var_info (Genv.globalenv fprog) b); intros; auto; inv H.
   destruct g0; auto.
 Qed.
@@ -75,20 +77,32 @@ Qed.
 Lemma funct_ptr_translated:
   forall (b: block) (f: RTL.fundef),
   Genv.find_funct_ptr ge b = Some f ->
-  exists tf, Genv.find_funct_ptr tge b = Some tf /\ fundef_weak_sim ge tge f tf.
-Proof (funct_ptr_translated fprog ftprog Hweak_sim Hmain).
+  exists tf, Genv.find_funct_ptr tge b = Some tf /\
+             fundef_weak_sim
+               (@common_fundef_dec function) fn_sig ef_sig
+               (@common_fundef_dec function) fn_sig ef_sig
+               ge tge f tf.
+Proof (funct_ptr_translated ef_sig ef_sig fprog ftprog Hweak_sim Hmain).
 
 Lemma functions_translated:
   forall (v: val) (f: RTL.fundef),
   Genv.find_funct ge v = Some f ->
-  exists tf, Genv.find_funct tge v = Some tf /\ fundef_weak_sim ge tge f tf.
-Proof (functions_translated fprog ftprog Hweak_sim Hmain).
+  exists tf, Genv.find_funct tge v = Some tf /\
+             fundef_weak_sim
+               (@common_fundef_dec function) fn_sig ef_sig
+               (@common_fundef_dec function) fn_sig ef_sig
+               ge tge f tf.
+Proof (functions_translated ef_sig ef_sig fprog ftprog Hweak_sim Hmain).
 
 Lemma find_function_translated:
   forall ros rs fd rs',
   find_function ge ros rs = Some fd ->
   regs_lessdef rs rs' ->
-  exists tfd, find_function tge ros rs' = Some tfd /\ fundef_weak_sim ge tge fd tfd.
+  exists tfd, find_function tge ros rs' = Some tfd /\
+              fundef_weak_sim
+               (@common_fundef_dec function) fn_sig ef_sig
+               (@common_fundef_dec function) fn_sig ef_sig
+                ge tge fd tfd.
 Proof.
   unfold find_function; intros; destruct ros.
 - specialize (H0 r). inv H0.
@@ -97,6 +111,18 @@ Proof.
 - rewrite symbols_preserved. destruct (Genv.find_symbol ge i).
   apply funct_ptr_translated; auto.
   discriminate.
+Qed.
+
+Lemma sig_preserved:
+  forall f tf,
+    fundef_weak_sim
+      (@common_fundef_dec function) fn_sig ef_sig
+      (@common_fundef_dec function) fn_sig ef_sig
+      ge tge f tf ->
+    funsig tf = funsig f.
+Proof.
+  intros. inv H. unfold common_fundef_dec in *.
+  destruct f, tf; simpl in *; auto.
 Qed.
 
 Inductive match_local (s s':list stackframe): state -> state -> Prop :=
@@ -115,7 +141,10 @@ Inductive match_local (s s':list stackframe): state -> state -> Prop :=
              (PANALYZE: analyze pf (vanalyze rm pf) = Some papprox)
              (PSAT: forall v m, exists valu, numbering_holds valu ge psp (prs#pres <- v) m papprox!!ppc)
              (PRLD: regs_lessdef prs prs'),
-      fundef_weak_sim ge tge f tf ->
+      fundef_weak_sim
+        (@common_fundef_dec function) fn_sig ef_sig
+        (@common_fundef_dec function) fn_sig ef_sig
+        ge tge f tf ->
       Val.lessdef_list args args' ->
       Mem.extends m m' ->
       match_local s s'
@@ -123,7 +152,10 @@ Inductive match_local (s s':list stackframe): state -> state -> Prop :=
                   (Callstate (Stackframe pres (transf_function' pf papprox) psp ppc prs' :: s') tf args' m')
   | match_states_tailcall:
       forall f tf args m args' m',
-      fundef_weak_sim ge tge f tf ->
+      fundef_weak_sim
+        (@common_fundef_dec function) fn_sig ef_sig
+        (@common_fundef_dec function) fn_sig ef_sig
+        ge tge f tf ->
       Val.lessdef_list args args' ->
       Mem.extends m m' ->
       match_local s s'
@@ -267,7 +299,7 @@ Proof.
   exploit find_function_translated; eauto. intros [tf [FIND' TRANSF']].
   econstructor; split.
   eapply exec_Icall; eauto.
-  admit. (* apply sig_preserved; auto. *)
+  apply sig_preserved; auto.
   econstructor; eauto.
   intros. eapply analysis_correct_1; eauto. simpl; auto.
   unfold transfer; rewrite H.
@@ -279,7 +311,7 @@ Proof.
   exploit Mem.free_parallel_extends; eauto. intros [m'' [A B]].
   econstructor; split.
   eapply exec_Itailcall; eauto.
-  admit. (* apply sig_preserved; auto. *)
+  apply sig_preserved; auto.
   econstructor; eauto.
   apply regs_lessdef_regs; auto.
 
