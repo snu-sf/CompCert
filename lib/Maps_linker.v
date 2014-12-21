@@ -33,7 +33,7 @@
 *)
 
 Require Import Equivalence EquivDec.
-Require Import Coqlib.
+Require Import Coqlib Coqlib_linker.
 
 (* To avoid useless definitions of inductors in extracted code. *)
 Local Unset Elimination Schemes.
@@ -950,6 +950,14 @@ Module PTree <: TREE.
     - rewrite gempty. auto.
     - rewrite gsspec. destruct a. simpl in *.
       destruct (peq i p); simpl in *; subst; auto.
+  Qed.
+
+  Lemma unelements_elements A (m:PTree.t A) b:
+    get b (PTree.unelements (PTree.elements m)) = get b m.
+  Proof.
+    rewrite guespec, gespec.
+    generalize (elements_keys_norepet m).
+    apply list_norepet_option_map_find.
   Qed.
 
   Fixpoint xoption_map (A B : Type) (f : positive -> A -> option B) (m : t A) (i : positive)

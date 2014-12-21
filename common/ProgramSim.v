@@ -226,8 +226,12 @@ Lemma link_globdefs_sim
     link_globdefs fundef_tgt_dec EF_tgt_dec V_tgt_dec (PTree.unelements defs1_tgt) (PTree.unelements defs2_tgt) = Some defs_tgt /\
     globdefs_sim F_sim (PTree.elements defs_src) (PTree.elements defs_tgt) defs_src defs_tgt.
 Proof.
+  generalize (link_globdefs_linkeq_l _ _ _ _ _ Hdefs_src). intro Hle1_src.
+  generalize (link_globdefs_linkeq_r _ _ _ _ _ Hdefs_src). intro Hle2_src.
   destruct (link_globdefs fundef_tgt_dec EF_tgt_dec V_tgt_dec (PTree.unelements defs1_tgt) (PTree.unelements defs2_tgt)) as [defs_tgt|] eqn:Hdefs_tgt.
-  { eexists. split; [eauto|].
+  { generalize (link_globdefs_linkeq_l _ _ _ _ _ Hdefs_tgt). intro Hle1_tgt.
+    generalize (link_globdefs_linkeq_r _ _ _ _ _ Hdefs_tgt). intro Hle2_tgt.
+    eexists. split; [eauto|].
     intro i. 
     eapply gtlink_globdefs in Hdefs_src. instantiate (1 := i) in Hdefs_src.
     eapply gtlink_globdefs in Hdefs_tgt. instantiate (1 := i) in Hdefs_tgt.
@@ -239,9 +243,88 @@ Proof.
              ((PTree.unelements defs2_tgt) ! i) eqn:Hi2_tgt,
              (defs_tgt ! i) eqn:Hi_tgt; subst; try (inv Hdefs_tgt; fail);
     try (inv H1; fail); try (inv H2; fail); auto.
-    admit.
-    admit.
-    admit.
+    { destruct Hdefs_src as [[]|[]], Hdefs_tgt as [[]|[]]; subst;
+      repeat
+        match goal with
+          | [H: globfun_sim _ _ _ _ _ |- _] => inv H
+          | [H1: fundef_src_dec ?f = _, H2: fundef_src_dec ?f = _ |- _] =>
+            rewrite H1 in H2; inv H2
+          | [H1: fundef_tgt_dec ?f = _, H2: fundef_tgt_dec ?f = _ |- _] =>
+            rewrite H1 in H2; inv H2
+        end.
+      - eapply globdef_sim_le; eauto.
+        + unfold globdef_list_linkeq. rewrite Hle2_src.
+          repeat intro. exists def1. split; [|reflexivity].
+          rewrite PTree.unelements_elements. auto.
+        + unfold globdef_list_linkeq. rewrite Hle2_tgt.
+          repeat intro. exists def1. split; [|reflexivity].
+          rewrite PTree.unelements_elements. auto.
+      - inv H; inv H1; inv H2; inv H3; inv Hv; inv Hv0; repeat constructor;
+        repeat
+          match goal with
+            | [H: globfun_sim _ _ _ _ _ |- _] => inv H
+            | [H1: fundef_src_dec ?f = _, H2: fundef_src_dec ?f = _ |- _] =>
+              rewrite H1 in H2; inv H2
+            | [H1: fundef_tgt_dec ?f = _, H2: fundef_tgt_dec ?f = _ |- _] =>
+              rewrite H1 in H2; inv H2
+          end.
+        + eapply globfun_sim_e; eauto.
+        + inv Hv1. destruct v1, v2; simpl in *; subst.
+          unfold transf_globvar in *. simpl in *.
+          destruct (transf_V gvar_info0); simpl in *; inv Hv; inv Hv0.
+          inv Hv2. simpl in *. subst. auto.
+      - inv H; inv H1; inv H2; inv H3; inv Hv; inv Hv0; repeat constructor;
+        repeat
+          match goal with
+            | [H: globfun_sim _ _ _ _ _ |- _] => inv H
+            | [H1: fundef_src_dec ?f = _, H2: fundef_src_dec ?f = _ |- _] =>
+              rewrite H1 in H2; inv H2
+            | [H1: fundef_tgt_dec ?f = _, H2: fundef_tgt_dec ?f = _ |- _] =>
+              rewrite H1 in H2; inv H2
+          end.
+        + eapply globfun_sim_e; eauto.
+        + inv Hv1. destruct v1, v2; simpl in *; subst.
+          unfold transf_globvar in *. simpl in *.
+          destruct (transf_V gvar_info0); simpl in *; inv Hv; inv Hv0.
+          inv Hv2. simpl in *. subst. auto.
+      - inv H; inv H1; inv H2; inv H3; inv Hv; inv Hv0; repeat constructor;
+        repeat
+          match goal with
+            | [H: globfun_sim _ _ _ _ _ |- _] => inv H
+            | [H1: fundef_src_dec ?f = _, H2: fundef_src_dec ?f = _ |- _] =>
+              rewrite H1 in H2; inv H2
+            | [H1: fundef_tgt_dec ?f = _, H2: fundef_tgt_dec ?f = _ |- _] =>
+              rewrite H1 in H2; inv H2
+          end.
+        + eapply globfun_sim_i; eauto. intros. apply Hsim.
+          * unfold globdef_list_linkeq in *. rewrite Hle1_src, <- Hfdefs_src.
+            repeat intro. exists def1. split; [|reflexivity].
+            rewrite PTree.unelements_elements. auto.
+          * unfold globdef_list_linkeq in *. rewrite Hle1_tgt, <- Hfdefs_tgt.
+            repeat intro. exists def1. split; [|reflexivity].
+            rewrite PTree.unelements_elements. auto.
+        + eapply globfun_sim_e; eauto.
+        + inv Hv1. destruct v1, v2; simpl in *; subst.
+          unfold transf_globvar in *. simpl in *.
+          destruct (transf_V gvar_info0); simpl in *; inv Hv; inv Hv0.
+          inv Hv2. simpl in *. subst. auto.
+    }
+    { eapply globdef_sim_le; eauto.
+      - unfold globdef_list_linkeq. rewrite Hle1_src.
+        repeat intro. exists def1. split; [|reflexivity].
+        rewrite PTree.unelements_elements. auto.
+      - unfold globdef_list_linkeq. rewrite Hle1_tgt.
+        repeat intro. exists def1. split; [|reflexivity].
+        rewrite PTree.unelements_elements. auto.
+    }
+    { eapply globdef_sim_le; eauto.
+      - unfold globdef_list_linkeq. rewrite Hle2_src.
+        repeat intro. exists def1. split; [|reflexivity].
+        rewrite PTree.unelements_elements. auto.
+      - unfold globdef_list_linkeq. rewrite Hle2_tgt.
+        repeat intro. exists def1. split; [|reflexivity].
+        rewrite PTree.unelements_elements. auto.
+    }
   }
   { apply gflink_globdefs in Hdefs_tgt.
     destruct Hdefs_tgt as [i [def1 [def2 [Hdef1 [Hdef2 [H12 H21]]]]]].

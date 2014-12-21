@@ -184,10 +184,7 @@ Proof.
   end.
   repeat intro. exploit link_globdefs_linkeq_l; eauto.
   intros [def2 [Hdef2 Hlinkeq]]. exists def2. split; auto.
-  rewrite PTree.guespec.
-  rewrite <- Hdef2. rewrite PTree.gespec.
-  generalize (PTree.elements_keys_norepet defs').
-  apply list_norepet_option_map_find.
+  rewrite PTree.unelements_elements. auto.
 Qed.
 
 Lemma link_globdef_list_linkeq_r
@@ -202,10 +199,7 @@ Proof.
   end.
   repeat intro. exploit link_globdefs_linkeq_r; eauto.
   intros [def2 [Hdef2 Hlinkeq]]. exists def2. split; auto.
-  rewrite PTree.guespec.
-  rewrite <- Hdef2. rewrite PTree.gespec.
-  generalize (PTree.elements_keys_norepet defs').
-  apply list_norepet_option_map_find.
+  rewrite PTree.unelements_elements. auto.
 Qed.
 
 Lemma link_program_linkeq_l
