@@ -149,21 +149,15 @@ Definition lsim_func_aux
     mrel_entry mem_entry_src mem_entry_tgt
     cs_entry_src cs_entry_tgt
     args_src args_tgt
-    mem2_src mem2_tgt stk_src stk_tgt rs_src rs_tgt st_src st_tgt
     (Hmrel_entry_le: mrelT_ops.(le) mrel_init mrel_entry)
     (Hmrel_entry: mrelT_ops.(sem) mrel_entry mem_entry_src mem_entry_tgt)
-    (Hargs: list_forall2 (mrelT_ops.(sem_value) mrel_entry) args_src args_tgt)
-    (Hstk_src: Mem.alloc mem_entry_src 0 func_src.(fn_stacksize) = (mem2_src, stk_src))
-    (Hstk_tgt: Mem.alloc mem_entry_tgt 0 func_tgt.(fn_stacksize) = (mem2_tgt, stk_tgt))
-    (Hrs_src: rs_src = init_regs args_src func_src.(fn_params))
-    (Hrs_tgt: rs_tgt = init_regs args_tgt func_tgt.(fn_params))
-    (Hst_src: st_src = State cs_entry_src func_src (Vptr stk_src Int.zero) func_src.(fn_entrypoint) rs_src mem2_src)
-    (Hst_tgt: st_tgt = State cs_entry_tgt func_tgt (Vptr stk_tgt Int.zero) func_tgt.(fn_entrypoint) rs_tgt mem2_tgt),
+    (Hargs: list_forall2 (mrelT_ops.(sem_value) mrel_entry) args_src args_tgt),
   exists i,
     state_lsim
       cs_entry_src cs_entry_tgt mrel_entry
-      mrel_entry i st_src st_tgt
-.
+      mrel_entry i
+      (Callstate cs_entry_src (Internal func_src) args_src mem_entry_src)
+      (Callstate cs_entry_tgt (Internal func_tgt) args_tgt mem_entry_tgt).
 
 Inductive function_lsim
           mrel_init func_src func_tgt: Prop :=
