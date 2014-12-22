@@ -43,10 +43,14 @@ Section LSIM.
 
 Variable (mrelT:Type).
 Variable (mrelT_ops:mrelT_opsT mrelT).
-Variable (prog_src prog_tgt:program).
+Variable (main:positive).
 
-Let ge_src := Genv.globalenv prog_src.
-Let ge_tgt := Genv.globalenv prog_tgt.
+Variable (fdefs_src fdefs_tgt:list (positive * globdef fundef unit)).
+
+Let fprog_src := mkprogram fdefs_src main.
+Let fprog_tgt := mkprogram fdefs_tgt main.
+Let ge_src := Genv.globalenv fprog_src.
+Let ge_tgt := Genv.globalenv fprog_tgt.
 
 Section STATE_LSIM.
 
@@ -74,8 +78,8 @@ Inductive _state_lsim_or_csim
               (Hvres: mrelT_ops.(sem_value) mrel2 vres_src vres_tgt)
               (Hst2_src: st2_src = Returnstate stack_src vres_src mem2_src)
               (Hst2_tgt: st2_tgt = Returnstate stack_tgt vres_tgt mem2_tgt)
-              (Hsound_src: sound_state_ext prog_src st2_src)
-              (Hsound_tgt: sound_state_ext prog_tgt st2_tgt)
+              (Hsound_src: sound_state_ext fprog_src st2_src)
+              (Hsound_tgt: sound_state_ext fprog_tgt st2_tgt)
               (Hmrel2_le: mrelT_ops.(le_public) mrel mrel2)
               (Hst2_mem: mrelT_ops.(sem) mrel2 mem2_src mem2_tgt),
        exists i2,
@@ -86,8 +90,8 @@ Inductive _state_lsim
           (state_lsim: mrelT -> WF.t -> state -> state -> Prop)
           (mrel:mrelT) (i:WF.t) (st_src st_tgt:state): Prop :=
 | _state_lsim_return
-    (Hsound_src: sound_state_ext prog_src st_src)
-    (Hsound_tgt: sound_state_ext prog_tgt st_tgt)
+    (Hsound_src: sound_state_ext fprog_src st_src)
+    (Hsound_tgt: sound_state_ext fprog_tgt st_tgt)
     st2_src (Hst_src: star step ge_src st_src E0 st2_src)
     val2_src mem2_src (Hst2_src: st2_src = Returnstate cs_entry_src val2_src mem2_src)
     val_tgt mem_tgt (Hst_tgt: st_tgt = Returnstate cs_entry_tgt val_tgt mem_tgt)
@@ -96,8 +100,8 @@ Inductive _state_lsim
     (Hmrel2_le_public: mrelT_ops.(le_public) mrel_entry mrel2)
 
 | _state_lsim_step
-    (Hsound_src: sound_state_ext prog_src st_src)
-    (Hsound_tgt: sound_state_ext prog_tgt st_tgt)
+    (Hsound_src: sound_state_ext fprog_src st_src)
+    (Hsound_tgt: sound_state_ext fprog_tgt st_tgt)
     (Hpreserve:
        forall evt st2_src (Hst2_src: step ge_src st_src evt st2_src),
          (exists i2 st2_tgt (mrel2:mrelT),
@@ -143,43 +147,31 @@ Definition state_lsim: _ -> _ -> _ -> _ -> Prop :=
 
 End STATE_LSIM.
 
-Definition lsim_func_aux
-           mrel_init func_src func_tgt: Prop :=
-  forall
-    mrel_entry mem_entry_src mem_entry_tgt
-    cs_entry_src cs_entry_tgt
-    args_src args_tgt
-    (Hmrel_entry_le: mrelT_ops.(le) mrel_init mrel_entry)
-    (Hmrel_entry: mrelT_ops.(sem) mrel_entry mem_entry_src mem_entry_tgt)
-    (Hargs: list_forall2 (mrelT_ops.(sem_value) mrel_entry) args_src args_tgt),
-  exists i,
-    state_lsim
-      cs_entry_src cs_entry_tgt mrel_entry
-      mrel_entry i
-      (Callstate cs_entry_src (Internal func_src) args_src mem_entry_src)
-      (Callstate cs_entry_tgt (Internal func_tgt) args_tgt mem_entry_tgt).
-
-Inductive function_lsim
-          mrel_init func_src func_tgt: Prop :=
-| lsim_func_intro
-    (Hlsim_func_aux: lsim_func_aux mrel_init func_src func_tgt)
-    (Hsig: func_src.(fn_sig) = func_tgt.(fn_sig))
-.
-
-Definition program_lsim: Prop :=
-  forall st_tgt (Hinit_tgt: initial_state prog_tgt st_tgt),
-  exists st_src,
-    initial_state prog_src st_src /\
-  exists mrel_init,
-    mrelT_ops.(sem) mrel_init (state_mem st_src) (state_mem st_tgt) /\
-    forall b func_tgt (Hfunc_tgt: Genv.find_funct_ptr ge_tgt b = Some (Internal func_tgt)),
-    exists func_src,
-      Genv.find_funct_ptr ge_src b = Some (Internal func_src) /\
-      True /\ (* TODO: condition on mrel_init and ge_src/tgt. *)
-      function_lsim mrel_init func_src func_tgt
+Inductive function_lsim (func_src func_tgt:function): Prop :=
+| function_lsim_intro
+    (Hlsim:
+       forall
+         mrel_init
+         mrel_entry mem_entry_src mem_entry_tgt
+         cs_entry_src cs_entry_tgt
+         args_src args_tgt
+         st_src st_tgt
+         i
+         (Hmrel_init: True) (* TODO *)
+         (Hmrel_entry_le: mrelT_ops.(le) mrel_init mrel_entry)
+         (Hmrel_entry: mrelT_ops.(sem) mrel_entry mem_entry_src mem_entry_tgt)
+         (Hargs: list_forall2 (mrelT_ops.(sem_value) mrel_entry) args_src args_tgt)
+         (Hst_src: st_src = (Callstate cs_entry_src (Internal func_src) args_src mem_entry_src))
+         (Hst_tgt: st_tgt = (Callstate cs_entry_tgt (Internal func_tgt) args_tgt mem_entry_tgt))
+         (Hsound_src: sound_state_ext fprog_src st_src)
+         (Hsound_tgt: sound_state_ext fprog_tgt st_tgt),
+         state_lsim
+           cs_entry_src cs_entry_tgt mrel_entry
+           mrel_entry i
+           (Callstate cs_entry_src (Internal func_src) args_src mem_entry_src)
+           (Callstate cs_entry_tgt (Internal func_tgt) args_tgt mem_entry_tgt))
 .
 
 End LSIM.
-
 Hint Constructors _state_lsim.
 Hint Resolve state_lsim_mon: paco.

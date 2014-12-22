@@ -77,7 +77,8 @@ Inductive globfun_sim
     (Hsim: forall fdefs_src fdefs_tgt
                   (Hfdefs_src: globdef_list_linkeq fundef_src_dec defs_src fdefs_src)
                   (Hfdefs_tgt: globdef_list_linkeq fundef_tgt_dec defs_tgt fdefs_tgt),
-             F_sim fdefs_src fdefs_tgt f_src f_tgt)
+             F_sim fdefs_src fdefs_tgt f_src f_tgt /\
+             F_sig_src f_src = F_sig_tgt f_tgt)
 | globfun_sim_e
     ef_src ef_tgt (Hef: transf_EF ef_src = OK ef_tgt)
     (Hsrc: fundef_src_dec g_src = inr ef_src)
@@ -127,7 +128,8 @@ Lemma globfun_sim_le
 Proof.
   intros. inv PR.
   - eapply globfun_sim_i; eauto.
-    intros. apply HF_sim. eapply Hsim.
+    intros. exploit Hsim; eauto. intros [Hsim1 Hsig].
+    split; auto. apply HF_sim. eapply Hsim.
     + rewrite Hdefs_src. auto.
     + rewrite Hdefs_tgt. auto.
   - eapply globfun_sim_e; eauto.
@@ -203,12 +205,7 @@ Qed.
 
 (** an instantiation of weak simulation: matching any function definitions *)
 Definition globdef_list_weak_sim :=
-  globdef_list_sim
-    (fun _ _ fundef_src fundef_tgt =>
-       if signature_eq (F_sig_src fundef_src) (F_sig_tgt fundef_tgt)
-       then True
-       else False)
-    nil nil.
+  globdef_list_sim (fun _ _ _ _ => True) nil nil.
 
 (** properties of linking on simulation *)
 Ltac simplify_decs :=
@@ -506,8 +503,7 @@ Proof.
         rewrite PTree.gempty in Hsrc0. inv Hsrc0.
       * unfold globdef_list_linkeq. repeat intro.
         rewrite PTree.gempty in Hsrc0. inv Hsrc0.
-      * destruct (signature_eq (F_sig_src f_src0) (F_sig_tgt f_tgt0)); auto.
-        intro X. inv X.
+      * intros [_ ?]. auto.
     + apply Htransf_sig. auto.
   - destruct v_src, v_tgt. inv Hv. unfold transf_globvar in Hv0. simpl in *.
     destruct (transf_V gvar_info) eqn:Hgvar_info; inv Hv0. constructor; auto.
