@@ -25,6 +25,13 @@ Definition is_normal_state (st:state): bool :=
     | _ => false
   end.
 
+Definition is_call (f:function) (pc:node): bool :=
+  match (fn_code f)!pc with
+    | Some (Icall _ _ _ _ _) => true
+    | Some (Itailcall _ _ _) => true
+    | _ => false
+  end.
+
 Definition state_mem (st:state): mem :=
   match st with
     | State _ _ _ _ _ m => m
@@ -46,6 +53,35 @@ Section STATE_LSIM.
 Variable (cs_entry_src cs_entry_tgt:list stackframe).
 Variable (mrel_entry:mrelT).
 
+Inductive _state_lsim_or_csim
+          (state_lsim: mrelT -> WF.t -> state -> state -> Prop)
+          (mrel:mrelT) (i:WF.t) (st_src st_tgt:state): Prop :=
+| _state_lsim_or_csim_lsim
+    (Hlsim: state_lsim mrel i st_src st_tgt)
+| _state_lsim_or_csim_csim
+    stack_src fundef_src args_src mem_src
+    (Hst_src: st_src = Callstate stack_src fundef_src args_src mem_src)
+    stack_tgt fundef_tgt args_tgt mem_tgt
+    (Hst_tgt: st_tgt = Callstate stack_tgt fundef_tgt args_tgt mem_tgt)
+    (Hfundef: fundef_weak_sim
+                (@common_fundef_dec function) fn_sig ef_sig
+                (@common_fundef_dec function) fn_sig ef_sig
+                ge_src ge_tgt fundef_src fundef_tgt)
+    (Hargs: list_forall2 (mrelT_ops.(sem_value) mrel) args_src args_tgt)
+    (Hmrel: mrelT_ops.(sem) mrel mem_src mem_tgt)
+    (Hreturn:
+       forall mrel2 st2_src st2_tgt mem2_src mem2_tgt vres_src vres_tgt
+              (Hvres: mrelT_ops.(sem_value) mrel2 vres_src vres_tgt)
+              (Hst2_src: st2_src = Returnstate stack_src vres_src mem2_src)
+              (Hst2_tgt: st2_tgt = Returnstate stack_tgt vres_tgt mem2_tgt)
+              (Hsound_src: sound_state_ext prog_src st2_src)
+              (Hsound_tgt: sound_state_ext prog_tgt st2_tgt)
+              (Hmrel2_le: mrelT_ops.(le_public) mrel mrel2)
+              (Hst2_mem: mrelT_ops.(sem) mrel2 mem2_src mem2_tgt),
+       exists i2,
+         state_lsim mrel2 i2 st2_src st2_tgt)
+.
+
 Inductive _state_lsim
           (state_lsim: mrelT -> WF.t -> state -> state -> Prop)
           (mrel:mrelT) (i:WF.t) (st_src st_tgt:state): Prop :=
@@ -59,33 +95,6 @@ Inductive _state_lsim
     (Hmrel2_le: mrelT_ops.(le) mrel mrel2)
     (Hmrel2_le_public: mrelT_ops.(le_public) mrel_entry mrel2)
 
-| _state_lsim_call
-    (Hsound_src: sound_state_ext prog_src st_src)
-    (Hsound_tgt: sound_state_ext prog_tgt st_tgt)
-    st2_src (Hst_src: star step ge_src st_src E0 st2_src)
-    stack2_src fundef3_src args2_src mem2_src
-    (Hst2_src: st2_src = Callstate stack2_src fundef3_src args2_src mem2_src)
-    stack2_tgt fundef3_tgt args2_tgt mem2_tgt
-    (Hst_tgt: st_tgt = Callstate stack2_tgt fundef3_tgt args2_tgt mem2_tgt)
-    (Hfundef2: fundef_weak_sim
-                 (@common_fundef_dec function) fn_sig ef_sig
-                 (@common_fundef_dec function) fn_sig ef_sig
-                 ge_src ge_tgt fundef3_src fundef3_tgt)
-    (Hargs: list_forall2 (mrelT_ops.(sem_value) mrel) args2_src args2_tgt)
-    (mrel2:mrelT) (Hmrel2: mrelT_ops.(sem) mrel2 mem2_src mem2_tgt)
-    (Hmrel2_le: mrelT_ops.(le) mrel mrel2)
-    (Hreturn:
-       forall mrel3 st3_src st3_tgt mem3_src mem3_tgt vres_src vres_tgt
-              (Hvres: mrelT_ops.(sem_value) mrel3 vres_src vres_tgt)
-              (Hst3_src: st3_src = Returnstate stack2_src vres_src mem3_src)
-              (Hst3_tgt: st3_tgt = Returnstate stack2_tgt vres_tgt mem3_tgt)
-              (Hsound_src: sound_state_ext prog_src st3_src)
-              (Hsound_tgt: sound_state_ext prog_tgt st3_tgt)
-              (Hmrel3_le: mrelT_ops.(le_public) mrel2 mrel3)
-              (Hst3_mem: mrelT_ops.(sem) mrel3 mem3_src mem3_tgt),
-       exists i3,
-         state_lsim mrel3 i3 st3_src st3_tgt)
-
 | _state_lsim_step
     (Hsound_src: sound_state_ext prog_src st_src)
     (Hsound_tgt: sound_state_ext prog_tgt st_tgt)
@@ -95,31 +104,38 @@ Inductive _state_lsim
             plus step ge_tgt st_tgt evt st2_tgt /\
             mrelT_ops.(le) mrel mrel2 /\
             mrelT_ops.(sem) mrel2 (state_mem st2_src) (state_mem st2_tgt) /\
-            state_lsim mrel2 i2 st2_src st2_tgt) \/
+            _state_lsim_or_csim state_lsim mrel2 i2 st2_src st2_tgt) \/
          (exists i2 (mrel2:mrelT),
             WF.rel i2 i /\
             evt = E0 /\
             mrelT_ops.(le) mrel mrel2 /\
             mrelT_ops.(sem) mrel2 (state_mem st2_src) (state_mem st_tgt) /\
-            state_lsim mrel2 i2 st2_src st_tgt))
+            _state_lsim_or_csim state_lsim mrel2 i2 st2_src st_tgt))
 .
 Hint Constructors _state_lsim.
 
 Lemma state_lsim_mon: monotone4 _state_lsim.
 Proof.
   repeat intro; destruct IN; eauto.
-  - eapply _state_lsim_call; eauto.
-    intros. exploit Hreturn; eauto.
-    intros [i3 Hsim]. exists i3. auto.
   - eapply _state_lsim_step; eauto.
     intros. exploit Hpreserve; eauto.
     intros [|]; intros; [left|right].
     + destruct H as [i2 [st2_tgt [mrel2 [Hstep [Hle [Hmrel Hsim]]]]]].
       eexists. eexists. eexists.
       repeat split; eauto.
+      inv Hsim.
+      * apply _state_lsim_or_csim_lsim. eauto.
+      * eapply _state_lsim_or_csim_csim; eauto.
+        intros. exploit Hreturn; eauto.
+        intros [i3 Hsim]. exists i3. auto.
     + destruct H as [i2 [mrel2 [Hi2 [Hevt [Hle [Hmrel Hsim]]]]]].
       eexists. eexists.
       repeat split; eauto.
+      inv Hsim.
+      * apply _state_lsim_or_csim_lsim. eauto.
+      * eapply _state_lsim_or_csim_csim; eauto.
+        intros. exploit Hreturn; eauto.
+        intros [i3 Hsim]. exists i3. auto.
 Qed.
 
 Definition state_lsim: _ -> _ -> _ -> _ -> Prop :=
