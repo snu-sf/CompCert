@@ -9,7 +9,6 @@ Require Import Events.
 Require Import Memory.
 Require Import Globalenvs.
 Require Import Smallstep.
-Require Import IndexedStep.
 Require Import Op.
 Require Import Registers.
 Require Import RTL.
@@ -71,7 +70,7 @@ Inductive _state_lsim_or_csim
     (Hargs: list_forall2 (mrelT_ops.(sem_value) mrel) args_src args_tgt)
     (Hmrel: mrelT_ops.(sem) mrel mem_src mem_tgt)
     (Hreturn:
-       forall mrel2 st2_src st2_tgt mem2_src mem2_tgt vres_src vres_tgt
+       forall mrel2 i2 st2_src st2_tgt mem2_src mem2_tgt vres_src vres_tgt
               (Hvres: mrelT_ops.(sem_value) mrel2 vres_src vres_tgt)
               (Hst2_src: st2_src = Returnstate stack_src vres_src mem2_src)
               (Hst2_tgt: st2_tgt = Returnstate stack_tgt vres_tgt mem2_tgt)
@@ -79,7 +78,6 @@ Inductive _state_lsim_or_csim
               (Hsound_tgt: sound_state_ext fprog_tgt st2_tgt)
               (Hmrel2_le: mrelT_ops.(le_public) mrel mrel2)
               (Hst2_mem: mrelT_ops.(sem) mrel2 mem2_src mem2_tgt),
-       exists i2,
          state_lsim mrel2 i2 st2_src st2_tgt)
 .
 
@@ -89,29 +87,24 @@ Inductive _state_lsim
 | _state_lsim_return
     (Hsound_src: sound_state_ext fprog_src st_src)
     (Hsound_tgt: sound_state_ext fprog_tgt st_tgt)
-    st2_src (Hst_src: star step ge_src st_src E0 st2_src)
-    val2_src mem2_src (Hst2_src: st2_src = Returnstate cs_entry_src val2_src mem2_src)
+    val_src mem_src (Hst_src: st_src = Returnstate cs_entry_src val_src mem_src)
     val_tgt mem_tgt (Hst_tgt: st_tgt = Returnstate cs_entry_tgt val_tgt mem_tgt)
-    (mrel2:mrelT) (Hmrel2: mrelT_ops.(sem) mrel2 mem2_src mem_tgt)
-    (Hmrel2_le: mrelT_ops.(le) mrel mrel2)
-    (Hmrel2_le_public: mrelT_ops.(le_public) mrel_entry mrel2)
+    (Hval: mrelT_ops.(sem_value) mrel val_src val_tgt)
+    (Hmem: mrelT_ops.(sem) mrel mem_src mem_tgt)
+    (Hmrel_le_public: mrelT_ops.(le_public) mrel_entry mrel)
 
 | _state_lsim_step
+    (Hnfinal: forall r, ~ final_state st_src r)
     (Hsound_src: sound_state_ext fprog_src st_src)
     (Hsound_tgt: sound_state_ext fprog_tgt st_tgt)
     (Hpreserve:
        forall evt st2_src (Hst2_src: step ge_src st_src evt st2_src),
-         (exists i2 st2_tgt (mrel2:mrelT),
-            plus step ge_tgt st_tgt evt st2_tgt /\
-            mrelT_ops.(le) mrel mrel2 /\
-            mrelT_ops.(sem) mrel2 (state_mem st2_src) (state_mem st2_tgt) /\
-            _state_lsim_or_csim state_lsim mrel2 i2 st2_src st2_tgt) \/
-         (exists i2 (mrel2:mrelT),
-            WF.rel i2 i /\
-            evt = E0 /\
-            mrelT_ops.(le) mrel mrel2 /\
-            mrelT_ops.(sem) mrel2 (state_mem st2_src) (state_mem st_tgt) /\
-            _state_lsim_or_csim state_lsim mrel2 i2 st2_src st_tgt))
+         exists i2 st2_tgt (mrel2:mrelT),
+           (plus step ge_tgt st_tgt evt st2_tgt \/
+            star step ge_tgt st_tgt evt st2_tgt /\ WF.rel i2 i) /\
+           mrelT_ops.(le) mrel mrel2 /\
+           mrelT_ops.(sem) mrel2 (state_mem st2_src) (state_mem st2_tgt) /\
+           _state_lsim_or_csim state_lsim mrel2 i2 st2_src st2_tgt)
 .
 Hint Constructors _state_lsim.
 
@@ -119,24 +112,11 @@ Lemma state_lsim_mon: monotone4 _state_lsim.
 Proof.
   repeat intro; destruct IN; eauto.
   - eapply _state_lsim_step; eauto.
-    intros. exploit Hpreserve; eauto.
-    intros [|]; intros; [left|right].
-    + destruct H as [i2 [st2_tgt [mrel2 [Hstep [Hle [Hmrel Hsim]]]]]].
-      eexists. eexists. eexists.
-      repeat split; eauto.
-      inv Hsim.
-      * apply _state_lsim_or_csim_lsim. eauto.
-      * eapply _state_lsim_or_csim_csim; eauto.
-        intros. exploit Hreturn; eauto.
-        intros [i3 Hsim]. exists i3. auto.
-    + destruct H as [i2 [mrel2 [Hi2 [Hevt [Hle [Hmrel Hsim]]]]]].
-      eexists. eexists.
-      repeat split; eauto.
-      inv Hsim.
-      * apply _state_lsim_or_csim_lsim. eauto.
-      * eapply _state_lsim_or_csim_csim; eauto.
-        intros. exploit Hreturn; eauto.
-        intros [i3 Hsim]. exists i3. auto.
+    intros. exploit Hpreserve; eauto. intros [i2 [st2_tgt [mrel2 [Hstep [Hle [Hmrel Hsim]]]]]].
+    eexists. eexists. eexists. repeat (split; eauto).
+    inv Hsim.
+    + apply _state_lsim_or_csim_lsim. eauto.
+    + eapply _state_lsim_or_csim_csim; eauto.
 Qed.
 
 Definition state_lsim: _ -> _ -> _ -> _ -> Prop :=

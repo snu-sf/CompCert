@@ -121,16 +121,16 @@ Lemma globfun_sim_le
       (prog1_src prog2_src:program fundefT_src V_src)
       (prog1_tgt prog2_tgt:program fundefT_tgt V_tgt)
       (HF_sim: F_sim1 <4= F_sim2)
-      (Hdefs_src: program_linkeq fundef_src_dec prog1_src prog2_src)
-      (Hdefs_tgt: program_linkeq fundef_tgt_dec prog1_tgt prog2_tgt):
+      (Hprog_src: program_linkeq fundef_src_dec prog1_src prog2_src)
+      (Hprog_tgt: program_linkeq fundef_tgt_dec prog1_tgt prog2_tgt):
   (globfun_sim F_sim1 prog1_src prog1_tgt) <2= (globfun_sim F_sim2 prog2_src prog2_tgt).
 Proof.
   intros. inv PR.
   - eapply globfun_sim_i; eauto.
     intros. exploit Hsim; eauto. intros [Hsim1 Hsig].
     split; auto. apply HF_sim. eapply Hsim.
-    + rewrite Hdefs_src. auto.
-    + rewrite Hdefs_tgt. auto.
+    + rewrite Hprog_src. auto.
+    + rewrite Hprog_tgt. auto.
   - eapply globfun_sim_e; eauto.
 Qed.
 
@@ -139,8 +139,8 @@ Lemma globdef_sim_le
       (prog1_src prog2_src:program fundefT_src V_src)
       (prog1_tgt prog2_tgt:program fundefT_tgt V_tgt)
       (HF_sim: F_sim1 <4= F_sim2)
-      (Hdefs_src: program_linkeq fundef_src_dec prog1_src prog2_src)
-      (Hdefs_tgt: program_linkeq fundef_tgt_dec prog1_tgt prog2_tgt):
+      (Hprog_src: program_linkeq fundef_src_dec prog1_src prog2_src)
+      (Hprog_tgt: program_linkeq fundef_tgt_dec prog1_tgt prog2_tgt):
   (globdef_sim F_sim1 prog1_src prog1_tgt) <2= (globdef_sim F_sim2 prog2_src prog2_tgt).
 Proof.
   intros. inv PR.
@@ -154,14 +154,28 @@ Lemma globdef_list_sim_le
       (prog1_src prog2_src:program fundefT_src V_src)
       (prog1_tgt prog2_tgt:program fundefT_tgt V_tgt)
       (HF_sim: F_sim1 <4= F_sim2)
-      (Hdefs_src: program_linkeq fundef_src_dec prog1_src prog2_src)
-      (Hdefs_tgt: program_linkeq fundef_tgt_dec prog1_tgt prog2_tgt):
+      (Hprog_src: program_linkeq fundef_src_dec prog1_src prog2_src)
+      (Hprog_tgt: program_linkeq fundef_tgt_dec prog1_tgt prog2_tgt):
   (globdef_list_sim F_sim1 prog1_src prog1_tgt) <2= (globdef_list_sim F_sim2 prog2_src prog2_tgt).
 Proof.
   intros.
   eapply list_forall2_imply; eauto. simpl. intros.
   destruct H1, v1, v2. simpl in *. subst.
   split; auto. eapply globdef_sim_le; eauto.
+Qed.
+
+Lemma program_sim_aux_le
+      (F_sim1 F_sim2:F_simT)
+      (HF_sim: F_sim1 <4= F_sim2):
+  (program_sim_aux F_sim1) <2= (program_sim_aux F_sim2).
+Proof.
+  intros prog_src prog_tgt Hsim.
+  destruct prog_src as [defs_src main_src].
+  destruct prog_tgt as [defs_tgt main_tgt].
+  destruct Hsim as [Hdefs Hmain].
+  simpl in *. subst. split; auto.
+  eapply globdef_list_sim_le; simpl; eauto.
+  reflexivity. reflexivity.
 Qed.
 
 (** globdefs_sim and globdef_list_sim *)
@@ -418,15 +432,15 @@ Section DEF.
 
 Variable (F_sim:F_simT).
 
-Definition F_sim_weak_sim :=
+Definition F_future_sim :=
   fun fprog_src fprog_tgt f_src f_tgt =>
-    forall (Hdefs: program_weak_sim fprog_src fprog_tgt),
+    forall (Hfprog: program_weak_sim fprog_src fprog_tgt),
     F_sim fprog_src fprog_tgt f_src f_tgt.
 
 Definition program_sim
            (prog_src: program fundefT_src V_src)
            (prog_tgt: program fundefT_tgt V_tgt): Prop :=
-  globdef_list_sim F_sim_weak_sim prog_src prog_tgt prog_src.(prog_defs) prog_tgt.(prog_defs) /\
+  globdef_list_sim F_future_sim prog_src prog_tgt prog_src.(prog_defs) prog_tgt.(prog_defs) /\
   prog_src.(prog_main) = prog_tgt.(prog_main).
 
 Lemma link_program_sim
@@ -467,7 +481,7 @@ Proof.
     destruct v1, v2, H1. simpl in *. subst.
     split; auto.
     eapply globdef_sim_le; try reflexivity; [|eauto].
-    intros. repeat intro. specialize (PR Hdefs0). auto.
+    intros. repeat intro. specialize (PR Hfprog). auto.
 Qed.
 
 Inductive fundef_sig_sim (f_src:fundefT_src) (f_tgt:fundefT_tgt): Prop :=
@@ -492,11 +506,17 @@ Variable (fprog_tgt: program fundefT_tgt V_tgt).
 Variable (F_sim:F_simT).
 Variable (Hfprog: program_sim_aux F_sim fprog_src fprog_tgt).
 
+Inductive match_fundef (f_src:fundefT_src) (f_tgt:fundefT_tgt): Prop :=
+| match_fundef_intro
+    (Hsig: fundef_sig_sim f_src f_tgt)
+    (Hsim: globfun_sim F_sim fprog_src fprog_tgt f_src f_tgt)
+.
+
 Let ge_src := Genv.globalenv fprog_src.
 Let ge_tgt := Genv.globalenv fprog_tgt.
 
 Lemma program_sim_match_program:
-  match_program fundef_sig_sim V_sim nil fprog_src.(prog_main) fprog_src fprog_tgt.
+  match_program match_fundef V_sim nil fprog_src.(prog_main) fprog_src fprog_tgt.
 Proof.
   unfold match_program. destruct Hfprog as [Hfdefs Hmain].
   split; eauto. exists fprog_tgt.(prog_defs). split; [|rewrite app_nil_r; auto].
@@ -504,7 +524,8 @@ Proof.
   induction l1; intros l2 Hsim; inv Hsim; constructor; auto.
   destruct a, b1, H1. simpl in *. subst.
   inv H0.
-  - repeat constructor. inv Hf; unfold fundef_sig_src, fundef_sig_tgt; rewrite Hsrc, Htgt; auto.
+  - repeat constructor; auto.
+    inv Hf; unfold fundef_sig_src, fundef_sig_tgt; rewrite Hsrc, Htgt; auto.
     exploit (Hsim fprog_src fprog_tgt); eauto; try reflexivity.
     intros [_ ?]. auto.
   - destruct v_src, v_tgt. inv Hv. unfold transf_globvar in Hv0. simpl in *.
@@ -513,10 +534,8 @@ Qed.
 Local Hint Resolve program_sim_match_program.
 
 Lemma globalenvs_match:
-  Genv.match_genvs fundef_sig_sim V_sim nil (Genv.globalenv fprog_src) (Genv.globalenv fprog_tgt).
-Proof.
-  eapply Genv.globalenvs_match; eauto.
-Qed.
+  Genv.match_genvs match_fundef V_sim nil (Genv.globalenv fprog_src) (Genv.globalenv fprog_tgt).
+Proof. eapply Genv.globalenvs_match; eauto. Qed.
 Local Hint Resolve globalenvs_match.
 
 Lemma program_sim_init_mem_match:
@@ -560,8 +579,18 @@ Lemma funct_ptr_translated:
   Genv.find_funct_ptr (Genv.globalenv fprog_tgt) b = Some tf /\ fundef_weak_sim ge_src ge_tgt f tf.
 Proof.
   intros. exploit Genv.find_funct_ptr_match; eauto. intros [tf [Htf Hsim]].
-  eexists. split; eauto. inv Hsim. unfold Genv.find_funct_ptr in *.
+  eexists. split; eauto. inv Hsim. inv Hsig. unfold Genv.find_funct_ptr in *.
   repeat econstructor; eauto.
+Qed.
+
+Lemma funct_ptr_translated':
+  forall (b : block) (f : fundefT_src),
+  Genv.find_funct_ptr (Genv.globalenv fprog_src) b = Some f ->
+  exists tf : fundefT_tgt,
+  Genv.find_funct_ptr (Genv.globalenv fprog_tgt) b = Some tf /\ globfun_sim F_sim fprog_src fprog_tgt f tf.
+Proof.
+  intros. exploit Genv.find_funct_ptr_match; eauto. intros [tf [Htf Hsim]].
+  exists tf. split; auto. inv Hsim. auto.
 Qed.
 
 Lemma functions_translated:

@@ -405,16 +405,18 @@ Inductive match_local_ext s s' st tst: Prop :=
     (Htgt: sound_state_ext ftprog tst)
 .
 
-Lemma match_local_state_lsim s s':
-  match_local_ext s s' <2= state_lsim mrelT_ops_extends fprog ftprog s s' tt tt WF.elt.
+Lemma match_local_state_lsim s s' i:
+  match_local_ext s s' <2= state_lsim mrelT_ops_extends fprog ftprog s s' tt tt i.
 Proof.
-  pcofix CIH. intros s1 s1' MS. pfold.
+  revert i. pcofix CIH. intros i s1 s1' MS. pfold.
   inv MS. inversion Hmatch; subst.
-  - apply _state_lsim_step; auto. intros. left. exists WF.elt.
+  - apply _state_lsim_step; auto.
+    { intros ? Hfinal. inv Hfinal. }
+    intros. exists WF.elt.
     exploit transf_step_correct; eauto.
     intros [s2' [Hs2' Hmatch']].
     eexists. exists tt.
-    split; [apply plus_one; eauto|].
+    split; [left; apply plus_one; eauto|].
     split; [reflexivity|].
     split; [inv Hmatch'; auto|].
     { inv H; auto. }
@@ -427,11 +429,12 @@ Proof.
     + inv Hmatch'.
       * eapply _state_lsim_or_csim_csim; eauto.
         { apply mrelT_ops_extends_lessdef_list. auto. }
-        intros. exists WF.elt. destruct mrel2.
-        left. subst. pfold. constructor; auto. intros.
-        left. exists WF.elt. eexists. exists tt.
+        intros. destruct mrel2.
+        left. subst. pfold. constructor; auto.
+        { intros ? Hfinal. inv Hfinal. }
+        intros. exists WF.elt. eexists. exists tt.
         inversion Hst2_src0. subst.
-        split; [apply plus_one; constructor|].
+        split; [left; apply plus_one; constructor|].
         split; [reflexivity|].
         split; auto.
         apply _state_lsim_or_csim_lsim.
@@ -439,15 +442,11 @@ Proof.
         { constructor; auto. apply set_reg_lessdef; auto. }
         { eapply sound_past_step; eauto. }
         { eapply sound_past_step; eauto. econstructor. }
-      * eapply _state_lsim_or_csim_csim; eauto.
+      * eapply _state_lsim_or_csim_csim; auto.
         { apply mrelT_ops_extends_lessdef_list. auto. }
-        intros. exists WF.elt. destruct mrel2.
-        right. subst. apply CIH. constructor; auto.
-        constructor; auto.
+        { intros. eauto. }
   - eapply _state_lsim_return; eauto.
-    + apply star_refl.
-    + instantiate (1 := tt). reflexivity.
-    + reflexivity.
+    reflexivity.
 Qed.
 
 Lemma transf_function'_lsim
@@ -456,9 +455,10 @@ Lemma transf_function'_lsim
   function_lsim mrelT_ops_extends fprog ftprog f (transf_function' f approx).
 Proof.
   constructor. repeat intro. pfold. constructor; subst; auto.
-  intros. left. inversion Hst2_src. subst.
+  { intros ? Hfinal. inv Hfinal. }
+  intros. inversion Hst2_src. subst.
   exists WF.elt. eexists. exists tt.
-  split; [apply plus_one; eauto|].
+  split; [left; apply plus_one; eauto|].
   { econstructor; eauto.
     match goal with
       | [|- ?b = _] =>
