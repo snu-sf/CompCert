@@ -104,7 +104,7 @@ Proof.
     - econstructor.
       + apply match_stackframes_nil.
       + instantiate (1 := mrel_init).
-        admit. (* le's reflexivity (spec) *)
+        destruct mrelT_props. reflexivity.
       + exploit funct_ptr_translated'; eauto.
         intros [tf' [Htf' Hfundef_sim]]. rewrite A in Htf'. symmetry in Htf'. inv Htf'.
         inv Hfundef_sim; destruct f, tf; inv Hsrc; inv Htgt.
@@ -114,9 +114,10 @@ Proof.
           { eapply program_sim_aux_le; eauto. }
           intro X. inv X. eapply Hlsim; eauto.
           { instantiate (1 := mrel_init).
-            admit. (* le's reflexivity (spec) *)
+            destruct mrelT_props. reflexivity.
           }
-          { admit. (* mrel_init satisfies m0 m0 (spec) *) }
+          { admit. (* mrel_init *)
+          }
           { constructor. }
           { apply sound_initial. auto. }
           { apply sound_initial.
@@ -132,13 +133,14 @@ Proof.
       revert height emrel Hmrel_le Hmrel_le_public Hp.
       refine (strong_nat_ind _ _). intros height IHheight emrel Hmrel_le Hmrel_le_public Hp.
       inversion Hp; symmetry in H0; subst.
-      { admit. (* sem_value (Vint r) ?b implies b = Vint r (spec) *)
+      { exploit (mrelT_props.(sem_value_int)); eauto. intro. subst.
+        constructor.
       }
       { exploit Hreturn; eauto. instantiate (1 := WF.elt). intro Hsim'.
         punfold Hsim'. inv Hsim'.
         { inv Hst_src. inv Hst_tgt.
           assert (Hle: mrelT_ops.(le) emrel0 mrel).
-          { admit. (* le's transitivity (spec) *) }
+          { destruct mrelT_props. etransitivity; eauto. }
           eauto.
         }
         { exfalso. eapply Hnfinal. constructor. }
@@ -153,13 +155,13 @@ Proof.
     { (* return *)
       inversion Hp; symmetry in H1; subst; inv H.
       assert (Hmrel_le': mrelT_ops.(le) emrel0 mrel).
-      { admit. (* le's transitivity (spec) *) }
+      { destruct mrelT_props. etransitivity; eauto. }
       exploit Hreturn; eauto.
     }
     { (* step *)
       exploit Hpreserve; eauto. intros [i2 [st2_tgt [mrel2 [Hstep2 [Hle2 [Hmrel2 Hsim2]]]]]].
       assert (Hmrel2_le: mrelT_ops.(le) emrel mrel2).
-      { admit. (* le's transitivity (spec) *) }
+      { destruct mrelT_props. etransitivity; eauto. }
       exists i2. exists st2_tgt. split; auto.
       inv Hsim2.
       { pclearbot. econstructor; eauto. }
@@ -168,7 +170,7 @@ Proof.
           instantiate (1 := stack_tgt). instantiate (1 := stack_src). intros. subst.
           exploit Hreturn; eauto. intro Hsim2. pclearbot. eauto.
         }
-        { instantiate (1 := mrel2). admit. (* le's reflexivity (spec) *) }
+        { destruct mrelT_props. reflexivity. }
         { inv Hfundef. exploit funct_ptr_translated'; eauto.
           intros [tf [Htf Hfundef_sim]]. unfold Genv.find_funct_ptr in Htf.
           unfold fundef in *. rewrite Htgt in Htf. symmetry in Htf. inv Htf.
