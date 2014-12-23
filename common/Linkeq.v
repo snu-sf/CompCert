@@ -11,9 +11,8 @@ Set Implicit Arguments.
 (* Future programs of a partial program after linkings *)
 Section Linkeq.
 
-Variable (fundefT F EF V:Type).
-Variable (fundef_dec: fundef_decT fundefT F EF).
-Variable (EF_dec: forall (v1 v2:EF), {v1 = v2} + {v1 <> v2}).
+Variable (fundefT F V:Type).
+Variable (fundef_dec: fundef_decT fundefT F).
 Variable (V_dec: forall (v1 v2:V), {v1 = v2} + {v1 <> v2}).
 
 (** `linkeq a b` means `b` is a possible future global definition of `a` after linkings *)
@@ -142,7 +141,7 @@ Qed.
 
 Lemma link_globdefs_linkeq_l
       defs1 defs2 defs
-      (Hdefs: link_globdefs fundef_dec EF_dec V_dec defs1 defs2 = Some defs):
+      (Hdefs: link_globdefs fundef_dec V_dec defs1 defs2 = Some defs):
   globdefs_linkeq defs1 defs.
 Proof.
   repeat intro.
@@ -158,7 +157,7 @@ Qed.
 
 Lemma link_globdefs_linkeq_r
       defs1 defs2 defs
-      (Hdefs: link_globdefs fundef_dec EF_dec V_dec defs1 defs2 = Some defs):
+      (Hdefs: link_globdefs fundef_dec V_dec defs1 defs2 = Some defs):
   globdefs_linkeq defs2 defs.
 Proof.
   repeat intro.
@@ -174,13 +173,13 @@ Qed.
 
 Lemma link_globdef_list_linkeq_l
       defs1 defs2 defs
-      (Hdefs: link_globdef_list fundef_dec EF_dec V_dec defs1 defs2 = Some defs):
+      (Hdefs: link_globdef_list fundef_dec V_dec defs1 defs2 = Some defs):
   globdef_list_linkeq defs1 defs.
 Proof.
   unfold globdef_list_linkeq, link_globdef_list in *.
   match goal with
-    | [H: context[link_globdefs ?fundef_dec ?EF_dec ?V_dec ?defs1 ?defs2] |- _] =>
-      destruct (link_globdefs fundef_dec EF_dec V_dec defs1 defs2) as [defs'|] eqn:Hdefs'; inv H
+    | [H: context[link_globdefs ?fundef_dec ?V_dec ?defs1 ?defs2] |- _] =>
+      destruct (link_globdefs fundef_dec V_dec defs1 defs2) as [defs'|] eqn:Hdefs'; inv H
   end.
   repeat intro. exploit link_globdefs_linkeq_l; eauto.
   intros [def2 [Hdef2 Hlinkeq]]. exists def2. split; auto.
@@ -189,13 +188,13 @@ Qed.
 
 Lemma link_globdef_list_linkeq_r
       defs1 defs2 defs
-      (Hdefs: link_globdef_list fundef_dec EF_dec V_dec defs1 defs2 = Some defs):
+      (Hdefs: link_globdef_list fundef_dec V_dec defs1 defs2 = Some defs):
   globdef_list_linkeq defs2 defs.
 Proof.
   unfold globdef_list_linkeq, link_globdef_list in *.
   match goal with
-    | [H: context[link_globdefs ?fundef_dec ?EF_dec ?V_dec ?defs1 ?defs2] |- _] =>
-      destruct (link_globdefs fundef_dec EF_dec V_dec defs1 defs2) as [defs'|] eqn:Hdefs'; inv H
+    | [H: context[link_globdefs ?fundef_dec ?V_dec ?defs1 ?defs2] |- _] =>
+      destruct (link_globdefs fundef_dec V_dec defs1 defs2) as [defs'|] eqn:Hdefs'; inv H
   end.
   repeat intro. exploit link_globdefs_linkeq_r; eauto.
   intros [def2 [Hdef2 Hlinkeq]]. exists def2. split; auto.
@@ -203,7 +202,7 @@ Proof.
 Qed.
 
 Lemma link_program_linkeq_l
-      p1 p2 p (Hp: link_program fundef_dec EF_dec V_dec p1 p2 = Some p):
+      p1 p2 p (Hp: link_program fundef_dec V_dec p1 p2 = Some p):
   program_linkeq p1 p.
 Proof.
   destruct p1 as [defs1 main1].
@@ -213,15 +212,15 @@ Proof.
   destruct ((main1 =? main2)%positive) eqn:Hmain; inv Hp.
   apply Pos.eqb_eq in Hmain. subst.
   match goal with
-    | [H: context[link_globdef_list ?fundef_dec ?EF_dec ?V_dec ?defs1 ?defs2] |- _] =>
-      destruct (link_globdef_list fundef_dec EF_dec V_dec defs1 defs2) as [defs'|] eqn:Hdefs'; inv H
+    | [H: context[link_globdef_list ?fundef_dec ?V_dec ?defs1 ?defs2] |- _] =>
+      destruct (link_globdef_list fundef_dec V_dec defs1 defs2) as [defs'|] eqn:Hdefs'; inv H
   end.
   split; simpl; auto.
   eapply link_globdef_list_linkeq_l. eauto.
 Qed.
 
 Lemma link_program_linkeq_r
-      p1 p2 p (Hp: link_program fundef_dec EF_dec V_dec p1 p2 = Some p):
+      p1 p2 p (Hp: link_program fundef_dec V_dec p1 p2 = Some p):
   program_linkeq p2 p.
 Proof.
   destruct p1 as [defs1 main1].
@@ -231,8 +230,8 @@ Proof.
   destruct ((main1 =? main2)%positive) eqn:Hmain; inv Hp.
   apply Pos.eqb_eq in Hmain. subst.
   match goal with
-    | [H: context[link_globdef_list ?fundef_dec ?EF_dec ?V_dec ?defs1 ?defs2] |- _] =>
-      destruct (link_globdef_list fundef_dec EF_dec V_dec defs1 defs2) as [defs'|] eqn:Hdefs'; inv H
+    | [H: context[link_globdef_list ?fundef_dec ?V_dec ?defs1 ?defs2] |- _] =>
+      destruct (link_globdef_list fundef_dec V_dec defs1 defs2) as [defs'|] eqn:Hdefs'; inv H
   end.
   split; simpl; auto.
   eapply link_globdef_list_linkeq_r. eauto.

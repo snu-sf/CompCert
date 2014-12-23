@@ -44,14 +44,14 @@ Section FUTURE.
 Variable (fprog ftprog:program).
 Hypothesis (Hfsim:
               program_weak_sim
-                fundef_dec fn_sig fundef_dec fn_sig transf_EF transf_V
+                fundef_dec fn_sig fundef_dec fn_sig transf_V
                 fprog ftprog).
 
 Hypothesis (Hfprog: program_linkeq (@common_fundef_dec function) prog fprog).
 Hypothesis (Hftprog: program_linkeq (@common_fundef_dec function) tprog ftprog).
 
 Let globfun_weak_sim :=
-  globfun_sim fundef_dec fn_sig fundef_dec fn_sig transf_EF (fun _ _ _ _ => True) fprog ftprog.
+  globfun_sim fundef_dec fn_sig fundef_dec fn_sig (fun _ _ _ _ => True) fprog ftprog.
 
 Let ge := Genv.globalenv fprog.
 Let tge := Genv.globalenv ftprog.
@@ -65,13 +65,12 @@ Qed.
 
 Lemma symbols_preserved:
   forall (s: ident), Genv.find_symbol tge s = Genv.find_symbol ge s.
-Proof (symbols_preserved ef_sig ef_sig external_function_OK_sig Hfsim).
+Proof (symbols_preserved Hfsim).
 
 Lemma varinfo_preserved:
   forall b, Genv.find_var_info tge b = Genv.find_var_info ge b.
 Proof.
   intros. exploit varinfo_preserved.
-  { apply external_function_OK_sig. }
   { instantiate (1 := ftprog). instantiate (1 := fprog). apply Hfsim. }
   instantiate (1 := b). unfold ge, tge.
   destruct (Genv.find_var_info (Genv.globalenv ftprog) b), (Genv.find_var_info (Genv.globalenv fprog) b); intros; auto; inv H.
@@ -83,20 +82,20 @@ Lemma funct_ptr_translated:
   Genv.find_funct_ptr ge b = Some f ->
   exists tf, Genv.find_funct_ptr tge b = Some tf /\
              fundef_weak_sim
-               (@common_fundef_dec function) fn_sig ef_sig
-               (@common_fundef_dec function) fn_sig ef_sig
+               (@common_fundef_dec function) fn_sig
+               (@common_fundef_dec function) fn_sig
                ge tge f tf.
-Proof (funct_ptr_translated ef_sig ef_sig external_function_OK_sig Hfsim).
+Proof (funct_ptr_translated Hfsim).
 
 Lemma functions_translated:
   forall (v: val) (f: RTL.fundef),
   Genv.find_funct ge v = Some f ->
   exists tf, Genv.find_funct tge v = Some tf /\
              fundef_weak_sim
-               (@common_fundef_dec function) fn_sig ef_sig
-               (@common_fundef_dec function) fn_sig ef_sig
+               (@common_fundef_dec function) fn_sig
+               (@common_fundef_dec function) fn_sig
                ge tge f tf.
-Proof (functions_translated ef_sig ef_sig external_function_OK_sig Hfsim).
+Proof (functions_translated Hfsim).
 
 Lemma find_function_translated:
   forall ros rs fd rs',
@@ -104,8 +103,8 @@ Lemma find_function_translated:
   regs_lessdef rs rs' ->
   exists tfd, find_function tge ros rs' = Some tfd /\
               fundef_weak_sim
-               (@common_fundef_dec function) fn_sig ef_sig
-               (@common_fundef_dec function) fn_sig ef_sig
+               (@common_fundef_dec function) fn_sig
+               (@common_fundef_dec function) fn_sig
                 ge tge fd tfd.
 Proof.
   unfold find_function; intros; destruct ros.
@@ -120,8 +119,8 @@ Qed.
 Lemma sig_preserved:
   forall f tf,
     fundef_weak_sim
-      (@common_fundef_dec function) fn_sig ef_sig
-      (@common_fundef_dec function) fn_sig ef_sig
+      (@common_fundef_dec function) fn_sig
+      (@common_fundef_dec function) fn_sig
       ge tge f tf ->
     funsig tf = funsig f.
 Proof.
@@ -137,8 +136,8 @@ Inductive match_call (s s':list stackframe): state -> state -> Prop :=
              (PSAT: forall v m, exists valu, numbering_holds valu ge psp (prs#pres <- v) m papprox!!ppc)
              (PRLD: regs_lessdef prs prs'),
       fundef_weak_sim
-        (@common_fundef_dec function) fn_sig ef_sig
-        (@common_fundef_dec function) fn_sig ef_sig
+        (@common_fundef_dec function) fn_sig
+        (@common_fundef_dec function) fn_sig
         ge tge f tf ->
       Val.lessdef_list args args' ->
       Mem.extends m m' ->
@@ -148,8 +147,8 @@ Inductive match_call (s s':list stackframe): state -> state -> Prop :=
   | match_call_tailcall:
       forall f tf args m args' m',
       fundef_weak_sim
-        (@common_fundef_dec function) fn_sig ef_sig
-        (@common_fundef_dec function) fn_sig ef_sig
+        (@common_fundef_dec function) fn_sig
+        (@common_fundef_dec function) fn_sig
         ge tge f tf ->
       Val.lessdef_list args args' ->
       Mem.extends m m' ->
@@ -451,7 +450,7 @@ Proof.
     + reflexivity.
 Qed.
 
-Lemma transf_function_lsim
+Lemma transf_function'_lsim
       f approx
       (ANALYZE: analyze f (vanalyze (romem_for_program prog) f) = Some approx):
   function_lsim mrelT_ops_extends fprog ftprog f (transf_function' f approx).
@@ -484,17 +483,15 @@ Qed.
 
 End FUTURE.
 
-Check transf_function_lsim.
-
 Lemma CSE_program_sim:
   program_sim
     (@common_fundef_dec function) fn_sig
     (@common_fundef_dec function) fn_sig
-    (@Errors.OK _) (@Errors.OK _)
+    (@Errors.OK _)
     (function_lsim mrelT_ops_extends)
     prog tprog.
 Proof.
-  generalize transf_function_lsim.
+  generalize transf_function'_lsim.
   destruct prog as [defs main]. clear prog. simpl in *.
   unfold transf_program, transform_partial_program in TRANSF.
   unfold transform_partial_program2 in TRANSF.

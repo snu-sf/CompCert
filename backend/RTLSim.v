@@ -66,8 +66,8 @@ Inductive _state_lsim_or_csim
     stack_tgt fundef_tgt args_tgt mem_tgt
     (Hst_tgt: st_tgt = Callstate stack_tgt fundef_tgt args_tgt mem_tgt)
     (Hfundef: fundef_weak_sim
-                (@common_fundef_dec function) fn_sig ef_sig
-                (@common_fundef_dec function) fn_sig ef_sig
+                (@common_fundef_dec function) fn_sig
+                (@common_fundef_dec function) fn_sig
                 ge_src ge_tgt fundef_src fundef_tgt)
     (Hargs: list_forall2 (mrelT_ops.(sem_value) mrel) args_src args_tgt)
     (Hmrel: mrelT_ops.(sem) mrel mem_src mem_tgt)

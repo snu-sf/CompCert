@@ -36,23 +36,23 @@ Defined.
 
 (* classify function definitions into internal and external functions  *)
 
-Definition fundef_decT T F EF := T -> F + EF.
+Definition fundef_decT T F := T -> F + external_function.
 
-Definition C_fundef_dec : fundef_decT Csyntax.fundef Csyntax.function(external_function * Ctypes.typelist * Ctypes.type * calling_convention) :=
+Definition C_fundef_dec : fundef_decT Csyntax.fundef Csyntax.function :=
   fun fundef =>
     match fundef with
       | Csyntax.Internal i => inl i
-      | Csyntax.External ef args res cc => inr (ef, args, res, cc)
+      | Csyntax.External ef args res cc => inr ef
     end.
 
-Definition Clight_fundef_dec : fundef_decT Clight.fundef Clight.function (external_function * Ctypes.typelist * Ctypes.type * calling_convention) :=
+Definition Clight_fundef_dec : fundef_decT Clight.fundef Clight.function :=
   fun fundef =>
     match fundef with
       | Clight.Internal i => inl i
-      | Clight.External ef args res cc => inr (ef, args, res, cc)
+      | Clight.External ef args res cc => inr ef
     end.
 
-Definition common_fundef_dec (F:Type) : fundef_decT (AST.fundef F) F external_function :=
+Definition common_fundef_dec (F:Type) : fundef_decT (AST.fundef F) F :=
   fun fundef =>
     match fundef with
       | Internal i => inl i
@@ -63,9 +63,8 @@ Definition common_fundef_dec (F:Type) : fundef_decT (AST.fundef F) F external_fu
 (** Linker definition *)
 Section LINKER.
 
-Variable (fundefT F EF V:Type).
-Variable (fundef_dec: fundef_decT fundefT F EF).
-Variable (EF_dec: forall (v1 v2:EF), {v1 = v2} + {v1 <> v2}).
+Variable (fundefT F V:Type).
+Variable (fundef_dec: fundef_decT fundefT F).
 Variable (V_dec: forall (v1 v2:V), {v1 = v2} + {v1 <> v2}).
 
 (** `linkable a b` means we can remove `a` and take `b` when the two are linked. *)
@@ -106,7 +105,7 @@ Proof.
   }
   destruct (fundef_dec f2) as [i2|e2] eqn:Hf2.
   { left. econstructor; eauto. }
-  { destruct (EF_dec e1 e2); [subst|].
+  { destruct (external_function_eq e1 e2); [subst|].
     { left. eapply globfun_linkable_ee; eauto. }
     { right. contradict n. inv n; auto.
       - rewrite Hf2 in H2. inv H2.
@@ -220,8 +219,8 @@ Inductive separately_compiled: forall (cprog: Csyntax.program) (asmprog: Asm.pro
 | separately_compiled_link cprog1 cprog2 asmprog1 asmprog2
           (H1: separately_compiled cprog1 asmprog1)
           (H2: separately_compiled cprog2 asmprog2)
-          cprog (Hcprog: Some cprog = link_program C_fundef_dec external_function_ext_eq Ctypes.type_eq cprog1 cprog2)
-          asmprog (Hasmprog: Some asmprog = link_program (@common_fundef_dec Asm.function) external_function_eq unit_eq asmprog1 asmprog2):
+          cprog (Hcprog: Some cprog = link_program C_fundef_dec Ctypes.type_eq cprog1 cprog2)
+          asmprog (Hasmprog: Some asmprog = link_program (@common_fundef_dec Asm.function) unit_eq asmprog1 asmprog2):
     separately_compiled cprog asmprog
 .
 
