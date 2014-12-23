@@ -39,47 +39,24 @@ Variable prog: program.
 Variable tprog: program.
 Hypothesis TRANSF: transf_program prog = OK tprog.
 
-Let defs := prog.(prog_defs).
-Let tdefs := tprog.(prog_defs).
-Let main := prog.(prog_main).
-
 Section FUTURE.
 
-Variable (fdefs: list (positive * globdef fundef unit)).
-Variable (ftdefs: list (positive * globdef fundef unit)).
-Hypothesis (Hweak_sim:
-              globdef_list_weak_sim
+Variable (fprog ftprog:program).
+Hypothesis (Hfsim:
+              program_weak_sim
                 fundef_dec fn_sig fundef_dec fn_sig transf_EF transf_V
-                fdefs ftdefs).
-Hypothesis (Hfdefs: globdef_list_linkeq (@common_fundef_dec function) defs fdefs).
-Hypothesis (Hftdefs: globdef_list_linkeq (@common_fundef_dec function) tdefs ftdefs).
+                fprog ftprog).
 
-Let fprog := mkprogram fdefs main.
-Let ftprog := mkprogram ftdefs main.
+Hypothesis (Hfprog: program_linkeq (@common_fundef_dec function) prog fprog).
+Hypothesis (Hftprog: program_linkeq (@common_fundef_dec function) tprog ftprog).
 
 Let globfun_weak_sim :=
-  globfun_sim fundef_dec fn_sig fundef_dec fn_sig transf_EF (fun _ _ _ _ => True) fdefs ftdefs.
+  globfun_sim fundef_dec fn_sig fundef_dec fn_sig transf_EF (fun _ _ _ _ => True) fprog ftprog.
 
 Let ge := Genv.globalenv fprog.
 Let tge := Genv.globalenv ftprog.
 
 Let rm := romem_for_program prog.
-
-Lemma Hfprog: program_linkeq (@common_fundef_dec function) prog fprog.
-Proof. split; auto. Qed.
-Lemma Hftprog: program_linkeq (@common_fundef_dec function) tprog ftprog.
-Proof.
-  split; auto.
-  unfold ftprog. simpl.
-  unfold transf_program, transform_partial_program in TRANSF.
-  unfold transform_partial_program2 in TRANSF.
-  match goal with
-    | [H: bind ?b _ = OK _ |- _] =>
-      destruct b eqn:Hglobdefs; inversion H
-  end.
-  auto.
-Qed.
-Local Hint Resolve Hfprog Hftprog.
 
 Lemma rm_frm: romem_le rm (romem_for_program fprog).
 Proof.
@@ -88,15 +65,14 @@ Qed.
 
 Lemma symbols_preserved:
   forall (s: ident), Genv.find_symbol tge s = Genv.find_symbol ge s.
-Proof (symbols_preserved ef_sig ef_sig external_function_OK_sig fprog ftprog Hweak_sim eq_refl).
+Proof (symbols_preserved ef_sig ef_sig external_function_OK_sig Hfsim).
 
 Lemma varinfo_preserved:
   forall b, Genv.find_var_info tge b = Genv.find_var_info ge b.
 Proof.
   intros. exploit varinfo_preserved.
   { apply external_function_OK_sig. }
-  { instantiate (1 := ftprog). instantiate (1 := fprog). apply Hweak_sim. }
-  { auto. }
+  { instantiate (1 := ftprog). instantiate (1 := fprog). apply Hfsim. }
   instantiate (1 := b). unfold ge, tge.
   destruct (Genv.find_var_info (Genv.globalenv ftprog) b), (Genv.find_var_info (Genv.globalenv fprog) b); intros; auto; inv H.
   destruct g0; auto.
@@ -110,7 +86,7 @@ Lemma funct_ptr_translated:
                (@common_fundef_dec function) fn_sig ef_sig
                (@common_fundef_dec function) fn_sig ef_sig
                ge tge f tf.
-Proof (funct_ptr_translated ef_sig ef_sig external_function_OK_sig fprog ftprog Hweak_sim eq_refl).
+Proof (funct_ptr_translated ef_sig ef_sig external_function_OK_sig Hfsim).
 
 Lemma functions_translated:
   forall (v: val) (f: RTL.fundef),
@@ -120,7 +96,7 @@ Lemma functions_translated:
                (@common_fundef_dec function) fn_sig ef_sig
                (@common_fundef_dec function) fn_sig ef_sig
                ge tge f tf.
-Proof (functions_translated ef_sig ef_sig external_function_OK_sig fprog ftprog Hweak_sim eq_refl).
+Proof (functions_translated ef_sig ef_sig external_function_OK_sig Hfsim).
 
 Lemma find_function_translated:
   forall ros rs fd rs',
@@ -431,7 +407,7 @@ Inductive match_local_ext s s' st tst: Prop :=
 .
 
 Lemma match_local_state_lsim s s':
-  match_local_ext s s' <2= state_lsim mrelT_ops_extends main fdefs ftdefs s s' tt tt WF.elt.
+  match_local_ext s s' <2= state_lsim mrelT_ops_extends fprog ftprog s s' tt tt WF.elt.
 Proof.
   pcofix CIH. intros s1 s1' MS. pfold.
   inv MS. inversion Hmatch; subst.
@@ -478,7 +454,7 @@ Qed.
 Lemma transf_function_lsim
       f approx
       (ANALYZE: analyze f (vanalyze (romem_for_program prog) f) = Some approx):
-  function_lsim mrelT_ops_extends main fdefs ftdefs f (transf_function' f approx).
+  function_lsim mrelT_ops_extends fprog ftprog f (transf_function' f approx).
 Proof.
   constructor. repeat intro. pfold. constructor; subst; auto.
   intros. left. inversion Hst2_src. subst.
@@ -515,11 +491,10 @@ Lemma CSE_program_sim:
     (@common_fundef_dec function) fn_sig
     (@common_fundef_dec function) fn_sig
     (@Errors.OK _) (@Errors.OK _)
-    (function_lsim mrelT_ops_extends main)
+    (function_lsim mrelT_ops_extends)
     prog tprog.
 Proof.
   generalize transf_function_lsim.
-  unfold defs, tdefs, main. clear defs tdefs main.
   destruct prog as [defs main]. clear prog. simpl in *.
   unfold transf_program, transform_partial_program in TRANSF.
   unfold transform_partial_program2 in TRANSF.
@@ -565,7 +540,7 @@ Proof.
           unfold common_fundef_dec; eauto.
         }
       }
-      { apply IHl; auto. }
+      { apply IHdefs; auto. }
     }
     { match goal with
         | [H: bind ?b _ = OK _ |- _] =>
@@ -573,7 +548,7 @@ Proof.
       end.
       constructor; simpl in *.
       { split; auto. repeat constructor. }
-      apply IHl; auto.
+      apply IHdefs; auto.
     }
   }
 Qed.

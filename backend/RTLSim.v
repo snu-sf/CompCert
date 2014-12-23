@@ -45,10 +45,8 @@ Variable (mrelT:Type).
 Variable (mrelT_ops:mrelT_opsT mrelT).
 Variable (main:positive).
 
-Variable (fdefs_src fdefs_tgt:list (positive * globdef fundef unit)).
+Variable (fprog_src fprog_tgt:program).
 
-Let fprog_src := mkprogram fdefs_src main.
-Let fprog_tgt := mkprogram fdefs_tgt main.
 Let ge_src := Genv.globalenv fprog_src.
 Let ge_tgt := Genv.globalenv fprog_tgt.
 
