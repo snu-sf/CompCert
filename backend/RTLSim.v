@@ -43,7 +43,6 @@ Section LSIM.
 
 Variable (mrelT:Type).
 Variable (mrelT_ops:mrelT_opsT mrelT).
-Variable (main:positive).
 
 Variable (fprog_src fprog_tgt:program).
 

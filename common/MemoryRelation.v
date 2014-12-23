@@ -14,7 +14,7 @@ Record mrelT_opsT (t:Type): Type := mkmrelT_opsT {
   le_public: t -> t -> Prop
 }.
 
-Record mrelT_props (t:Type) (ops:mrelT_opsT t): Prop := mkmrelT_props {
+Record mrelT_propsT (t:Type) (ops:mrelT_opsT t): Prop := mkmrelT_propsT {
   le_public_le:
     forall mrel1 mrel2 (Hle_public: ops.(le_public) mrel1 mrel2),
       ops.(le) mrel1 mrel2
@@ -23,7 +23,7 @@ Record mrelT_props (t:Type) (ops:mrelT_opsT t): Prop := mkmrelT_props {
 Record mrelT: Type := mkmrelT {
   t :> Type;
   ops: mrelT_opsT t;
-  props: mrelT_props ops
+  props: mrelT_propsT ops
 }.
 
 
@@ -36,7 +36,7 @@ Definition mrelT_ops_equals: mrelT_opsT unit :=
     (fun _ _ => True)
     (fun _ _ => True).
 
-Program Definition mrelT_props_equals: mrelT_props mrelT_ops_equals := mkmrelT_props _ _.
+Program Definition mrelT_props_equals: mrelT_propsT mrelT_ops_equals := mkmrelT_propsT _ _.
 
 
 (* extends *)
@@ -48,7 +48,7 @@ Definition mrelT_ops_extends: mrelT_opsT unit :=
     (fun _ _ => True)
     (fun _ _ => True).
 
-Program Definition mrelT_props_extends: mrelT_props mrelT_ops_extends := mkmrelT_props _ _.
+Program Definition mrelT_props_extends: mrelT_propsT mrelT_ops_extends := mkmrelT_propsT _ _.
 
 Lemma mrelT_ops_extends_lessdef_list mrel v1 v2:
   Val.lessdef_list v1 v2 <-> list_forall2 (mrelT_ops_extends.(sem_value) mrel) v1 v2.
@@ -68,4 +68,4 @@ Definition mrelT_ops_inject: mrelT_opsT meminj :=
     inject_incr
     inject_incr.
 
-Program Definition mrelT_props_inject: mrelT_props mrelT_ops_inject := mkmrelT_props _ _.
+Program Definition mrelT_props_inject: mrelT_propsT mrelT_ops_inject := mkmrelT_propsT _ _.

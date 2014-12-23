@@ -489,7 +489,8 @@ Section INITIALIZE.
 
 Variable (fprog_src: program fundefT_src V_src).
 Variable (fprog_tgt: program fundefT_tgt V_tgt).
-Variable (Hfprog: program_weak_sim fprog_src fprog_tgt).
+Variable (F_sim:F_simT).
+Variable (Hfprog: program_sim_aux F_sim fprog_src fprog_tgt).
 
 Let ge_src := Genv.globalenv fprog_src.
 Let ge_tgt := Genv.globalenv fprog_tgt.
