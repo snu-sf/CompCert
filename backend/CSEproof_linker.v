@@ -128,6 +128,25 @@ Proof.
   destruct f, tf; simpl in *; auto.
 Qed.
 
+Inductive match_states (s s':list stackframe): state -> state -> Prop :=
+  | match_states_intro:
+      forall sp pc rs m rs' m' f approx
+             (ANALYZE: analyze f (vanalyze rm f) = Some approx)
+             (SAT: exists valu, numbering_holds valu ge sp rs m approx!!pc)
+             (RLD: regs_lessdef rs rs')
+             (MEXT: Mem.extends m m'),
+      match_states s s'
+                   (State s f sp pc rs m)
+                   (State s' (transf_function' f approx) sp pc rs' m')
+  | match_states_return:
+      forall v v' m m',
+      Val.lessdef v v' ->
+      Mem.extends m m' ->
+      match_states s s'
+                   (Returnstate s v m)
+                   (Returnstate s' v' m')
+.
+
 Inductive match_call (s s':list stackframe): state -> state -> Prop :=
   | match_call_call:
       forall f tf args m args' m',
@@ -157,25 +176,6 @@ Inductive match_call (s s':list stackframe): state -> state -> Prop :=
                  (Callstate s' tf args' m')
 .
 
-Inductive match_local (s s':list stackframe): state -> state -> Prop :=
-  | match_states_intro:
-      forall sp pc rs m rs' m' f approx
-             (ANALYZE: analyze f (vanalyze rm f) = Some approx)
-             (SAT: exists valu, numbering_holds valu ge sp rs m approx!!pc)
-             (RLD: regs_lessdef rs rs')
-             (MEXT: Mem.extends m m'),
-      match_local s s'
-                  (State s f sp pc rs m)
-                  (State s' (transf_function' f approx) sp pc rs' m')
-  | match_states_return:
-      forall v v' m m',
-      Val.lessdef v v' ->
-      Mem.extends m m' ->
-      match_local s s'
-                  (Returnstate s v m)
-                  (Returnstate s' v' m')
-.
-
 Ltac TransfInstr :=
   match goal with
   | H1: (PTree.get ?pc ?c = Some ?instr), f: function, approx: PMap.t numbering |- _ =>
@@ -188,9 +188,9 @@ Ltac TransfInstr :=
 Lemma transf_step_correct:
   forall s s' s1 t s2, step ge s1 t s2 ->
   forall (Hnormal: is_true (is_normal_state s1)),
-  forall s1' (MS: match_local s s' s1 s1') (SOUND: sound_state_ext fprog s1),
+  forall s1' (MS: match_states s s' s1 s1') (SOUND: sound_state_ext fprog s1),
   exists s2', step tge s1' t s2' /\
-              (match_local s s' s2 s2' \/
+              (match_states s s' s2 s2' \/
                match_call s s' s2 s2').
 Proof.
   induction 1; intros; inv Hnormal; inv MS; try (TransfInstr; intro C).
@@ -300,7 +300,7 @@ Proof.
   eapply analysis_correct_1; eauto. simpl; auto. 
   unfold transfer; rewrite H.
   inv SOUND. specialize (Hsound _ rm_frm). inv Hsound.
-  eapply add_store_result_hold; eauto.
+  eapply add_store_result_hold; eauto. 
   eapply kill_loads_after_store_holds; eauto.
 
 - (* Icall *)
@@ -357,9 +357,8 @@ Proof.
     simpl in H0. inv H0. 
     exists valu. 
     apply set_unknown_holds. 
-    inv SOUND. specialize (Hsound _ rm_frm). inv Hsound.
-    eapply add_memcpy_holds; eauto. 
-    eapply kill_loads_after_storebytes_holds; eauto.
+    inv SOUND. specialize (Hsound _ rm_frm). inv Hsound. eapply add_memcpy_holds; eauto. 
+    eapply kill_loads_after_storebytes_holds; eauto. 
     eapply Mem.loadbytes_length; eauto. 
     simpl. apply Ple_refl. 
   + apply CASE2; inv H0; auto.
@@ -395,18 +394,46 @@ Proof.
   econstructor; split.
   eapply exec_Ireturn; eauto.
   left. econstructor; eauto.
-  destruct or; simpl; auto.
+  destruct or; simpl; auto. 
+
+(* - (* internal function *) *)
+(*   monadInv H6. unfold transf_function in EQ.  *)
+(*   destruct (analyze f (vanalyze rm f)) as [approx|] eqn:?; inv EQ.  *)
+(*   exploit Mem.alloc_extends; eauto. apply Zle_refl. apply Zle_refl.  *)
+(*   intros (m'' & A & B). *)
+(*   econstructor; split. *)
+(*   eapply exec_function_internal; simpl; eauto.  *)
+(*   simpl. econstructor; eauto. *)
+(*   eapply analysis_correct_entry; eauto. *)
+(*   apply init_regs_lessdef; auto. *)
+
+(* - (* external function *) *)
+(*   monadInv H6.  *)
+(*   exploit external_call_mem_extends; eauto. *)
+(*   intros (v' & m1' & P & Q & R & S). *)
+(*   econstructor; split. *)
+(*   eapply exec_function_external; eauto. *)
+(*   eapply external_call_symbols_preserved; eauto. *)
+(*   exact symbols_preserved. exact varinfo_preserved. *)
+(*   econstructor; eauto. *)
+
+(* - (* return *) *)
+(*   inv H2. *)
+(*   econstructor; split. *)
+(*   eapply exec_return; eauto. *)
+(*   econstructor; eauto. *)
+(*   apply set_reg_lessdef; auto. *)
 Qed.
 
-Inductive match_local_ext s s' st tst: Prop :=
-| match_local_ext_intro
-    (Hmatch: match_local s s' st tst)
+Inductive match_states_ext s s' st tst: Prop :=
+| match_states_ext_intro
+    (Hmatch: match_states s s' st tst)
     (Hsrc: sound_state_ext fprog st)
     (Htgt: sound_state_ext ftprog tst)
 .
 
-Lemma match_local_state_lsim s s' i:
-  match_local_ext s s' <2= state_lsim mrelT_ops_extends fprog ftprog s s' tt tt i.
+Lemma match_states_state_lsim s s' i:
+  match_states_ext s s' <2= state_lsim mrelT_ops_extends fprog ftprog s s' tt tt i.
 Proof.
   revert i. pcofix CIH. intros i s1 s1' MS. pfold.
   inv MS. inversion Hmatch; subst.
@@ -470,7 +497,7 @@ Proof.
   intros (m'' & A & B).
   simpl. rewrite A. simpl. split; auto.
   apply _state_lsim_or_csim_lsim. left.
-  destruct mrel_entry. apply match_local_state_lsim. split.
+  destruct mrel_entry. apply match_states_state_lsim. split.
   - constructor; auto.
     + eapply analysis_correct_entry; eauto.
     + apply init_regs_lessdef; auto.
