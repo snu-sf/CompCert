@@ -99,6 +99,73 @@ Proof.
   destruct f, tf; simpl in *; auto.
 Qed.
 
+(** A (compile-time) function environment is compatible with a
+  (run-time) global environment if the following condition holds. *)
+
+Lemma funenv_program_spec p i:
+  (funenv_program p) ! i =
+  match find (fun id => peq i (fst id)) (rev p.(prog_defs)) with
+    | Some (_, Gfun (Internal f)) =>
+      if should_inline i f
+      then Some f
+      else None
+    | _ => None
+  end.
+Proof.
+  unfold funenv_program. rewrite <- fold_left_rev_right.
+  induction (rev (prog_defs p)); simpl.
+  - apply PTree.gempty.
+  - destruct a. simpl.
+    destruct g; simpl.
+    + destruct f; simpl.
+      * destruct (should_inline i0 f) eqn:Hinline.
+        { rewrite PTree.gsspec. destruct (peq i i0); subst; simpl; auto.
+          rewrite Hinline. auto.
+        }
+        { rewrite PTree.grspec. unfold PTree.elt_eq.
+          destruct (peq i i0); subst; simpl; auto.
+          rewrite Hinline. auto.
+        }
+      * rewrite PTree.grspec. unfold PTree.elt_eq.
+        destruct (peq i i0); subst; simpl; auto.
+    + rewrite PTree.grspec. unfold PTree.elt_eq.
+      destruct (peq i i0); simpl; auto.
+Qed.
+
+Lemma funenv_program_compat: fenv_compat ge fenv.
+Proof.
+  unfold ge, fenv. repeat intro.
+  rewrite funenv_program_spec in H.
+  match goal with
+    | [H: context[find ?f ?l] |- _] => destruct (find f l) as [[]|] eqn:Hf; inv H
+  end.
+  destruct g; inv H2. destruct f0; inv H1. destruct (should_inline id f0) eqn:Hinline; inv H2.
+  destruct Hfprog as [Hdefs Hmain].
+  exploit Hdefs; eauto.
+  { rewrite Maps_linker.PTree.guespec. instantiate (2 := id).
+    unfold fundef in Hf. unfold ident in *. rewrite Hf.
+    simpl. eauto.
+  }
+  intros [def2 [Hdef2 Hle]]. inv Hle. inv Hv.
+  - rewrite Maps_linker.PTree.guespec in Hdef2.
+    revert Hdef2 b H0. clear.
+    unfold Genv.find_funct_ptr, Genv.globalenv, Genv.add_globals in *.
+    rewrite <- fold_left_rev_right.
+    unfold fundef, ident in *. 
+    induction ((@rev (prod positive (globdef (AST.fundef function) unit))
+                     (@prog_defs (AST.fundef function) unit fprog)));
+      simpl; intros; [inv Hdef2|].
+    unfold Genv.find_symbol in H0. simpl in *.
+    destruct a. simpl in *. rewrite PTree.gsspec in H0.
+    destruct (peq id p); simpl in *; subst.
+    + inv Hdef2. inv H0. rewrite PTree.gss. auto.
+    + exploit IHl; eauto. intro X.
+      destruct g; auto.
+      rewrite PTree.gso; auto. intro Y. subst.
+      apply Genv.genv_funs_range in X. apply Plt_strict in X. auto.
+  - inv H; simpl in *; inv H1.
+Qed.  
+
 (** ** Relating global environments *)
 
 Inductive match_globalenvs (F: meminj) (bound: block): Prop :=
@@ -697,8 +764,8 @@ Proof.
 (* inlined *)
   assert (fd = Internal f0).
     simpl in H0. destruct (Genv.find_symbol ge id) as [b|] eqn:?; try discriminate.
-    exploit (funenv_program_compat prog); eauto. instantiate (1 := b). admit. intros. 
-    unfold ge in H0. admit. (* congruence. *) (* easy *)
+    exploit funenv_program_compat; eauto. intros.
+    congruence.
   subst fd.
   right; eexists; split. simpl; omega. split. auto. 
   left. econstructor; eauto. 
@@ -751,8 +818,8 @@ Proof.
 (* inlined *)
   assert (fd = Internal f0).
     simpl in H0. destruct (Genv.find_symbol ge id) as [b|] eqn:?; try discriminate.
-    exploit (funenv_program_compat prog); eauto. instantiate (1 := b). admit. intros. 
-    unfold ge in H0. admit. (* congruence. *) (* easy *)
+    exploit funenv_program_compat; eauto. intros.
+    congruence.
   subst fd.
   right; econstructor; split. simpl; omega. split. auto. 
   left. econstructor; eauto.
