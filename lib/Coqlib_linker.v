@@ -46,3 +46,18 @@ Proof.
     + destruct a0. simpl in *.
       destruct (peq var p0); simpl; subst; auto.
 Qed.
+
+Lemma strong_nat_ind:
+  forall P : nat -> Prop,
+    (forall n : nat, (forall k : nat, (k < n -> P k)%nat) -> P n) ->
+    forall n : nat, P n.
+Proof.
+  intros P H.
+  assert (forall n, (forall k, k < n -> P k)%nat).
+  - induction n; intros k Hk.
+    + inversion Hk.
+    + apply Lt.le_lt_or_eq in Hk. destruct Hk as [Hk|Hk].
+      * apply Lt.lt_S_n in Hk. apply IHn. auto.
+      * inversion_clear Hk. apply H. apply IHn.
+  - intros. eapply H0. eauto.
+Qed.

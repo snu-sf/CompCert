@@ -1,4 +1,4 @@
-Require Import Coqlib.
+Require Import Coqlib Coqlib_linker.
 Require Import paco.
 Require Import WFType.
 Require Import Maps.
@@ -66,21 +66,6 @@ Inductive match_states (i:WF.t) (st_src st_tgt:state): Prop :=
     (Hmrel_le: mrelT_ops.(le) emrel mrel)
     (Hsim: state_lsim mrelT_ops prog_src prog_tgt ps_src ps_tgt emrel mrel i st_src st_tgt)
 .
-
-Lemma strong_nat_ind:
-  forall P : nat -> Prop,
-    (forall n : nat, (forall k : nat, (k < n -> P k)%nat) -> P n) ->
-    forall n : nat, P n.
-Proof.
-  intros P H.
-  assert (forall n, (forall k, k < n -> P k)%nat).
-  - induction n; intros k Hk.
-    + inversion Hk.
-    + apply Lt.le_lt_or_eq in Hk. destruct Hk as [Hk|Hk].
-      * apply Lt.lt_S_n in Hk. apply IHn. auto.
-      * inversion_clear Hk. apply H. apply IHn.
-  - intros. eapply H0. eauto.
-Qed.
 
 Lemma program_sim_forward_simulation:
   forward_simulation (semantics prog_src) (semantics prog_tgt).
