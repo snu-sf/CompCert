@@ -440,11 +440,11 @@ Inductive match_states_ext s s' st tst: Prop :=
     (Htgt: sound_state_ext ftprog tst)
 .
 
-Lemma match_states_state_lsim s s' i:
-  match_states_ext s s' <2= state_lsim mrelT_ops_extends fprog ftprog s s' tt tt i.
+Lemma match_states_state_lsim es es' i:
+  match_states_ext es es' <2= state_lsim mrelT_ops_extends fprog ftprog es es' tt tt i.
 Proof.
   revert i. pcofix CIH. intros i s1 s1' MS. pfold.
-  inv MS. destruct (classic (match_return s s' s1 s1')).
+  inv MS. destruct (classic (match_return es es' s1 s1')).
   { inv H. eapply _state_lsim_return; eauto.
     reflexivity.
   }

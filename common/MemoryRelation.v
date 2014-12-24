@@ -92,3 +92,12 @@ Next Obligation. constructor; repeat intro; auto. Qed.
 Next Obligation. constructor; repeat intro; auto. Qed.
 Next Obligation. inv H. auto. Qed.
 Next Obligation. eapply Genv.initmem_inject; eauto. Qed.
+
+Lemma mrelT_ops_inject_list_inject mrel v1 v2:
+  val_list_inject mrel v1 v2 <-> list_forall2 (mrelT_ops_inject.(sem_value) mrel) v1 v2.
+Proof.
+  revert v2.
+  induction v1; intros; constructor; intro H; inv H; constructor; auto.
+  - apply IHv1. auto.
+  - apply IHv1. auto.
+Qed.
