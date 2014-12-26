@@ -562,6 +562,21 @@ Proof.
   specialize (Hsound prm Hprm). eapply sound_step; eauto.
 Qed.
 
+Theorem sound_past_star:
+  forall st t st', Smallstep.star RTL.step ge st t st' -> sound_state_ext st -> sound_state_ext st'.
+Proof.
+  intros st t st' H. induction H; subst; auto.
+  intro X. apply IHstar. eapply sound_past_step; eauto.
+Qed.
+
+Theorem sound_past_plus:
+  forall st t st', Smallstep.plus RTL.step ge st t st' -> sound_state_ext st -> sound_state_ext st'.
+Proof.
+  intros st t st' H. destruct H. subst.
+  intro X. eapply sound_past_star; eauto.
+  eapply sound_past_step; eauto.
+Qed.
+
 End SOUNDNESS.
 
 (** ** Soundness of the initial memory abstraction *)

@@ -16,7 +16,7 @@ Require Import Inliningspec.
 Require Import RTL.
 Require Import Inliningproof.
 Require Import LinkerSpecification Linkeq.
-Require Import MemoryRelation ProgramSim.
+Require Import ProgramSim.
 Require Import RTLSim ValueAnalysis_linker.
 Require Import WFType paco.
 
@@ -383,21 +383,21 @@ Proof.
     intros. eapply PERM2; eauto. xomega.
 Qed.
 
-(* Lemma match_stacks_empty: *)
-(*   forall stk stk' bound, *)
-(*   match_stacks F m m' stk stk' bound -> stk = nil -> stk' = nil *)
-(* with match_stacks_inside_empty: *)
-(*   forall stk stk' f ctx sp rs, *)
-(*   match_stacks_inside F m m' stk stk' f ctx sp rs -> stk = nil -> stk' = nil /\ ctx.(retinfo) = None. *)
-(* Proof. *)
-(*   induction 1; intros. *)
-(*   auto. *)
-(*   discriminate. *)
-(*   exploit match_stacks_inside_empty; eauto. intros [A B]. congruence. *)
-(*   induction 1; intros. *)
-(*   split. eapply match_stacks_empty; eauto. auto. *)
-(*   discriminate. *)
-(* Qed. *)
+Lemma match_stacks_empty:
+  forall stk stk' bound,
+  match_stacks es es' F m m' stk stk' bound -> stk = nil -> es = nil /\ stk' = es'
+with match_stacks_inside_empty:
+  forall stk stk' f ctx sp rs,
+  match_stacks_inside es es' F m m' stk stk' f ctx sp rs -> stk = nil -> es = nil /\ stk' = es' /\ ctx.(retinfo) = None.
+Proof.
+  induction 1; intros.
+  auto.
+  discriminate.
+  exploit match_stacks_inside_empty; eauto. intros [A [B C]]. congruence.
+  induction 1; intros.
+  exploit match_stacks_empty; eauto. intros [A B]. repeat split; auto.
+  discriminate.
+Qed.
 
 End MATCH_STACKS.
 
@@ -1055,70 +1055,103 @@ Inductive match_states_ext s s' F st tst: Prop :=
     (Htgt: sound_state_ext ftprog tst)
 .
 
-Lemma match_states_state_lsim es es' eF F s1:
-  match_states_ext es es' F s1 <1= state_lsim mrelT_ops_inject fprog ftprog es es' eF F (WF.from_nat (measure s1)) s1.
+(* memory relation *)
+
+Structure mrelT: Type := mkmrelT {
+  mrelT_meminj:> meminj
+}.
+
+Inductive mrelT_sem (mrel:mrelT) (i:WF.t) (s1 s2:state): Prop :=
+| mrelT_sem_intro
+    (MEASURE: i = WF.from_nat (measure s1))
+    (MINJ: Mem.inject mrel.(mrelT_meminj) (state_mem s1) (state_mem s2))
+.
+
+Definition mrelT_ops: mrelT_opsT mrelT :=
+  mkmrelT_opsT
+    mrelT_sem
+    (fun mrel v1 v2 => val_inject mrel.(mrelT_meminj) v1 v2)
+    (fun _ _ => True)
+    (fun _ _ => True).
+
+Program Definition mrelT_props: mrelT_propsT mrelT_ops := mkmrelT_propsT _ _ _ _ _.
+Next Obligation. repeat constructor. Qed.
+Next Obligation. repeat constructor. Qed.
+Next Obligation. inv H. auto. Qed.
+
+Lemma mrelT_ops_val_inject_list (mrel:mrelT) v1 v2:
+  val_list_inject mrel v1 v2 <-> list_forall2 (mrelT_ops.(sem_value) mrel) v1 v2.
 Proof.
-  revert F s1. pcofix CIH. intros F s1 s1' MS. pfold.
+  revert v2.
+  induction v1; intros; constructor; intro H; inv H; constructor; auto.
+  - apply IHv1. auto.
+  - apply IHv1. auto.
+Qed.
+
+Lemma match_states_state_lsim es es' (eF F:mrelT) s1 s2
+      (MS: match_states_ext es es' F s1 s2):
+  state_lsim mrelT_ops fprog ftprog es es' eF F (WF.from_nat (measure s1)) s1 s2.
+Proof.
+  revert F s1 s2 MS. pcofix CIH. intros F s1 s1' MS. pfold.
   inv MS. destruct (classic (match_return es es' F s1 s1')).
   { inv H. eapply _state_lsim_return; eauto.
-    admit. (* hard? le_public mrelT_ops_inject eF F *)
+    constructor; simpl; auto. constructor.
   }
   constructor; auto.
-  { intros ? Hfinal. inv Hfinal. admit. (* match_states's base case. easy *) }
+  { intros ? Hfinal. inv Hfinal. apply H. inv Hmatch.
+    - inv MS.
+      + constructor; auto. econstructor; eauto.
+      + exploit match_stacks_inside_empty; eauto.
+        intros [? [? ?]]. congruence.
+    - destruct or; inv VINJ. inv MS. inv MS0.
+      + congruence.
+      + exploit match_stacks_inside_empty; eauto.
+        intros [? [? ?]]. congruence.
+  }
   intros. exploit step_simulation; eauto. simpl.
   intros [[s2' [F' [Hs2' Hmatch']]]|[mrel2 [Hmrel2 [Hevt Hmatch']]]].
-  - eexists. exists s2'. exists F'. simpl.
-    split; [auto|].
-    split; [admit|]. (* hard?: inject_incr F F' *)
+  - eexists. exists s2'. exists (mkmrelT F').
+    split; [auto|]. split; [auto|].
     destruct Hmatch' as [Hmatch'|Hmatch'].
-    + split; [inv Hmatch'; auto|].
+    + split.
+      { constructor; simpl; eauto. inv Hmatch'; auto. }
       constructor. right. apply CIH; auto. constructor; auto.
       * eapply sound_past_step; eauto.
-      * admit. (* sound_past_step for plus. easy *)
-    + split; [inv Hmatch'; auto|].
+      * eapply sound_past_plus; eauto.
+    + split.
+      { constructor; simpl; eauto. inv Hmatch'; auto. }
       inv Hmatch'. eapply _state_lsim_or_csim_csim; eauto.
-      { apply mrelT_ops_inject_list_inject. auto. }
-      intros. right.
-      cut (match_states_ext es es' mrel2 st2_src st2_tgt).
-      { admit. (* applying CIH and decreasing index. hard? *) }
-      subst. constructor; auto.
-      econstructor; eauto.
+      { apply mrelT_ops_val_inject_list. auto. }
+      { constructor; auto. }
+      intros. right. inv Hst2_mem. apply CIH.
+      constructor; auto. econstructor; eauto.
       admit. (* hard; on memory relation *)
-  - subst. eexists. exists s1'. exists mrel2.
+  - subst. eexists. exists s1'. exists (mkmrelT mrel2).
     split.
     { right. split; [apply star_refl|]. constructor. eauto. }
-    split; [admit|]. (* hard?: inject_incr F mrel2 *)
+    split; [auto|].
     destruct Hmatch' as [Hmatch'|Hmatch'].
-    + split; [inv Hmatch'; auto|].
+    + split.
+      { constructor; simpl; eauto. inv Hmatch'; auto. }
       constructor. right. apply CIH; auto. constructor; auto.
       eapply sound_past_step; eauto.
-    + split; [inv Hmatch'; auto|].
+    + split.
+      { constructor; simpl; eauto. inv Hmatch'; auto. }
       inv Hmatch'. eapply _state_lsim_or_csim_csim; eauto.
-      { apply mrelT_ops_inject_list_inject. auto. }
-      intros. right.
-      cut (match_states_ext es es' mrel0 st2_src st2_tgt).
-      { admit. (* applying CIH and decreasing index. hard? *) }
-      subst. constructor; auto.
-      econstructor; eauto.
+      { apply mrelT_ops_val_inject_list. auto. }
+      { constructor; auto. }
+      intros. right. inv Hst2_mem. apply CIH.
+      constructor; auto. econstructor; eauto.
       admit. (* hard; on memory relation *)
 Qed.
 
 Lemma transf_function'_lsim
       f f' (Hf: Inlining.transf_function fenv f = OK f'):
-  function_lsim mrelT_ops_extends fprog ftprog f f'.
+  function_lsim mrelT_ops fprog ftprog f f'.
 Proof.
   constructor. repeat intro. pfold. constructor; subst; auto.
   { intros ? Hfinal. inv Hfinal. }
   intros. inversion Hst2_src. subst.
-  exists WF.elt. eexists. exists tt.
-  split; [left; apply plus_one; eauto|].
-  { econstructor; eauto.
-    match goal with
-      | [|- ?b = _] =>
-        instantiate (1 := snd b); instantiate (1 := fst b); auto
-    end.
-  }
-  split; [reflexivity|].
   admit.
 Qed.
 
@@ -1129,7 +1162,7 @@ Lemma Inlining_program_sim:
     (@common_fundef_dec function) fn_sig
     (@common_fundef_dec function) fn_sig
     (@Errors.OK _)
-    (function_lsim mrelT_ops_extends)
+    (function_lsim mrelT_ops)
     prog tprog.
 Proof.
   generalize transf_function'_lsim.

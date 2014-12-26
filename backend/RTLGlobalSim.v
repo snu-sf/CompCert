@@ -13,9 +13,8 @@ Require Import Op.
 Require Import Registers.
 Require Import RTL.
 Require Import LinkerSpecification.
-Require Import MemoryRelation.
 Require Import ValueAnalysis_linker.
-Require Import MemoryRelation ProgramSim RTLSim.
+Require Import ProgramSim RTLSim.
 
 Set Implicit Arguments.
 
@@ -53,7 +52,7 @@ Inductive match_stackframes: forall (height:nat) (mrel:mrelT) (cs_src cs_tgt:lis
               (Hsound_src: sound_state_ext prog_src st_src)
               (Hsound_tgt: sound_state_ext prog_tgt st_tgt)
               (Hrmrel_le: mrelT_ops.(le_public) mrel rmrel)
-              (Hst_mem: mrelT_ops.(sem) rmrel mem_src mem_tgt),
+              (Hst_mem: mrelT_ops.(sem) rmrel ri st_src st_tgt),
          state_lsim mrelT_ops prog_src prog_tgt ps_src ps_tgt emrel rmrel ri st_src st_tgt):
     match_stackframes (S height) mrel s_src s_tgt
 .
@@ -121,7 +120,7 @@ Proof.
       { exploit (mrelT_props.(sem_value_int)); eauto. intro. subst.
         constructor.
       }
-      { exploit Hreturn; eauto. instantiate (1 := WF.elt). intro Hsim'.
+      { exploit Hreturn; eauto. intro Hsim'.
         punfold Hsim'. inv Hsim'.
         { inv Hst_src. inv Hst_tgt.
           assert (Hle: mrelT_ops.(le) emrel0 mrel).

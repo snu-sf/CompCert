@@ -1,3 +1,4 @@
+Require Import RelationClasses.
 Require Import Coqlib.
 Require Import paco.
 Require Import WFType.
@@ -13,23 +14,10 @@ Require Import Op.
 Require Import Registers.
 Require Import RTL.
 Require Import LinkerSpecification.
-Require Import ProgramSim MemoryRelation.
+Require Import ProgramSim.
 Require Import ValueAnalysis_linker.
 
 Set Implicit Arguments.
-
-Definition is_normal_state (st:state): bool :=
-  match st with
-    | State _ _ _ _ _ _ => true
-    | _ => false
-  end.
-
-Definition is_call (f:function) (pc:node): bool :=
-  match (fn_code f)!pc with
-    | Some (Icall _ _ _ _ _) => true
-    | Some (Itailcall _ _ _) => true
-    | _ => false
-  end.
 
 Definition state_mem (st:state): mem :=
   match st with
@@ -37,6 +25,64 @@ Definition state_mem (st:state): mem :=
     | Callstate _ _ _ m => m
     | Returnstate _ _ m => m
   end.
+
+(* memory relation *)
+
+Record mrelT_opsT (t:Type): Type := mkmrelT_opsT {
+  sem :> t -> forall (i:WF.t) (s1 s2:state), Prop;
+  sem_value :> t -> forall (v1 v2:val), Prop;
+  le: t -> t -> Prop;
+  le_public: t -> t -> Prop
+}.
+
+Record mrelT_propsT (t:Type) (ops:mrelT_opsT t): Prop := mkmrelT_propsT {
+  le_preorder: PreOrder ops.(le);
+  le_public_preorder: PreOrder ops.(le_public);
+  le_public_le:
+    forall mrel1 mrel2 (Hle_public: ops.(le_public) mrel1 mrel2),
+      ops.(le) mrel1 mrel2;
+  sem_value_int:
+    forall mrel i v (H: ops.(sem_value) mrel (Vint i) v),
+      v = Vint i
+
+}.
+
+(* memory relation - equals *)
+
+Definition mrelT_ops_equals: mrelT_opsT unit :=
+  mkmrelT_opsT
+    (fun _ _ s1 s2 => state_mem s1 = state_mem s2)
+    (fun _ v1 v2 => Val.lessdef v1 v2)
+    (fun _ _ => True)
+    (fun _ _ => True).
+
+Program Definition mrelT_props_equals: mrelT_propsT mrelT_ops_equals := mkmrelT_propsT _ _ _ _ _.
+Next Obligation. repeat constructor. Qed.
+Next Obligation. repeat constructor. Qed.
+Next Obligation. inv H. auto. Qed.
+
+(* memory relation - extends *)
+
+Definition mrelT_ops_extends: mrelT_opsT unit :=
+  mkmrelT_opsT
+    (fun _ _ s1 s2 => Mem.extends (state_mem s1) (state_mem s2))
+    (fun _ v1 v2 => Val.lessdef v1 v2)
+    (fun _ _ => True)
+    (fun _ _ => True).
+
+Program Definition mrelT_props_extends: mrelT_propsT mrelT_ops_extends := mkmrelT_propsT _ _ _ _ _.
+Next Obligation. repeat constructor. Qed.
+Next Obligation. repeat constructor. Qed.
+Next Obligation. inv H. auto. Qed.
+
+Lemma mrelT_ops_extends_lessdef_list mrel v1 v2:
+  Val.lessdef_list v1 v2 <-> list_forall2 (mrelT_ops_extends.(sem_value) mrel) v1 v2.
+Proof.
+  revert v2.
+  induction v1; intros; constructor; intro H; inv H; constructor; auto.
+  - apply IHv1. auto.
+  - apply IHv1. auto.
+Qed.
 
 Section LSIM.
 
@@ -68,7 +114,7 @@ Inductive _state_lsim_or_csim
                 (@common_fundef_dec function) fn_sig
                 ge_src ge_tgt fundef_src fundef_tgt)
     (Hargs: list_forall2 (mrelT_ops.(sem_value) mrel) args_src args_tgt)
-    (Hmrel: mrelT_ops.(sem) mrel mem_src mem_tgt)
+    (Hmrel: mrelT_ops.(sem) mrel i st_src st_tgt)
     (Hreturn:
        forall mrel2 i2 st2_src st2_tgt mem2_src mem2_tgt vres_src vres_tgt
               (Hvres: mrelT_ops.(sem_value) mrel2 vres_src vres_tgt)
@@ -77,7 +123,7 @@ Inductive _state_lsim_or_csim
               (Hsound_src: sound_state_ext fprog_src st2_src)
               (Hsound_tgt: sound_state_ext fprog_tgt st2_tgt)
               (Hmrel2_le: mrelT_ops.(le_public) mrel mrel2)
-              (Hst2_mem: mrelT_ops.(sem) mrel2 mem2_src mem2_tgt),
+              (Hst2_mem: mrelT_ops.(sem) mrel2 i2 st2_src st2_tgt),
          state_lsim mrel2 i2 st2_src st2_tgt)
 .
 
@@ -90,7 +136,7 @@ Inductive _state_lsim
     val_src mem_src (Hst_src: st_src = Returnstate cs_entry_src val_src mem_src)
     val_tgt mem_tgt (Hst_tgt: st_tgt = Returnstate cs_entry_tgt val_tgt mem_tgt)
     (Hval: mrelT_ops.(sem_value) mrel val_src val_tgt)
-    (Hmem: mrelT_ops.(sem) mrel mem_src mem_tgt)
+    (Hmem: mrelT_ops.(sem) mrel i st_src st_tgt)
     (Hmrel_le_public: mrelT_ops.(le_public) mrel_entry mrel)
 
 | _state_lsim_step
@@ -103,7 +149,7 @@ Inductive _state_lsim
            (plus step ge_tgt st_tgt evt st2_tgt \/
             star step ge_tgt st_tgt evt st2_tgt /\ WF.rel i2 i) /\
            mrelT_ops.(le) mrel mrel2 /\
-           mrelT_ops.(sem) mrel2 (state_mem st2_src) (state_mem st2_tgt) /\
+           mrelT_ops.(sem) mrel2 i2 st2_src st2_tgt /\
            _state_lsim_or_csim state_lsim mrel2 i2 st2_src st2_tgt)
 .
 Hint Constructors _state_lsim.
@@ -136,7 +182,7 @@ Inductive function_lsim (func_src func_tgt:function): Prop :=
          i
          (Hmrel_init: True) (* TODO *)
          (Hmrel_entry_le: mrelT_ops.(le) mrel_init mrel_entry)
-         (Hmrel_entry: mrelT_ops.(sem) mrel_entry mem_entry_src mem_entry_tgt)
+         (Hmrel_entry: mrelT_ops.(sem) mrel_entry i st_src st_tgt)
          (Hargs: list_forall2 (mrelT_ops.(sem_value) mrel_entry) args_src args_tgt)
          (Hst_src: st_src = (Callstate cs_entry_src (Internal func_src) args_src mem_entry_src))
          (Hst_tgt: st_tgt = (Callstate cs_entry_tgt (Internal func_tgt) args_tgt mem_entry_tgt))

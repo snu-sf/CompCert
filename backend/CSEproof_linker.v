@@ -23,7 +23,7 @@ Require Import CombineOpproof.
 Require Import CSE.
 Require Import CSEproof.
 Require Import LinkerSpecification Linkeq.
-Require Import MemoryRelation ProgramSim.
+Require Import ProgramSim.
 Require Import RTLSim ValueAnalysis_linker.
 Require Import WFType paco.
 
@@ -485,7 +485,7 @@ Proof.
     end.
   }
   split; [reflexivity|].
-  exploit Mem.alloc_extends; eauto. apply Zle_refl. apply Zle_refl.
+  simpl in *. exploit Mem.alloc_extends; eauto. apply Zle_refl. apply Zle_refl.
   intros (m'' & A & B).
   simpl. rewrite A. simpl. split; auto.
   apply _state_lsim_or_csim_lsim. left.
@@ -493,7 +493,8 @@ Proof.
   - constructor; auto.
     + eapply analysis_correct_entry; eauto.
     + apply init_regs_lessdef; auto.
-      eapply mrelT_ops_extends_lessdef_list. eauto.
+      eapply mrelT_ops_extends_lessdef_list.
+      instantiate (1 := tt). eauto.
     + constructor.
   - eapply sound_past_step; eauto.
   - eapply sound_past_step; eauto.
