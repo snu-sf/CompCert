@@ -88,7 +88,7 @@ Qed.
 
 (* inject *)
 Structure mrelT_inject: Type := mkmrelT_inject {
-  mrelT_meminj:> meminj;
+  mrelT_meminj: meminj;
   mrelT_src: mem;
   mrelT_tgt: mem
 }.
@@ -137,12 +137,11 @@ Definition mrelT_ops_inject: mrelT_opsT mrelT_inject :=
   mkmrelT_opsT
     mrelT_sem
     (fun mrel => val_inject mrel.(mrelT_meminj))
-    (fun _ _ => True)
+    mrelT_le
     mrelT_le
     (fun _ _ _ m _ => mkmrelT_inject (Mem.flat_inj (Mem.nextblock m)) m m).
 
 Program Definition mrelT_props_inject: mrelT_propsT mrelT_ops_inject := mkmrelT_propsT _ _ _ _ _ _.
-Next Obligation. constructor; auto. Qed.
 Next Obligation. inv H. auto. Qed.
 Next Obligation.
   constructor; auto. simpl.
