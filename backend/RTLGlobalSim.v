@@ -113,6 +113,7 @@ Proof.
   }
   { (* final *)
     simpl. intros. inv H0. inv H. punfold Hsim0. inv Hsim0.
+    - inv Hst_src. auto.
     - inv Hst_src.
       revert height emrel Hmrel_le Hmrel_le_public Hp.
       refine (strong_nat_ind _ _). intros height IHheight emrel Hmrel_le Hmrel_le_public Hp.
@@ -122,6 +123,7 @@ Proof.
       }
       { exploit Hreturn; eauto. intro Hsim'.
         punfold Hsim'. inv Hsim'.
+        { inv Hst_src. inv Hst_tgt. constructor. }
         { inv Hst_src. inv Hst_tgt.
           assert (Hle: mrelT_ops.(le) emrel0 mrel).
           { destruct mrelT_props. etransitivity; eauto. }
@@ -136,6 +138,9 @@ Proof.
     revert height i s2 ps_src ps_tgt emrel mrel Hp Hmrel_le Hsim0.
     refine (strong_nat_ind _ _). intros height IHheight. intros.
     punfold Hsim0. inv Hsim0.
+    { (* term *)
+      inv Hst_src. inv H.
+    }
     { (* return *)
       inversion Hp; symmetry in H1; subst; inv H.
       assert (Hmrel_le': mrelT_ops.(le) emrel0 mrel).

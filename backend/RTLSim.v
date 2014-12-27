@@ -130,6 +130,11 @@ Inductive _state_lsim_or_csim
 Inductive _state_lsim
           (state_lsim: mrelT -> WF.t -> state -> state -> Prop)
           (mrel:mrelT) (i:WF.t) (st_src st_tgt:state): Prop :=
+| _state_lsim_term
+    rval
+    (Hst_src: final_state st_src rval)
+    (Hst_tgt: final_state st_tgt rval)
+
 | _state_lsim_return
     (Hsound_src: sound_state_ext fprog_src st_src)
     (Hsound_tgt: sound_state_ext fprog_tgt st_tgt)

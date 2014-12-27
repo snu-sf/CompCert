@@ -433,9 +433,9 @@ Proof.
   apply set_reg_lessdef; auto.
 Qed.
 
-Inductive match_states_ext s s' st tst: Prop :=
+Inductive match_states_ext es es' st tst: Prop :=
 | match_states_ext_intro
-    (Hmatch: match_states s s' st tst)
+    (Hmatch: match_states es es' st tst)
     (Hsrc: sound_state_ext fprog st)
     (Htgt: sound_state_ext ftprog tst)
 .
