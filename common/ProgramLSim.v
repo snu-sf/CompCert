@@ -1,7 +1,7 @@
 Require Import RelationClasses.
 Require String.
 Require Import Coqlib Coqlib_linker.
-Require Import Maps_linker.
+Require Import Maps Maps_linker.
 Require Import Integers Floats Values AST Globalenvs.
 Require Import LinkerSpecification LinkerProp Linkeq.
 Require Import Errors.
@@ -205,10 +205,10 @@ Lemma globdef_list_lsim_globdefs_lsim
       (defs_src: list (positive * (globdef fundefT_src V_src)))
       (defs_tgt: list (positive * (globdef fundefT_tgt V_tgt)))
       (Hsim: globdef_list_lsim F_lsim fprog_src fprog_tgt defs_src defs_tgt):
-  globdefs_lsim F_lsim fprog_src fprog_tgt (PTree.unelements defs_src) (PTree.unelements defs_tgt).
+  globdefs_lsim F_lsim fprog_src fprog_tgt (PTree_unelements defs_src) (PTree_unelements defs_tgt).
 Proof.
   unfold globdefs_lsim, globdef_list_lsim in *. intro i.
-  rewrite ? PTree.guespec. apply list_forall2_rev in Hsim.
+  rewrite ? PTree_guespec. apply list_forall2_rev in Hsim.
   revert Hsim i. generalize (rev defs_src) (rev defs_tgt).
   induction l; intros l0 Hsim i; inv Hsim; simpl; auto.
   destruct a, b1, H1. simpl in *. subst.
@@ -233,21 +233,21 @@ Lemma link_globdefs_lsim
       (main:positive)
       (defs1_src defs2_src:list (positive * globdef fundefT_src V_src))
       (defs1_tgt defs2_tgt:list (positive * globdef fundefT_tgt V_tgt))
-      defs_src (Hdefs_src: link_globdefs fundef_src_dec V_src_dec (PTree.unelements defs1_src) (PTree.unelements defs2_src) = Some defs_src)
+      defs_src (Hdefs_src: link_globdefs fundef_src_dec V_src_dec (PTree_unelements defs1_src) (PTree_unelements defs2_src) = Some defs_src)
       (H1: globdefs_lsim
              F_lsim
              (mkprogram defs1_src main)
              (mkprogram defs1_tgt main)
-             (PTree.unelements defs1_src)
-             (PTree.unelements defs1_tgt))
+             (PTree_unelements defs1_src)
+             (PTree_unelements defs1_tgt))
       (H2: globdefs_lsim
              F_lsim
              (mkprogram defs2_src main)
              (mkprogram defs2_tgt main)
-             (PTree.unelements defs2_src)
-             (PTree.unelements defs2_tgt)):
+             (PTree_unelements defs2_src)
+             (PTree_unelements defs2_tgt)):
   exists defs_tgt,
-    link_globdefs fundef_tgt_dec V_tgt_dec (PTree.unelements defs1_tgt) (PTree.unelements defs2_tgt) = Some defs_tgt /\
+    link_globdefs fundef_tgt_dec V_tgt_dec (PTree_unelements defs1_tgt) (PTree_unelements defs2_tgt) = Some defs_tgt /\
     globdefs_lsim
       F_lsim
       (mkprogram (PTree.elements defs_src) main)
@@ -256,7 +256,7 @@ Lemma link_globdefs_lsim
 Proof.
   generalize (link_globdefs_linkeq_l _ _ _ _ Hdefs_src). intro Hle1_src.
   generalize (link_globdefs_linkeq_r _ _ _ _ Hdefs_src). intro Hle2_src.
-  destruct (link_globdefs fundef_tgt_dec V_tgt_dec (PTree.unelements defs1_tgt) (PTree.unelements defs2_tgt)) as [defs_tgt|] eqn:Hdefs_tgt.
+  destruct (link_globdefs fundef_tgt_dec V_tgt_dec (PTree_unelements defs1_tgt) (PTree_unelements defs2_tgt)) as [defs_tgt|] eqn:Hdefs_tgt.
   { generalize (link_globdefs_linkeq_l _ _ _ _ Hdefs_tgt). intro Hle1_tgt.
     generalize (link_globdefs_linkeq_r _ _ _ _ Hdefs_tgt). intro Hle2_tgt.
     eexists. split; [eauto|].
@@ -264,11 +264,11 @@ Proof.
     eapply gtlink_globdefs in Hdefs_src. instantiate (1 := i) in Hdefs_src.
     eapply gtlink_globdefs in Hdefs_tgt. instantiate (1 := i) in Hdefs_tgt.
     specialize (H1 i). specialize (H2 i).
-    destruct ((PTree.unelements defs1_src) ! i) eqn:Hi1_src,
-             ((PTree.unelements defs2_src) ! i) eqn:Hi2_src,
+    destruct ((PTree_unelements defs1_src) ! i) eqn:Hi1_src,
+             ((PTree_unelements defs2_src) ! i) eqn:Hi2_src,
              (defs_src ! i) eqn:Hi_src; subst; try (inv Hdefs_src; fail);
-    destruct ((PTree.unelements defs1_tgt) ! i) eqn:Hi1_tgt,
-             ((PTree.unelements defs2_tgt) ! i) eqn:Hi2_tgt,
+    destruct ((PTree_unelements defs1_tgt) ! i) eqn:Hi1_tgt,
+             ((PTree_unelements defs2_tgt) ! i) eqn:Hi2_tgt,
              (defs_tgt ! i) eqn:Hi_tgt; subst; try (inv Hdefs_tgt; fail);
     try (inv H1; fail); try (inv H2; fail); auto.
     { destruct Hdefs_src as [[]|[]], Hdefs_tgt as [[]|[]]; subst;
@@ -283,10 +283,10 @@ Proof.
       - eapply globdef_lsim_le; eauto.
         + split; auto. unfold globdef_list_linkeq. rewrite Hle2_src.
           repeat intro. exists def1. split; [|reflexivity].
-          simpl. rewrite PTree.unelements_elements. auto.
+          simpl. rewrite PTree_unelements_elements. auto.
         + split; auto. unfold globdef_list_linkeq. rewrite Hle2_tgt.
           repeat intro. exists def1. split; [|reflexivity].
-          simpl. rewrite PTree.unelements_elements. auto.
+          simpl. rewrite PTree_unelements_elements. auto.
       - inv H; inv H1; inv H2; inv H3; inv Hv; inv Hv0; repeat constructor;
         repeat
           match goal with
@@ -329,12 +329,12 @@ Proof.
             split; auto. unfold globdef_list_linkeq in *.
             rewrite Hle1_src, <- Hfdefs_src.
             repeat intro. exists def1. split; [|reflexivity].
-            rewrite PTree.unelements_elements. auto.
+            rewrite PTree_unelements_elements. auto.
           * destruct Hfprog_tgt as [Hfdefs_tgt ?]. simpl in *. subst.
             split; auto. unfold globdef_list_linkeq in *.
             rewrite Hle1_tgt, <- Hfdefs_tgt.
             repeat intro. exists def1. split; [|reflexivity].
-            rewrite PTree.unelements_elements. auto.
+            rewrite PTree_unelements_elements. auto.
         + eapply globfun_lsim_e; eauto.
         + inv Hv1. destruct v1, v2; simpl in *; subst.
           unfold transf_globvar in *. simpl in *.
@@ -344,26 +344,26 @@ Proof.
     { eapply globdef_lsim_le; eauto.
       - split; auto. unfold globdef_list_linkeq. rewrite Hle1_src.
         repeat intro. exists def1. split; [|reflexivity].
-        simpl. rewrite PTree.unelements_elements. auto.
+        simpl. rewrite PTree_unelements_elements. auto.
       - split; auto. unfold globdef_list_linkeq. rewrite Hle1_tgt.
         repeat intro. exists def1. split; [|reflexivity].
-        simpl. rewrite PTree.unelements_elements. auto.
+        simpl. rewrite PTree_unelements_elements. auto.
     }
     { eapply globdef_lsim_le; eauto.
       - split; auto. unfold globdef_list_linkeq. rewrite Hle2_src.
         repeat intro. exists def1. split; [|reflexivity].
-        simpl. rewrite PTree.unelements_elements. auto.
+        simpl. rewrite PTree_unelements_elements. auto.
       - split; auto. unfold globdef_list_linkeq. rewrite Hle2_tgt.
         repeat intro. exists def1. split; [|reflexivity].
-        simpl. rewrite PTree.unelements_elements. auto.
+        simpl. rewrite PTree_unelements_elements. auto.
     }
   }
   { apply gflink_globdefs in Hdefs_tgt.
     destruct Hdefs_tgt as [i [def1 [def2 [Hdef1 [Hdef2 [H12 H21]]]]]].
     specialize (H1 i). rewrite Hdef1 in H1.
-    destruct ((PTree.unelements defs1_src) ! i) eqn:Hi1_src; [|inv H1].
+    destruct ((PTree_unelements defs1_src) ! i) eqn:Hi1_src; [|inv H1].
     specialize (H2 i). rewrite Hdef2 in H2.
-    destruct ((PTree.unelements defs2_src) ! i) eqn:Hi2_src; [|inv H2].
+    destruct ((PTree_unelements defs2_src) ! i) eqn:Hi2_src; [|inv H2].
     eapply gtlink_globdefs in Hdefs_src.
     instantiate (1 := i) in Hdefs_src.
     rewrite Hi1_src, Hi2_src in Hdefs_src.

@@ -1,7 +1,7 @@
 Require Import RelationClasses.
 Require String.
 Require Import Coqlib Coqlib_linker.
-Require Import Maps_linker.
+Require Import Maps Maps_linker.
 Require Import Integers Floats Values AST Globalenvs.
 Require Import LinkerSpecification.
 Require Import Errors.
@@ -52,7 +52,7 @@ Proof.
     | [H: context[PTree_Properties.for_all ?m ?f] |- _] =>
       destruct (PTree_Properties.for_all m f) eqn:Hlinkable; inv Hlink
   end.
-  rewrite PTree.goption_map, PTree.gcombine; auto.
+  rewrite PTree_goption_map, PTree.gcombine; auto.
   destruct (defs1 ! i) eqn:Hi1, (defs2 ! i) eqn:Hi2; auto.
   destruct (globdef_linkable_dec fundef_dec V_dec g g0).
   { left. split; auto. }

@@ -1,6 +1,6 @@
 Require Import Classical.
 Require Import Coqlib.
-Require Import Maps.
+Require Import Maps Maps_linker.
 Require Import AST.
 Require Import Errors.
 Require Import Integers.

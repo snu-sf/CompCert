@@ -2,7 +2,7 @@ Require Import RelationClasses.
 Require Import Classical.
 Require Import Coqlib Coqlib_linker.
 Require Import Errors.
-Require Import Maps.
+Require Import Maps Maps_linker.
 Require Import AST.
 Require Import Integers.
 Require Import Values.
@@ -22,21 +22,6 @@ Require Import RTLLSim ValueAnalysis_linker.
 Require Import WFType paco.
 
 Set Implicit Arguments.
-
-Inductive fenv_le (fenv1 fenv2:funenv): Prop :=
-| fenv_le_intro
-    (H: forall b ab (Hrm1: fenv1 ! b = Some ab),
-          fenv2 ! b = Some ab)
-.
-
-Program Instance fenv_le_PreOrder : PreOrder fenv_le.
-Next Obligation.
-  constructor. intros. auto.
-Qed.
-Next Obligation.
-  repeat intro. inv H. inv H0. constructor. intros.
-  exploit H1; eauto.
-Qed.
 
 Section INLINING.
 
@@ -156,12 +141,12 @@ Proof.
   destruct g; inv H2. destruct f0; inv H1. destruct (should_inline id f0) eqn:Hinline; inv H2.
   destruct Hfprog as [Hdefs Hmain].
   exploit Hdefs; eauto.
-  { rewrite Maps_linker.PTree.guespec. instantiate (2 := id).
+  { rewrite PTree_guespec. instantiate (2 := id).
     unfold fundef in Hf. unfold ident in *. rewrite Hf.
     simpl. eauto.
   }
   intros [def2 [Hdef2 Hle]]. inv Hle. inv Hv.
-  - rewrite Maps_linker.PTree.guespec in Hdef2.
+  - rewrite PTree_guespec in Hdef2.
     revert Hdef2 b H0. clear.
     unfold Genv.find_funct_ptr, Genv.globalenv, Genv.add_globals in *.
     rewrite <- fold_left_rev_right.
@@ -227,7 +212,7 @@ Inductive match_stacks (F: meminj) (m m': mem):
       match_stacks F m m' nil nil bound
   | match_stacks_cons: forall res f sp pc rs stk f' sp' rs' stk' bound ctx fenv
         (MS: match_stacks_inside F m m' stk stk' f' ctx sp' rs')
-        (FENV: fenv_le fenv (funenv_program prog))
+        (FENV: PTree_le fenv (funenv_program prog))
         (FB: tr_funbody fenv f'.(fn_stacksize) ctx f f'.(fn_code))
         (AG: agree_regs F ctx rs rs')
         (SP: F sp = Some(sp', ctx.(dstk)))
@@ -261,7 +246,7 @@ with match_stacks_inside (F: meminj) (m m': mem):
       match_stacks_inside F m m' stk stk' f' ctx sp' rs'
   | match_stacks_inside_inlined: forall res f sp pc rs stk stk' f' ctx sp' rs' ctx' fenv
         (MS: match_stacks_inside F m m' stk stk' f' ctx' sp' rs')
-        (FENV: fenv_le fenv (funenv_program prog))
+        (FENV: PTree_le fenv (funenv_program prog))
         (FB: tr_funbody fenv f'.(fn_stacksize) ctx' f f'.(fn_code))
         (AG: agree_regs F ctx' rs rs')
         (SP: F sp = Some(sp', ctx'.(dstk)))
@@ -605,7 +590,7 @@ Qed.
 Inductive match_states (F:meminj): state -> state -> Prop :=
   | match_regular_states: forall stk f sp pc rs m stk' f' sp' rs' m' ctx fenv
         (MS: match_stacks_inside F m m' stk stk' f' ctx sp' rs')
-        (FENV: fenv_le fenv (funenv_program prog))
+        (FENV: PTree_le fenv (funenv_program prog))
         (FB: tr_funbody fenv f'.(fn_stacksize) ctx f f'.(fn_code))
         (AG: agree_regs F ctx rs rs')
         (SP: F sp = Some(sp', ctx.(dstk)))
@@ -619,7 +604,7 @@ Inductive match_states (F:meminj): state -> state -> Prop :=
                    (State stk' f' (Vptr sp' Int.zero) (spc ctx pc) rs' m')
   | match_call_regular_states: forall stk f vargs m stk' f' sp' rs' m' ctx ctx' pc' pc1' rargs fenv
         (MS: match_stacks_inside F m m' stk stk' f' ctx sp' rs')
-        (FENV: fenv_le fenv (funenv_program prog))
+        (FENV: PTree_le fenv (funenv_program prog))
         (FB: tr_funbody fenv f'.(fn_stacksize) ctx f f'.(fn_code))
         (BELOW: context_below ctx' ctx)
         (NOP: f'.(fn_code)!pc' = Some(Inop pc1'))
@@ -1134,7 +1119,7 @@ Proof.
 Qed.
 
 Lemma transf_function_lsim
-      fenv (FENV: fenv_le fenv (funenv_program prog))
+      fenv (FENV: PTree_le fenv (funenv_program prog))
       f f' (Hfd: Inlining.transf_function fenv f = OK f'):
   function_lsim mrelT_ops fprog ftprog f f'.
 Proof.
