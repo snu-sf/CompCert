@@ -58,7 +58,7 @@ Let tge := Genv.globalenv ftprog.
 
 Let rm := romem_for_program prog.
 
-Lemma rm_frm: romem_le rm (romem_for_program fprog).
+Lemma rm_frm: PTree_le rm (romem_for_program fprog).
 Proof.
   apply program_linkeq_romem_le. auto.
 Qed.
