@@ -48,8 +48,6 @@ Variable prog: program.
 Variable tprog: program.
 Hypothesis TRANSF: transf_program prog = OK tprog.
 
-Let fenv := funenv_program prog.
-
 Section FUTURE.
 
 Variable (fprog ftprog:program).
@@ -148,9 +146,9 @@ Proof.
       destruct (peq i i0); simpl; auto.
 Qed.
 
-Lemma funenv_program_compat: fenv_compat ge fenv.
+Lemma funenv_program_compat: fenv_compat ge (funenv_program prog).
 Proof.
-  unfold ge, fenv. repeat intro.
+  unfold ge. repeat intro.
   rewrite funenv_program_spec in H.
   match goal with
     | [H: context[find ?f ?l] |- _] => destruct (find f l) as [[]|] eqn:Hf; inv H
@@ -227,10 +225,10 @@ Inductive match_stacks (F: meminj) (m m': mem):
         (MG: match_globalenvs F bound1)
         (BELOW: Ple bound1 bound),
       match_stacks F m m' nil nil bound
-  | match_stacks_cons: forall res f sp pc rs stk f' sp' rs' stk' bound ctx fenv0
+  | match_stacks_cons: forall res f sp pc rs stk f' sp' rs' stk' bound ctx fenv
         (MS: match_stacks_inside F m m' stk stk' f' ctx sp' rs')
-        (FENV: fenv_le fenv0 fenv)
-        (FB: tr_funbody fenv0 f'.(fn_stacksize) ctx f f'.(fn_code))
+        (FENV: fenv_le fenv (funenv_program prog))
+        (FB: tr_funbody fenv f'.(fn_stacksize) ctx f f'.(fn_code))
         (AG: agree_regs F ctx rs rs')
         (SP: F sp = Some(sp', ctx.(dstk)))
         (PRIV: range_private F m m' sp' (ctx.(dstk) + ctx.(mstk)) f'.(fn_stacksize))
@@ -261,10 +259,10 @@ with match_stacks_inside (F: meminj) (m m': mem):
         (RET: ctx.(retinfo) = None)
         (DSTK: ctx.(dstk) = 0),
       match_stacks_inside F m m' stk stk' f' ctx sp' rs'
-  | match_stacks_inside_inlined: forall res f sp pc rs stk stk' f' ctx sp' rs' ctx' fenv0
+  | match_stacks_inside_inlined: forall res f sp pc rs stk stk' f' ctx sp' rs' ctx' fenv
         (MS: match_stacks_inside F m m' stk stk' f' ctx' sp' rs')
-        (FENV: fenv_le fenv0 fenv)
-        (FB: tr_funbody fenv0 f'.(fn_stacksize) ctx' f f'.(fn_code))
+        (FENV: fenv_le fenv (funenv_program prog))
+        (FB: tr_funbody fenv f'.(fn_stacksize) ctx' f f'.(fn_code))
         (AG: agree_regs F ctx' rs rs')
         (SP: F sp = Some(sp', ctx'.(dstk)))
         (PAD: range_private F m m' sp' (ctx'.(dstk) + ctx'.(mstk)) ctx.(dstk))
@@ -361,7 +359,7 @@ Proof.
   intros. apply IMAGE with delta. eapply INJ; eauto. eapply Plt_le_trans; eauto.
   auto. auto.
   (* cons *)
-  apply match_stacks_cons with (ctx := ctx) (fenv0 := fenv0); auto.
+  apply match_stacks_cons with (ctx := ctx) (fenv := fenv); auto.
   eapply match_stacks_inside_invariant; eauto.
   intros; eapply INJ; eauto; xomega. 
   intros; eapply PERM1; eauto; xomega.
@@ -387,7 +385,7 @@ Proof.
   intros; eapply PERM2; eauto; xomega.
   intros; eapply PERM3; eauto; xomega.
   (* inlined *)
-  apply match_stacks_inside_inlined with (ctx' := ctx') (fenv0 := fenv0); auto. 
+  apply match_stacks_inside_inlined with (ctx' := ctx') (fenv := fenv); auto. 
   apply IHmatch_stacks_inside; auto.
   intros. apply RS. red in BELOW. xomega. 
   apply agree_regs_incr with F; auto. 
@@ -580,13 +578,13 @@ Proof.
 Qed.
 
 Lemma match_stacks_inside_inlined_tailcall:
-  forall F m m' stk stk' f' ctx sp' rs' ctx' f fenv0,
+  forall F m m' stk stk' f' ctx sp' rs' ctx' f fenv,
   match_stacks_inside F m m' stk stk' f' ctx sp' rs' ->
   context_below ctx ctx' ->
   context_stack_tailcall ctx f ctx' ->
   ctx'.(retinfo) = ctx.(retinfo) ->
   range_private F m m' sp' ctx.(dstk) f'.(fn_stacksize) ->
-  tr_funbody fenv0 f'.(fn_stacksize) ctx' f f'.(fn_code) ->
+  tr_funbody fenv f'.(fn_stacksize) ctx' f f'.(fn_code) ->
   match_stacks_inside F m m' stk stk' f' ctx' sp' rs'.
 Proof.
   intros. inv H.
@@ -605,10 +603,10 @@ Qed.
 (** ** Relating states *)
 
 Inductive match_states (F:meminj): state -> state -> Prop :=
-  | match_regular_states: forall stk f sp pc rs m stk' f' sp' rs' m' ctx fenv0
+  | match_regular_states: forall stk f sp pc rs m stk' f' sp' rs' m' ctx fenv
         (MS: match_stacks_inside F m m' stk stk' f' ctx sp' rs')
-        (FENV: fenv_le fenv0 fenv)
-        (FB: tr_funbody fenv0 f'.(fn_stacksize) ctx f f'.(fn_code))
+        (FENV: fenv_le fenv (funenv_program prog))
+        (FB: tr_funbody fenv f'.(fn_stacksize) ctx f f'.(fn_code))
         (AG: agree_regs F ctx rs rs')
         (SP: F sp = Some(sp', ctx.(dstk)))
         (MINJ: Mem.inject F m m')
@@ -619,10 +617,10 @@ Inductive match_states (F:meminj): state -> state -> Prop :=
       match_states F
                    (State stk f (Vptr sp Int.zero) pc rs m)
                    (State stk' f' (Vptr sp' Int.zero) (spc ctx pc) rs' m')
-  | match_call_regular_states: forall stk f vargs m stk' f' sp' rs' m' ctx ctx' pc' pc1' rargs fenv0
+  | match_call_regular_states: forall stk f vargs m stk' f' sp' rs' m' ctx ctx' pc' pc1' rargs fenv
         (MS: match_stacks_inside F m m' stk stk' f' ctx sp' rs')
-        (FENV: fenv_le fenv0 fenv)
-        (FB: tr_funbody fenv0 f'.(fn_stacksize) ctx f f'.(fn_code))
+        (FENV: fenv_le fenv (funenv_program prog))
+        (FB: tr_funbody fenv f'.(fn_stacksize) ctx f f'.(fn_code))
         (BELOW: context_below ctx' ctx)
         (NOP: f'.(fn_code)!pc' = Some(Inop pc1'))
         (MOVES: tr_moves f'.(fn_code) pc1' (sregs ctx' rargs) (sregs ctx f.(fn_params)) (spc ctx f.(fn_entrypoint)))
@@ -680,8 +678,8 @@ Definition measure (S: state) : nat :=
   end.
 
 Lemma tr_funbody_inv:
-  forall sz cts f c pc i fenv0,
-  tr_funbody fenv0 sz cts f c -> f.(fn_code)!pc = Some i -> tr_instr fenv0 sz cts pc i c.
+  forall sz cts f c pc i fenv,
+  tr_funbody fenv sz cts f c -> f.(fn_code)!pc = Some i -> tr_instr fenv sz cts pc i c.
 Proof.
   intros. inv H. eauto. 
 Qed.
@@ -1136,8 +1134,8 @@ Proof.
 Qed.
 
 Lemma transf_function_lsim
-      fenv0 (FENV: fenv_le fenv0 fenv)
-      f f' (Hfd: Inlining.transf_function fenv0 f = OK f'):
+      fenv (FENV: fenv_le fenv (funenv_program prog))
+      f f' (Hfd: Inlining.transf_function fenv f = OK f'):
   function_lsim mrelT_ops fprog ftprog f f'.
 Proof.
   constructor. repeat intro. inv Hmrel_entry.
@@ -1147,7 +1145,7 @@ Proof.
   intros. inversion Hst2_src. subst.
 
   (* internal function, not inlined *)
-  assert (TR: tr_function fenv0 f f'). 
+  assert (TR: tr_function fenv f f'). 
     eapply transf_function_spec; eauto. 
   inversion TR; subst.
   exploit Mem.alloc_parallel_inject. eauto. eauto. apply Zle_refl. 
@@ -1203,7 +1201,68 @@ Lemma Inlining_program_lsim fprog ftprog:
     (function_lsim (mrelT_ops fprog ftprog))
     prog tprog.
 Proof.
-  admit.
+  generalize transf_function_lsim.
+  destruct prog as [defs main]. simpl in *. simpl in *.
+  unfold transf_program, transform_partial_program in TRANSF.
+  unfold transform_partial_program2 in TRANSF.
+  match goal with
+    | [H: Errors.bind ?b _ = OK _ |- _] =>
+      destruct b as [tdefs|] eqn:Hglobdefs; inv H
+  end.
+  simpl in *. intro Hlsim. constructor; simpl; auto.
+  revert Hlsim Hglobdefs.
+  generalize tdefs at 2 as ftdefs.
+  generalize defs at 1 2 3 5 as fdefs.
+  revert defs tdefs.
+  induction defs; simpl; intros tdefs fdefs ftdefs Hlsim Hglobdefs; inv Hglobdefs.
+  { constructor. }
+  { destruct a. destruct g.
+    { match goal with
+        | [H: match ?tf with | OK _ => _ | Error _ => _ end = _ |- _] =>
+          destruct tf eqn:Htf; inv H
+      end.
+      match goal with
+        | [H: Errors.bind ?b _ = OK _ |- _] =>
+          destruct b eqn:Hglobdefs; inv H
+      end.
+      constructor; simpl in *.
+      { split; auto. constructor.
+        destruct f; simpl in *.
+        { match goal with
+            | [H: Errors.bind ?b _ = OK _ |- _] =>
+              destruct b eqn:Htf'; inv H
+          end.
+          eapply globfun_lsim_i; eauto;
+          unfold common_fundef_dec; eauto.
+          unfold Inlining.transf_function in Htf'.
+          match goal with
+            | [H: context[let 'R _ _ _ := ?r:res in _] |- _] =>
+              destruct r eqn:Hr
+          end.
+          match goal with
+            | [H: context[zlt ?a ?b] |- _] =>
+              destruct (zlt a b); inv H
+          end.
+          simpl. split; auto. repeat intro.
+          admit.
+          (* apply Hlsim; auto. *)
+        }
+        { inv Htf.
+          eapply globfun_lsim_e; eauto;
+          unfold common_fundef_dec; eauto.
+        }
+      }
+      { apply IHdefs; auto. }
+    }
+    { match goal with
+        | [H: Errors.bind ?b _ = OK _ |- _] =>
+          destruct b eqn:Hglobdefs; inv H
+      end.
+      constructor; simpl in *.
+      { split; auto. repeat constructor. }
+      apply IHdefs; auto.
+    }
+  }
 Qed.
 
 End INLINING.
