@@ -1,7 +1,7 @@
 Require Import RelationClasses.
 Require String.
 Require Import Coqlib Coqlib_linker.
-Require Import Maps_linker.
+Require Import Maps Maps_linker.
 Require Import Integers Floats Values AST Globalenvs.
 Require Import Errors Behaviors Compiler Smallstep.
 
@@ -191,11 +191,11 @@ Definition link_globdefs (defs1 defs2:PTree.t (globdef fundefT V)): option (PTre
       (fun _ x => match x with | None => false | Some _ => true end)
   in
   if defs_valid
-  then Some (PTree.option_map (fun _ x => x) defs)
+  then Some (PTree_option_map (fun _ x => x) defs)
   else None.
 
 Definition link_globdef_list (defs1 defs2:list (positive * globdef fundefT V)): option (list (positive * globdef fundefT V)) :=
-  match link_globdefs (PTree.unelements defs1) (PTree.unelements defs2) with
+  match link_globdefs (PTree_unelements defs1) (PTree_unelements defs2) with
     | Some defs => Some (PTree.elements defs)
     | None => None
   end.

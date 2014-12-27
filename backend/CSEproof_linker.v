@@ -1,6 +1,6 @@
 Require Import Classical.
 Require Import Coqlib.
-Require Import Maps.
+Require Import Maps Maps_linker.
 Require Import AST.
 Require Import Errors.
 Require Import Integers.
@@ -23,8 +23,8 @@ Require Import CombineOpproof.
 Require Import CSE.
 Require Import CSEproof.
 Require Import LinkerSpecification Linkeq.
-Require Import MemoryRelation ProgramSim.
-Require Import RTLSim ValueAnalysis_linker.
+Require Import ProgramLSim.
+Require Import RTLLSim ValueAnalysis_linker.
 Require Import WFType paco.
 
 Set Implicit Arguments.
@@ -43,15 +43,15 @@ Section FUTURE.
 
 Variable (fprog ftprog:program).
 Hypothesis (Hfsim:
-              program_weak_sim
+              program_weak_lsim
                 fundef_dec fn_sig fundef_dec fn_sig transf_V
                 fprog ftprog).
 
 Hypothesis (Hfprog: program_linkeq (@common_fundef_dec function) prog fprog).
 Hypothesis (Hftprog: program_linkeq (@common_fundef_dec function) tprog ftprog).
 
-Let globfun_weak_sim :=
-  globfun_sim fundef_dec fn_sig fundef_dec fn_sig (fun _ _ _ _ => True) fprog ftprog.
+Let globfun_weak_lsim :=
+  globfun_lsim fundef_dec fn_sig fundef_dec fn_sig (fun _ _ _ _ => True) fprog ftprog.
 
 Let ge := Genv.globalenv fprog.
 Let tge := Genv.globalenv ftprog.
@@ -81,7 +81,7 @@ Lemma funct_ptr_translated:
   forall (b: block) (f: RTL.fundef),
   Genv.find_funct_ptr ge b = Some f ->
   exists tf, Genv.find_funct_ptr tge b = Some tf /\
-             fundef_weak_sim
+             fundef_weak_lsim
                (@common_fundef_dec function) fn_sig
                (@common_fundef_dec function) fn_sig
                ge tge f tf.
@@ -91,7 +91,7 @@ Lemma functions_translated:
   forall (v: val) (f: RTL.fundef),
   Genv.find_funct ge v = Some f ->
   exists tf, Genv.find_funct tge v = Some tf /\
-             fundef_weak_sim
+             fundef_weak_lsim
                (@common_fundef_dec function) fn_sig
                (@common_fundef_dec function) fn_sig
                ge tge f tf.
@@ -102,7 +102,7 @@ Lemma find_function_translated:
   find_function ge ros rs = Some fd ->
   regs_lessdef rs rs' ->
   exists tfd, find_function tge ros rs' = Some tfd /\
-              fundef_weak_sim
+              fundef_weak_lsim
                (@common_fundef_dec function) fn_sig
                (@common_fundef_dec function) fn_sig
                 ge tge fd tfd.
@@ -118,7 +118,7 @@ Qed.
 
 Lemma sig_preserved:
   forall f tf,
-    fundef_weak_sim
+    fundef_weak_lsim
       (@common_fundef_dec function) fn_sig
       (@common_fundef_dec function) fn_sig
       ge tge f tf ->
@@ -165,7 +165,7 @@ Inductive match_call (es es':list stackframe): state -> state -> Prop :=
   | match_states_call:
       forall s f tf args m s' args' m',
       match_stackframes es es' s s' ->
-      fundef_weak_sim
+      fundef_weak_lsim
         (common_fundef_dec (F:=function)) fn_sig
         (common_fundef_dec (F:=function)) fn_sig
         ge tge f tf ->
@@ -433,9 +433,9 @@ Proof.
   apply set_reg_lessdef; auto.
 Qed.
 
-Inductive match_states_ext s s' st tst: Prop :=
+Inductive match_states_ext es es' st tst: Prop :=
 | match_states_ext_intro
-    (Hmatch: match_states s s' st tst)
+    (Hmatch: match_states es es' st tst)
     (Hsrc: sound_state_ext fprog st)
     (Htgt: sound_state_ext ftprog tst)
 .
@@ -485,7 +485,7 @@ Proof.
     end.
   }
   split; [reflexivity|].
-  exploit Mem.alloc_extends; eauto. apply Zle_refl. apply Zle_refl.
+  simpl in *. exploit Mem.alloc_extends; eauto. apply Zle_refl. apply Zle_refl.
   intros (m'' & A & B).
   simpl. rewrite A. simpl. split; auto.
   apply _state_lsim_or_csim_lsim. left.
@@ -493,7 +493,8 @@ Proof.
   - constructor; auto.
     + eapply analysis_correct_entry; eauto.
     + apply init_regs_lessdef; auto.
-      eapply mrelT_ops_extends_lessdef_list. eauto.
+      eapply mrelT_ops_extends_lessdef_list.
+      instantiate (1 := tt). eauto.
     + constructor.
   - eapply sound_past_step; eauto.
   - eapply sound_past_step; eauto.
@@ -503,8 +504,8 @@ Qed.
 
 End FUTURE.
 
-Lemma CSE_program_sim:
-  program_sim
+Lemma CSE_program_lsim:
+  program_lsim
     (@common_fundef_dec function) fn_sig
     (@common_fundef_dec function) fn_sig
     (@Errors.OK _)
@@ -542,7 +543,7 @@ Proof.
             | [H: bind ?b _ = OK _ |- _] =>
               destruct b eqn:Htf'; inv H
           end.
-          eapply globfun_sim_i; eauto;
+          eapply globfun_lsim_i; eauto;
           unfold common_fundef_dec; eauto.
           unfold transf_function in Htf'.
           match goal with
@@ -553,7 +554,7 @@ Proof.
           apply Hlsim; auto.
         }
         { inv Htf.
-          eapply globfun_sim_e; eauto;
+          eapply globfun_lsim_e; eauto;
           unfold common_fundef_dec; eauto.
         }
       }

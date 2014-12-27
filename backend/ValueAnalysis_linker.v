@@ -1,6 +1,6 @@
 Require Import RelationClasses.
 Require Import Coqlib.
-Require Import Maps.
+Require Import Maps Maps_linker.
 Require Import Compopts.
 Require Import AST.
 Require Import Integers.
@@ -22,30 +22,15 @@ Require Import LinkerSpecification Linkeq.
 
 Set Implicit Arguments.
 
-Inductive romem_le (rm1 rm2:romem): Prop :=
-| romem_le_intro
-    (H: forall b ab (Hrm1: rm1 ! b = Some ab),
-          rm2 ! b = Some ab)
-.
-
-Program Instance romem_le_PreOrder : PreOrder romem_le.
-Next Obligation.
-  constructor. intros. auto.
-Qed.
-Next Obligation.
-  repeat intro. inv H. inv H0. constructor. intros.
-  exploit H1; eauto.
-Qed.
-
 Lemma program_linkeq_romem_le
       prog fprog
       (Hlinkeq: program_linkeq (@common_fundef_dec function) prog fprog):
-  romem_le (romem_for_program prog) (romem_for_program fprog).
+  PTree_le (romem_for_program prog) (romem_for_program fprog).
 Proof.
   unfold romem_for_program. rewrite <- ? fold_left_rev_right.
   constructor. intro b.
   destruct Hlinkeq as [Hdefs _]. specialize (Hdefs b).
-  rewrite ? Maps_linker.PTree.guespec in Hdefs.
+  rewrite ? PTree_guespec in Hdefs.
   revert b Hdefs.
   fold ident fundef in *.
   generalize (@rev (prod ident _) (prog_defs fprog)) as l2.
@@ -551,7 +536,7 @@ End PAST.
 Inductive sound_state_ext (st:state): Prop :=
 | sound_state_ext_intro
     (Hsound:
-       forall prm (Hprm: romem_le prm (romem_for_program prog)),
+       forall prm (Hprm: PTree_le prm (romem_for_program prog)),
        sound_state prm st)
 .
 
@@ -560,6 +545,21 @@ Theorem sound_past_step:
 Proof.
   intros. inv H0. constructor. intros.
   specialize (Hsound prm Hprm). eapply sound_step; eauto.
+Qed.
+
+Theorem sound_past_star:
+  forall st t st', Smallstep.star RTL.step ge st t st' -> sound_state_ext st -> sound_state_ext st'.
+Proof.
+  intros st t st' H. induction H; subst; auto.
+  intro X. apply IHstar. eapply sound_past_step; eauto.
+Qed.
+
+Theorem sound_past_plus:
+  forall st t st', Smallstep.plus RTL.step ge st t st' -> sound_state_ext st -> sound_state_ext st'.
+Proof.
+  intros st t st' H. destruct H. subst.
+  intro X. eapply sound_past_star; eauto.
+  eapply sound_past_step; eauto.
 Qed.
 
 End SOUNDNESS.
@@ -601,7 +601,7 @@ Definition avalue (a: VA.t) (r: reg) : aval :=
 
 Lemma avalue_sound:
   forall prog s f sp pc e m r
-         prm (Hprm: romem_le prm (romem_for_program prog)),
+         prm (Hprm: PTree_le prm (romem_for_program prog)),
   sound_state_ext prog (State s f (Vptr sp Int.zero) pc e m) ->
   exists bc,
      vmatch bc e#r (avalue (analyze prm f)!!pc r)
@@ -619,7 +619,7 @@ Definition aaddr (a: VA.t) (r: reg) : aptr :=
 
 Lemma aaddr_sound:
   forall prog s f sp pc e m r b ofs
-         prm (Hprm: romem_le prm (romem_for_program prog)),
+         prm (Hprm: PTree_le prm (romem_for_program prog)),
   sound_state_ext prog (State s f (Vptr sp Int.zero) pc e m) ->
   e#r = Vptr b ofs ->
   exists bc,
@@ -639,7 +639,7 @@ Definition aaddressing (a: VA.t) (addr: addressing) (args: list reg) : aptr :=
 
 Lemma aaddressing_sound:
   forall prog s f sp pc e m addr args b ofs
-         prm (Hprm: romem_le prm (romem_for_program prog)),
+         prm (Hprm: PTree_le prm (romem_for_program prog)),
   sound_state_ext prog (State s f (Vptr sp Int.zero) pc e m) ->
   eval_addressing (Genv.globalenv prog) (Vptr sp Int.zero) addr e##args = Some (Vptr b ofs) ->
   exists bc,

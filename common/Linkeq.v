@@ -1,7 +1,7 @@
 Require Import RelationClasses.
 Require String.
 Require Import Coqlib Coqlib_linker.
-Require Import Maps_linker.
+Require Import Maps Maps_linker.
 Require Import Integers Floats Values AST Globalenvs.
 Require Import LinkerSpecification LinkerProp.
 
@@ -40,7 +40,7 @@ Definition globdefs_linkeq (defs1 defs2:PTree.t (globdef fundefT V)): Prop :=
     globdef_linkeq def1 def2.
 
 Definition globdef_list_linkeq (defs1 defs2:list (positive * globdef fundefT V)): Prop :=
-  globdefs_linkeq (PTree.unelements defs1) (PTree.unelements defs2).
+  globdefs_linkeq (PTree_unelements defs1) (PTree_unelements defs2).
 
 Definition program_linkeq (p1 p2:program fundefT V): Prop :=
   globdef_list_linkeq p1.(prog_defs) p2.(prog_defs) /\
@@ -183,7 +183,7 @@ Proof.
   end.
   repeat intro. exploit link_globdefs_linkeq_l; eauto.
   intros [def2 [Hdef2 Hlinkeq]]. exists def2. split; auto.
-  rewrite PTree.unelements_elements. auto.
+  rewrite PTree_unelements_elements. auto.
 Qed.
 
 Lemma link_globdef_list_linkeq_r
@@ -198,7 +198,7 @@ Proof.
   end.
   repeat intro. exploit link_globdefs_linkeq_r; eauto.
   intros [def2 [Hdef2 Hlinkeq]]. exists def2. split; auto.
-  rewrite PTree.unelements_elements. auto.
+  rewrite PTree_unelements_elements. auto.
 Qed.
 
 Lemma link_program_linkeq_l
