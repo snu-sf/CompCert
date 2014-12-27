@@ -17,8 +17,8 @@ Require Import Inliningspec.
 Require Import RTL.
 Require Import Inliningproof.
 Require Import LinkerSpecification Linkeq.
-Require Import ProgramSim.
-Require Import RTLSim ValueAnalysis_linker.
+Require Import ProgramLSim.
+Require Import RTLLSim ValueAnalysis_linker.
 Require Import WFType paco.
 
 Set Implicit Arguments.
@@ -54,15 +54,15 @@ Section FUTURE.
 
 Variable (fprog ftprog:program).
 Hypothesis (Hfsim:
-              program_weak_sim
+              program_weak_lsim
                 fundef_dec fn_sig fundef_dec fn_sig transf_V
                 fprog ftprog).
 
 Hypothesis (Hfprog: program_linkeq (@common_fundef_dec function) prog fprog).
 Hypothesis (Hftprog: program_linkeq (@common_fundef_dec function) tprog ftprog).
 
-Let globfun_weak_sim :=
-  globfun_sim fundef_dec fn_sig fundef_dec fn_sig (fun _ _ _ _ => True) fprog ftprog.
+Let globfun_weak_lsim :=
+  globfun_lsim fundef_dec fn_sig fundef_dec fn_sig (fun _ _ _ _ => True) fprog ftprog.
 
 Let ge := Genv.globalenv fprog.
 Let tge := Genv.globalenv ftprog.
@@ -87,7 +87,7 @@ Lemma funct_ptr_translated:
   forall (b: block) (f: RTL.fundef),
   Genv.find_funct_ptr ge b = Some f ->
   exists tf, Genv.find_funct_ptr tge b = Some tf /\
-             fundef_weak_sim
+             fundef_weak_lsim
                (@common_fundef_dec function) fn_sig
                (@common_fundef_dec function) fn_sig
                ge tge f tf.
@@ -97,7 +97,7 @@ Lemma functions_translated:
   forall (v: val) (f: RTL.fundef),
   Genv.find_funct ge v = Some f ->
   exists tf, Genv.find_funct tge v = Some tf /\
-             fundef_weak_sim
+             fundef_weak_lsim
                (@common_fundef_dec function) fn_sig
                (@common_fundef_dec function) fn_sig
                ge tge f tf.
@@ -105,7 +105,7 @@ Proof (functions_translated Hfsim).
 
 Lemma sig_preserved:
   forall f tf,
-    fundef_weak_sim
+    fundef_weak_lsim
       (@common_fundef_dec function) fn_sig
       (@common_fundef_dec function) fn_sig
       ge tge f tf ->
@@ -199,7 +199,7 @@ Lemma find_function_agree:
   match_globalenvs F bound ->
   exists fd',
   find_function tge (sros ctx ros) rs' = Some fd' /\
-  fundef_weak_sim
+  fundef_weak_lsim
     (@common_fundef_dec function) fn_sig
     (@common_fundef_dec function) fn_sig
     ge tge fd fd'.
@@ -659,7 +659,7 @@ Inductive match_states (F:meminj): state -> state -> Prop :=
 Inductive match_call (F:meminj): state -> state -> Prop :=
   | match_call_states: forall stk fd args m stk' fd' args' m'
         (MS: match_stacks F m m' stk stk' (Mem.nextblock m'))
-        (FD: fundef_weak_sim
+        (FD: fundef_weak_lsim
                (common_fundef_dec (F:=function)) fn_sig
                (common_fundef_dec (F:=function)) fn_sig
                ge tge fd fd')
@@ -668,16 +668,6 @@ Inductive match_call (F:meminj): state -> state -> Prop :=
       match_call F
                  (Callstate stk fd args m)
                  (Callstate stk' fd' args' m')
-.
-
-Inductive match_return (es es':list stackframe) (F:meminj): state -> state -> Prop :=
-  | match_return_intro: forall v m v' m'
-        (MS: match_stacks F m m' es es' (Mem.nextblock m'))
-        (VINJ: val_inject F v v')
-        (MINJ: Mem.inject F m m'),
-      match_return es es' F
-                   (Returnstate es v m)
-                   (Returnstate es' v' m')
 .
 
 (** ** Forward simulation *)
@@ -1205,8 +1195,8 @@ Qed.
 
 End FUTURE.
 
-Lemma Inlining_program_sim fprog ftprog:
-  program_sim
+Lemma Inlining_program_lsim fprog ftprog:
+  program_lsim
     (@common_fundef_dec function) fn_sig
     (@common_fundef_dec function) fn_sig
     (@Errors.OK _)

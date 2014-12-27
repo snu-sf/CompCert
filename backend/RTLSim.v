@@ -1,5 +1,4 @@
-Require Import RelationClasses.
-Require Import Coqlib.
+Require Import Coqlib Coqlib_linker.
 Require Import paco.
 Require Import WFType.
 Require Import Maps.
@@ -14,192 +13,177 @@ Require Import Op.
 Require Import Registers.
 Require Import RTL.
 Require Import LinkerSpecification.
-Require Import ProgramSim.
 Require Import ValueAnalysis_linker.
+Require Import ProgramLSim RTLLSim.
 
 Set Implicit Arguments.
 
-Definition state_mem (st:state): mem :=
-  match st with
-    | State _ _ _ _ _ m => m
-    | Callstate _ _ _ m => m
-    | Returnstate _ _ m => m
-  end.
-
-(* memory relation *)
-
-Record mrelT_opsT (t:Type): Type := mkmrelT_opsT {
-  sem :> t -> forall (i:WF.t) (s1 s2:state), Prop;
-  sem_value :> t -> forall (v1 v2:val), Prop;
-  le: t -> t -> Prop;
-  le_public: t -> t -> Prop
-}.
-
-Record mrelT_propsT (t:Type) (ops:mrelT_opsT t): Prop := mkmrelT_propsT {
-  le_preorder: PreOrder ops.(le);
-  le_public_preorder: PreOrder ops.(le_public);
-  le_public_le:
-    forall mrel1 mrel2 (Hle_public: ops.(le_public) mrel1 mrel2),
-      ops.(le) mrel1 mrel2;
-  sem_value_int:
-    forall mrel i v (H: ops.(sem_value) mrel (Vint i) v),
-      v = Vint i
-
-}.
-
-(* memory relation - equals *)
-
-Definition mrelT_ops_equals: mrelT_opsT unit :=
-  mkmrelT_opsT
-    (fun _ _ s1 s2 => state_mem s1 = state_mem s2)
-    (fun _ v1 v2 => Val.lessdef v1 v2)
-    (fun _ _ => True)
-    (fun _ _ => True).
-
-Program Definition mrelT_props_equals: mrelT_propsT mrelT_ops_equals := mkmrelT_propsT _ _ _ _ _.
-Next Obligation. repeat constructor. Qed.
-Next Obligation. repeat constructor. Qed.
-Next Obligation. inv H. auto. Qed.
-
-(* memory relation - extends *)
-
-Definition mrelT_ops_extends: mrelT_opsT unit :=
-  mkmrelT_opsT
-    (fun _ _ s1 s2 => Mem.extends (state_mem s1) (state_mem s2))
-    (fun _ v1 v2 => Val.lessdef v1 v2)
-    (fun _ _ => True)
-    (fun _ _ => True).
-
-Program Definition mrelT_props_extends: mrelT_propsT mrelT_ops_extends := mkmrelT_propsT _ _ _ _ _.
-Next Obligation. repeat constructor. Qed.
-Next Obligation. repeat constructor. Qed.
-Next Obligation. inv H. auto. Qed.
-
-Lemma mrelT_ops_extends_lessdef_list mrel v1 v2:
-  Val.lessdef_list v1 v2 <-> list_forall2 (mrelT_ops_extends.(sem_value) mrel) v1 v2.
-Proof.
-  revert v2.
-  induction v1; intros; constructor; intro H; inv H; constructor; auto.
-  - apply IHv1. auto.
-  - apply IHv1. auto.
-Qed.
-
-Section LSIM.
+Section GLOBAL_SIM.
 
 Variable (mrelT:Type).
 Variable (mrelT_ops:mrelT_opsT mrelT).
+Hypothesis (mrelT_props:mrelT_propsT mrelT_ops).
 
-Variable (fprog_src fprog_tgt:program).
+Variable (prog_src prog_tgt:program).
+Hypothesis
+  (Hsim:
+     program_lsim
+       (@common_fundef_dec function) fn_sig
+       (@common_fundef_dec function) fn_sig
+       (@Errors.OK _)
+       (function_lsim mrelT_ops)
+       prog_src prog_tgt).
 
-Let ge_src := Genv.globalenv fprog_src.
-Let ge_tgt := Genv.globalenv fprog_tgt.
+Variable (mrel_init:mrelT). (* TODO *)
 
-Section STATE_LSIM.
-
-Variable (cs_entry_src cs_entry_tgt:list stackframe).
-Variable (mrel_entry:mrelT).
-
-Inductive _state_lsim_or_csim
-          (state_lsim: mrelT -> WF.t -> state -> state -> Prop)
-          (mrel:mrelT) (i:WF.t) (st_src st_tgt:state): Prop :=
-| _state_lsim_or_csim_lsim
-    (Hlsim: state_lsim mrel i st_src st_tgt)
-| _state_lsim_or_csim_csim
-    stack_src fundef_src args_src mem_src
-    (Hst_src: st_src = Callstate stack_src fundef_src args_src mem_src)
-    stack_tgt fundef_tgt args_tgt mem_tgt
-    (Hst_tgt: st_tgt = Callstate stack_tgt fundef_tgt args_tgt mem_tgt)
-    (Hfundef: fundef_weak_sim
-                (@common_fundef_dec function) fn_sig
-                (@common_fundef_dec function) fn_sig
-                ge_src ge_tgt fundef_src fundef_tgt)
-    (Hargs: list_forall2 (mrelT_ops.(sem_value) mrel) args_src args_tgt)
-    (Hmrel: mrelT_ops.(sem) mrel i st_src st_tgt)
+Inductive match_stackframes: forall (height:nat) (mrel:mrelT) (cs_src cs_tgt:list stackframe), Prop :=
+| match_stackframes_nil:
+    match_stackframes 0 mrel_init nil nil
+| match_stackframes_cons
+    height ps_src ps_tgt s_src s_tgt
+    emrel mrel
+    (Hp: match_stackframes height emrel ps_src ps_tgt)
+    (Hmrel_le: mrelT_ops.(le) emrel mrel)
     (Hreturn:
-       forall mrel2 i2 st2_src st2_tgt mem2_src mem2_tgt vres_src vres_tgt
-              (Hvres: mrelT_ops.(sem_value) mrel2 vres_src vres_tgt)
-              (Hst2_src: st2_src = Returnstate stack_src vres_src mem2_src)
-              (Hst2_tgt: st2_tgt = Returnstate stack_tgt vres_tgt mem2_tgt)
-              (Hsound_src: sound_state_ext fprog_src st2_src)
-              (Hsound_tgt: sound_state_ext fprog_tgt st2_tgt)
-              (Hmrel2_le: mrelT_ops.(le_public) mrel mrel2)
-              (Hst2_mem: mrelT_ops.(sem) mrel2 i2 st2_src st2_tgt),
-         state_lsim mrel2 i2 st2_src st2_tgt)
+       forall rmrel ri st_src st_tgt mem_src mem_tgt vres_src vres_tgt
+              (Hvres: mrelT_ops.(sem_value) rmrel vres_src vres_tgt)
+              (Hst_src: st_src = Returnstate s_src vres_src mem_src)
+              (Hst_tgt: st_tgt = Returnstate s_tgt vres_tgt mem_tgt)
+              (Hsound_src: sound_state_ext prog_src st_src)
+              (Hsound_tgt: sound_state_ext prog_tgt st_tgt)
+              (Hrmrel_le: mrelT_ops.(le_public) mrel rmrel)
+              (Hst_mem: mrelT_ops.(sem) rmrel ri st_src st_tgt),
+         state_lsim mrelT_ops prog_src prog_tgt ps_src ps_tgt emrel rmrel ri st_src st_tgt):
+    match_stackframes (S height) mrel s_src s_tgt
 .
 
-Inductive _state_lsim
-          (state_lsim: mrelT -> WF.t -> state -> state -> Prop)
-          (mrel:mrelT) (i:WF.t) (st_src st_tgt:state): Prop :=
-| _state_lsim_term
-    rval
-    (Hst_src: final_state st_src rval)
-    (Hst_tgt: final_state st_tgt rval)
-
-| _state_lsim_return
-    (Hsound_src: sound_state_ext fprog_src st_src)
-    (Hsound_tgt: sound_state_ext fprog_tgt st_tgt)
-    val_src mem_src (Hst_src: st_src = Returnstate cs_entry_src val_src mem_src)
-    val_tgt mem_tgt (Hst_tgt: st_tgt = Returnstate cs_entry_tgt val_tgt mem_tgt)
-    (Hval: mrelT_ops.(sem_value) mrel val_src val_tgt)
-    (Hmem: mrelT_ops.(sem) mrel i st_src st_tgt)
-    (Hmrel_le_public: mrelT_ops.(le_public) mrel_entry mrel)
-
-| _state_lsim_step
-    (Hnfinal: forall r, ~ final_state st_src r)
-    (Hsound_src: sound_state_ext fprog_src st_src)
-    (Hsound_tgt: sound_state_ext fprog_tgt st_tgt)
-    (Hpreserve:
-       forall evt st2_src (Hst2_src: step ge_src st_src evt st2_src),
-         exists i2 st2_tgt (mrel2:mrelT),
-           (plus step ge_tgt st_tgt evt st2_tgt \/
-            star step ge_tgt st_tgt evt st2_tgt /\ WF.rel i2 i) /\
-           mrelT_ops.(le) mrel mrel2 /\
-           mrelT_ops.(sem) mrel2 i2 st2_src st2_tgt /\
-           _state_lsim_or_csim state_lsim mrel2 i2 st2_src st2_tgt)
+Inductive match_states (i:WF.t) (st_src st_tgt:state): Prop :=
+| match_states_intro
+    height ps_src ps_tgt
+    emrel mrel
+    (Hp: match_stackframes height emrel ps_src ps_tgt)
+    (Hmrel_le: mrelT_ops.(le) emrel mrel)
+    (Hsim: state_lsim mrelT_ops prog_src prog_tgt ps_src ps_tgt emrel mrel i st_src st_tgt)
 .
-Hint Constructors _state_lsim.
 
-Lemma state_lsim_mon: monotone4 _state_lsim.
+Lemma program_sim_forward_simulation:
+  forward_simulation (semantics prog_src) (semantics prog_tgt).
 Proof.
-  repeat intro; destruct IN; eauto.
-  - eapply _state_lsim_step; eauto.
-    intros. exploit Hpreserve; eauto. intros [i2 [st2_tgt [mrel2 [Hstep [Hle [Hmrel Hsim]]]]]].
-    eexists. eexists. eexists. repeat (split; eauto).
-    inv Hsim.
-    + apply _state_lsim_or_csim_lsim. eauto.
-    + eapply _state_lsim_or_csim_csim; eauto.
+  eapply (Forward_simulation
+            (semantics prog_src)
+            (semantics prog_tgt)
+            WF.wf
+            match_states).
+  { (* initial *)
+    intros. inversion H. 
+    exploit funct_ptr_translated; eauto. intros [tf [A B]].
+    exists WF.elt. exists (Callstate nil tf nil m0); split.
+    - econstructor; eauto.
+      eapply program_lsim_init_mem_match; eauto.
+      replace (prog_main prog_tgt) with (prog_main prog_src).
+      erewrite symbols_preserved; eauto; auto.
+      destruct Hsim as [_ Hmain]. auto.
+      rewrite <- H3. inv B. inv Hsig.
+      destruct f, tf; auto.
+    - econstructor.
+      + apply match_stackframes_nil.
+      + instantiate (1 := mrel_init).
+        destruct mrelT_props. reflexivity.
+      + exploit funct_ptr_translated'; eauto.
+        intros [tf' [Htf' Hfundef_sim]]. rewrite A in Htf'. symmetry in Htf'. inv Htf'.
+        inv Hfundef_sim; destruct f, tf; inv Hsrc; inv Htgt.
+        { exploit Hsim0; try reflexivity. unfold F_future_lsim. intros.
+          destruct H4 as [Hfunction_sim Hfunction_sig].
+          exploit Hfunction_sim.
+          { eapply program_lsim_aux_le; eauto. }
+          intro X. inv X. eapply Hlsim; eauto.
+          { instantiate (1 := mrel_init).
+            destruct mrelT_props. reflexivity.
+          }
+          { admit. (* mrel_init *)
+          }
+          { constructor. }
+          { apply sound_initial. auto. }
+          { apply sound_initial.
+            admit. (* initial_state (hard) *)
+          }
+        }
+        { admit. (* if external function is main? (hard) *)
+        }
+  }
+  { (* final *)
+    simpl. intros. inv H0. inv H. punfold Hsim0. inv Hsim0.
+    - inv Hst_src. auto.
+    - inv Hst_src.
+      revert height emrel Hmrel_le Hmrel_le_public Hp.
+      refine (strong_nat_ind _ _). intros height IHheight emrel Hmrel_le Hmrel_le_public Hp.
+      inversion Hp; symmetry in H0; subst.
+      { exploit (mrelT_props.(sem_value_int)); eauto. intro. subst.
+        constructor.
+      }
+      { exploit Hreturn; eauto. intro Hsim'.
+        punfold Hsim'. inv Hsim'.
+        { inv Hst_src. inv Hst_tgt. constructor. }
+        { inv Hst_src. inv Hst_tgt.
+          assert (Hle: mrelT_ops.(le) emrel0 mrel).
+          { destruct mrelT_props. etransitivity; eauto. }
+          eauto.
+        }
+        { exfalso. eapply Hnfinal. constructor. }
+      }
+    - exfalso. eapply Hnfinal. constructor.
+  }
+  { (* progress & preservation *)
+    intros. inv H0.
+    revert height i s2 ps_src ps_tgt emrel mrel Hp Hmrel_le Hsim0.
+    refine (strong_nat_ind _ _). intros height IHheight. intros.
+    punfold Hsim0. inv Hsim0.
+    { (* term *)
+      inv Hst_src. inv H.
+    }
+    { (* return *)
+      inversion Hp; symmetry in H1; subst; inv H.
+      assert (Hmrel_le': mrelT_ops.(le) emrel0 mrel).
+      { destruct mrelT_props. etransitivity; eauto. }
+      exploit Hreturn; eauto.
+    }
+    { (* step *)
+      exploit Hpreserve; eauto. intros [i2 [st2_tgt [mrel2 [Hstep2 [Hle2 [Hmrel2 Hsim2]]]]]].
+      assert (Hmrel2_le: mrelT_ops.(le) emrel mrel2).
+      { destruct mrelT_props. etransitivity; eauto. }
+      exists i2. exists st2_tgt. split; auto.
+      inv Hsim2.
+      { pclearbot. econstructor; eauto. }
+      { econstructor.
+        { eapply match_stackframes_cons; eauto.
+          instantiate (1 := stack_tgt). instantiate (1 := stack_src). intros. subst.
+          exploit Hreturn; eauto. intro Hsim2. pclearbot. eauto.
+        }
+        { destruct mrelT_props. reflexivity. }
+        { inv Hfundef. exploit funct_ptr_translated'; eauto.
+          intros [tf [Htf Hfundef_sim]]. unfold Genv.find_funct_ptr in Htf.
+          unfold fundef in *. rewrite Htgt in Htf. symmetry in Htf. inv Htf.
+          inv Hfundef_sim; destruct fundef_src, fundef_tgt; inv Hsrc0; inv Htgt0.
+          { exploit Hsim0; try reflexivity. unfold F_future_lsim. intros.
+            destruct H0 as [Hfunction_sim Hfunction_sig].
+            exploit Hfunction_sim.
+            { eapply program_lsim_aux_le; eauto. }
+            intro X. inv X. eapply Hlsim; eauto.
+            { eapply sound_past_step; eauto. }
+            { admit. (* sound_past_step for Plus|Star (easy) *) }
+          }
+          { pfold. constructor.
+            { intros ? Hfinal. inv Hfinal. }
+            { eapply sound_past_step; eauto. }
+            { admit. (* sound_past_step for Plus|Star (easy) *) }
+            intros. exists WF.elt.
+            admit. (* external function (hard) *)
+          }
+        }
+      }
+    }
+  }
+  { eapply symbols_preserved; eauto. }
 Qed.
 
-Definition state_lsim: _ -> _ -> _ -> _ -> Prop :=
-  paco4 _state_lsim bot4.
-
-End STATE_LSIM.
-
-Inductive function_lsim (func_src func_tgt:function): Prop :=
-| function_lsim_intro
-    (Hlsim:
-       forall
-         mrel_init
-         mrel_entry mem_entry_src mem_entry_tgt
-         cs_entry_src cs_entry_tgt
-         args_src args_tgt
-         st_src st_tgt
-         i
-         (Hmrel_init: True) (* TODO *)
-         (Hmrel_entry_le: mrelT_ops.(le) mrel_init mrel_entry)
-         (Hmrel_entry: mrelT_ops.(sem) mrel_entry i st_src st_tgt)
-         (Hargs: list_forall2 (mrelT_ops.(sem_value) mrel_entry) args_src args_tgt)
-         (Hst_src: st_src = (Callstate cs_entry_src (Internal func_src) args_src mem_entry_src))
-         (Hst_tgt: st_tgt = (Callstate cs_entry_tgt (Internal func_tgt) args_tgt mem_entry_tgt))
-         (Hsound_src: sound_state_ext fprog_src st_src)
-         (Hsound_tgt: sound_state_ext fprog_tgt st_tgt),
-         state_lsim
-           cs_entry_src cs_entry_tgt mrel_entry
-           mrel_entry i
-           (Callstate cs_entry_src (Internal func_src) args_src mem_entry_src)
-           (Callstate cs_entry_tgt (Internal func_tgt) args_tgt mem_entry_tgt))
-.
-
-End LSIM.
-Hint Constructors _state_lsim.
-Hint Resolve state_lsim_mon: paco.
+End GLOBAL_SIM.
