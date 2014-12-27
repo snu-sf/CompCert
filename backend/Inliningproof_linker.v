@@ -1048,74 +1048,59 @@ Proof.
   left. econstructor; eauto. subst vres. apply agree_set_reg_undef'; auto.
 Qed.
 
-Inductive match_states_ext es es' F st tst: Prop :=
+Inductive match_states_ext s s' F st tst: Prop :=
 | match_states_ext_intro
-    (Hmatch: match_states es es' F st tst)
+    (Hmatch: match_states s s' F st tst)
     (Hsrc: sound_state_ext fprog st)
     (Htgt: sound_state_ext ftprog tst)
 .
 
-Lemma match_states_state_lsim es es' eF F s1 s1'
-      (MS: match_states_ext es es' F s1 s1'):
-  state_lsim mrelT_ops_inject fprog ftprog es es' eF
-             (mkmrelT_inject F (state_mem s1) (state_mem s1'))
-             (WF.from_nat (measure s1)) s1 s1'.
+Lemma match_states_state_lsim es es' eF F s1:
+  match_states_ext es es' F s1 <1= state_lsim mrelT_ops_inject fprog ftprog es es' eF F (WF.from_nat (measure s1)) s1.
 Proof.
-  revert F s1 s1' MS. pcofix CIH. intros F s1 s1' MS. pfold.
+  revert F s1. pcofix CIH. intros F s1 s1' MS. pfold.
   inv MS. destruct (classic (match_return es es' F s1 s1')).
-  { inv H. eapply _state_lsim_return; eauto; simpl.
-    - constructor; auto.
-    - admit. (* mrelT_le *)
+  { inv H. eapply _state_lsim_return; eauto.
+    admit. (* hard? le_public mrelT_ops_inject eF F *)
   }
   constructor; auto.
-  { intros ? Hfinal. inv Hfinal.
-    admit. (* match_states's base case. easy *)
-  }
+  { intros ? Hfinal. inv Hfinal. admit. (* match_states's base case. easy *) }
   intros. exploit step_simulation; eauto. simpl.
   intros [[s2' [F' [Hs2' Hmatch']]]|[mrel2 [Hmrel2 [Hevt Hmatch']]]].
-  - eexists. exists s2'. exists (mkmrelT_inject F' (state_mem st2_src) (state_mem s2')).
-    split; [auto|]. split.
-    { admit. (* mrelT_le *) }
+  - eexists. exists s2'. exists F'. simpl.
+    split; [auto|].
+    split; [admit|]. (* hard?: inject_incr F F' *)
     destruct Hmatch' as [Hmatch'|Hmatch'].
-    + split; [inv Hmatch'; constructor; auto|].
+    + split; [inv Hmatch'; auto|].
       constructor. right. apply CIH; auto. constructor; auto.
       * eapply sound_past_step; eauto.
-      * eapply sound_past_plus; eauto.
-    + split; [inv Hmatch'; constructor; auto|].
+      * admit. (* sound_past_step for plus. easy *)
+    + split; [inv Hmatch'; auto|].
       inv Hmatch'. eapply _state_lsim_or_csim_csim; eauto.
       { apply mrelT_ops_inject_list_inject. auto. }
-      { constructor; auto. }
       intros. right.
-      cut (match_states_ext es es' mrel2.(mrelT_meminj) st2_src st2_tgt).
+      cut (match_states_ext es es' mrel2 st2_src st2_tgt).
       { admit. (* applying CIH and decreasing index. hard? *) }
       subst. constructor; auto.
-      inv Hst2_mem. simpl in *.
       econstructor; eauto.
-      inv Hmrel2_le. simpl in *.
-      eapply match_stacks_bound; eauto. 
-      eapply match_stacks_invariant; eauto.
-  - subst. eexists. exists s1'. exists (mkmrelT_inject mrel2 (state_mem st2_src) (state_mem s1')).
+      admit. (* hard; on memory relation *)
+  - subst. eexists. exists s1'. exists mrel2.
     split.
     { right. split; [apply star_refl|]. constructor. eauto. }
-    split.
-    { admit. (* mrelT_le *) }
+    split; [admit|]. (* hard?: inject_incr F mrel2 *)
     destruct Hmatch' as [Hmatch'|Hmatch'].
-    + split; [inv Hmatch'; constructor; auto|].
+    + split; [inv Hmatch'; auto|].
       constructor. right. apply CIH; auto. constructor; auto.
       eapply sound_past_step; eauto.
-    + split; [inv Hmatch'; constructor; auto|].
+    + split; [inv Hmatch'; auto|].
       inv Hmatch'. eapply _state_lsim_or_csim_csim; eauto.
       { apply mrelT_ops_inject_list_inject. auto. }
-      { constructor; auto. }
       intros. right.
-      cut (match_states_ext es es' mrel0.(mrelT_meminj) st2_src st2_tgt).
+      cut (match_states_ext es es' mrel0 st2_src st2_tgt).
       { admit. (* applying CIH and decreasing index. hard? *) }
       subst. constructor; auto.
-      inv Hst2_mem. simpl in *.
       econstructor; eauto.
-      inv Hmrel2_le. simpl in *.
-      eapply match_stacks_bound; eauto. 
-      eapply match_stacks_invariant; eauto.
+      admit. (* hard; on memory relation *)
 Qed.
 
 Lemma transf_function'_lsim
