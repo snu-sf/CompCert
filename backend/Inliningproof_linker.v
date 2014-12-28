@@ -1075,7 +1075,16 @@ Definition mrelT_ops: mrelT_opsT meminj :=
     (fun _ _ => True)
     (fun _ _ => True).
 
-Program Definition mrelT_props: mrelT_propsT mrelT_ops := mkmrelT_propsT _ _ _ _ _ _.
+Lemma mrelT_ops_val_inject_list mrel v1 v2:
+  val_list_inject mrel v1 v2 <-> list_forall2 (mrelT_ops.(sem_value) mrel) v1 v2.
+Proof.
+  revert v2.
+  induction v1; intros; constructor; intro H; inv H; constructor; auto.
+  - apply IHv1. auto.
+  - apply IHv1. auto.
+Qed.
+
+Program Definition mrelT_props: mrelT_propsT mrelT_ops := mkmrelT_propsT _ _ _ _ _ _ _.
 Next Obligation. repeat constructor. Qed.
 Next Obligation. repeat constructor. Qed.
 Next Obligation. inv H. auto. Qed.
@@ -1086,14 +1095,29 @@ Next Obligation.
   rewrite H in H2. inv H2. rewrite H0 in H5. inv H5. rewrite H3 in H6. inv H6.
   auto.
 Qed.
+Next Obligation.
+  simpl in *. apply (mrelT_ops_val_inject_list mrel args1 args2) in Hargs. subst. inv Hs0.
 
-Lemma mrelT_ops_val_inject_list mrel v1 v2:
-  val_list_inject mrel v1 v2 <-> list_forall2 (mrelT_ops.(sem_value) mrel) v1 v2.
-Proof.
-  revert v2.
-  induction v1; intros; constructor; intro H; inv H; constructor; auto.
-  - apply IHv1. auto.
-  - apply IHv1. auto.
+(* external function *)
+  inversion Hmrel. subst. destruct MS as [MS|MS]; [inv MS|].
+  inversion MS. subst.
+  exploit match_stacks_globalenvs; eauto. intros [bound MG].
+  exploit external_call_mem_inject; eauto.
+    eapply match_globalenvs_preserves_globals; eauto.
+    intros [F1 [v1 [m1'' [A [B [C [D [E [J K]]]]]]]]].
+  exists F1. eexists. eexists. eexists. eexists.
+  split; [eauto|]. split.
+  - econstructor. eapply external_call_symbols_preserved; eauto.
+    + eapply symbols_preserved. apply Hp.
+    + eapply varinfo_preserved. apply Hp.
+  - split; auto.
+    constructor; eauto. left. constructor; auto.
+    eapply match_stacks_bound with (Mem.nextblock m2).
+    eapply match_stacks_extcall with (F1 := mrel) (F2 := F1) (m1 := m1) (m1' := m2); eauto.
+    intros; eapply external_call_max_perm; eauto.
+    intros; eapply external_call_max_perm; eauto.
+    xomega.
+    eapply external_call_nextblock; eauto.
 Qed.
 
 Section STATE_LSIM.

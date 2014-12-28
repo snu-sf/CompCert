@@ -108,7 +108,27 @@ Proof.
       + constructor.
       + apply sound_initial; auto.
       + apply sound_initial; auto.
-    - admit. (* external function (hard) *)
+    - pfold. constructor.
+      { intros r Hr. inv Hr. }
+      { apply sound_initial; auto. }
+      { apply sound_initial; auto. }
+      intros. inversion Hst2_src. subst.
+      exploit (mrelT_props.(Hexternal_call)); eauto.
+      { apply Hweak_sim. }
+      { constructor. }
+      intros [mrel2 [i2 [s2 [res2 [m2' [Hs2 [Hs2_step [Hmrel2 [Hmrel2_val Hmrel2_le]]]]]]]]].
+      exists i2. exists s2. exists mrel2.
+      split; [left; apply plus_one; auto|].
+      split; [apply mrelT_props.(le_public_le); auto|].
+      split; auto. inversion Hs2. subst.
+      apply _state_lsim_or_csim_lsim. left. pfold.
+      eapply _state_lsim_return; eauto.
+      { eapply sound_past_step; eauto.
+        apply sound_initial. auto.
+      }
+      { eapply sound_past_step; eauto.
+        apply sound_initial. auto.
+      }
   }
   { (* final *)
     simpl. intros. inv H0. inv H. punfold Hsim0. inv Hsim0.
@@ -176,8 +196,22 @@ Proof.
           - eapply sound_past_plus; eauto.
           - eapply sound_past_star; eauto.
         }
-        intros.
-        admit. (* external function (hard) *)
+        intros. inversion Hst2_src. subst.
+        exploit (mrelT_props.(Hexternal_call)); eauto.
+        { apply Hweak_sim. }
+        intros [mrel3 [i3 [s3 [res3 [m3' [Hs3 [Hs3_step [Hmrel3 [Hmrel3_val Hmrel3_le]]]]]]]]].
+        exists i3. exists s3. exists mrel3.
+        split; [left; apply plus_one; auto|].
+        split; [apply mrelT_props.(le_public_le); auto|].
+        split; auto. inversion Hs3. subst.
+        apply _state_lsim_or_csim_lsim. left. pfold.
+        eapply _state_lsim_return; eauto.
+        { repeat (eapply sound_past_step; eauto). }
+        { eapply sound_past_step; eauto.
+          destruct Hstep2 as [Hstep2|[Hstep2 _]].
+          - eapply sound_past_plus; eauto.
+          - eapply sound_past_star; eauto.
+        }
   }
   { eapply symbols_preserved; eauto. }
 Qed.
