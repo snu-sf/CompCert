@@ -43,8 +43,18 @@ Record mrelT_propsT (t:Type) (ops:mrelT_opsT t): Prop := mkmrelT_propsT {
       ops.(le) mrel1 mrel2;
   sem_value_int:
     forall mrel i v (H: ops.(sem_value) mrel (Vint i) v),
-      v = Vint i
-
+      v = Vint i;
+  Hmrel_i_init:
+    forall p1 p2 s1 s2
+           (Hp: program_weak_lsim
+                  (@common_fundef_dec _) fn_sig
+                  (@common_fundef_dec _) fn_sig
+                  (@Errors.OK _)
+                  p1 p2)
+           (H1: initial_state p1 s1)
+           (H2: initial_state p2 s2),
+    exists mrel_init i_init,
+      ops.(sem) mrel_init p1 p2 i_init s1 s2
 }.
 
 (* memory relation - equals *)
@@ -56,10 +66,15 @@ Definition mrelT_ops_equals: mrelT_opsT unit :=
     (fun _ _ => True)
     (fun _ _ => True).
 
-Program Definition mrelT_props_equals: mrelT_propsT mrelT_ops_equals := mkmrelT_propsT _ _ _ _ _.
+Program Definition mrelT_props_equals: mrelT_propsT mrelT_ops_equals := mkmrelT_propsT _ _ _ _ _ _.
 Next Obligation. repeat constructor. Qed.
 Next Obligation. repeat constructor. Qed.
 Next Obligation. inv H. auto. Qed.
+Next Obligation.
+  exists tt. exists WF.elt. inv H1. inv H2. simpl.
+  exploit program_lsim_init_mem_match; eauto. intro X.
+  unfold fundef in *. rewrite H1 in X. inv X. auto.
+Qed.
 
 (* memory relation - extends *)
 
@@ -70,10 +85,16 @@ Definition mrelT_ops_extends: mrelT_opsT unit :=
     (fun _ _ => True)
     (fun _ _ => True).
 
-Program Definition mrelT_props_extends: mrelT_propsT mrelT_ops_extends := mkmrelT_propsT _ _ _ _ _.
+Program Definition mrelT_props_extends: mrelT_propsT mrelT_ops_extends := mkmrelT_propsT _ _ _ _ _ _.
 Next Obligation. repeat constructor. Qed.
 Next Obligation. repeat constructor. Qed.
 Next Obligation. inv H. auto. Qed.
+Next Obligation.
+  exists tt. exists WF.elt. inv H1. inv H2. simpl.
+  exploit program_lsim_init_mem_match; eauto. intro X.
+  unfold fundef in *. rewrite H1 in X. inv X.
+  apply Mem.extends_refl.
+Qed.
 
 Lemma mrelT_ops_extends_lessdef_list mrel v1 v2:
   Val.lessdef_list v1 v2 <-> list_forall2 (mrelT_ops_extends.(sem_value) mrel) v1 v2.

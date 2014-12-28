@@ -1027,6 +1027,30 @@ Proof.
   left. econstructor; eauto. subst vres. apply agree_set_reg_undef'; auto.
 Qed.
 
+Lemma transf_initial_states:
+  forall st1, initial_state fprog st1 -> exists F st2, initial_state ftprog st2 /\ match_call F st1 st2.
+Proof.
+  intros. inv H.
+  exploit funct_ptr_translated; eauto. intros [tf [FIND TR]].
+  eexists. exists (Callstate nil tf nil m0); split.
+  econstructor; eauto.
+    erewrite program_lsim_init_mem_match; eauto.
+    rewrite symbols_preserved.
+    destruct Hfsim as [_ Hmain]. unfold fundef in *. rewrite <- Hmain. auto.
+    rewrite <- H3. apply sig_preserved; auto. 
+  econstructor; eauto. 
+  instantiate (1 := Mem.flat_inj (Mem.nextblock m0)). 
+  apply match_stacks_nil with (Mem.nextblock m0).
+  constructor; intros. 
+    unfold Mem.flat_inj. apply pred_dec_true; auto. 
+    unfold Mem.flat_inj in H. destruct (plt b1 (Mem.nextblock m0)); congruence.
+    eapply Genv.find_symbol_not_fresh; eauto.
+    eapply Genv.find_funct_ptr_not_fresh; eauto.
+    eapply Genv.find_var_info_not_fresh; eauto. 
+    apply Ple_refl. 
+  eapply Genv.initmem_inject; eauto.
+Qed.
+
 Inductive match_states_ext F st tst: Prop :=
 | match_states_ext_intro
     (Hmatch: match_states F st tst)
@@ -1051,10 +1075,17 @@ Definition mrelT_ops: mrelT_opsT meminj :=
     (fun _ _ => True)
     (fun _ _ => True).
 
-Program Definition mrelT_props: mrelT_propsT mrelT_ops := mkmrelT_propsT _ _ _ _ _.
+Program Definition mrelT_props: mrelT_propsT mrelT_ops := mkmrelT_propsT _ _ _ _ _ _.
 Next Obligation. repeat constructor. Qed.
 Next Obligation. repeat constructor. Qed.
 Next Obligation. inv H. auto. Qed.
+Next Obligation.
+  exploit transf_initial_states; eauto. intros [F [st2 [Hst2 Hmatch]]].
+  exists F. eexists. constructor; eauto. right.
+  inv H2. inv Hst2. unfold ge, ge0 in *.
+  rewrite H in H2. inv H2. rewrite H0 in H5. inv H5. rewrite H3 in H6. inv H6.
+  auto.
+Qed.
 
 Lemma mrelT_ops_val_inject_list mrel v1 v2:
   val_list_inject mrel v1 v2 <-> list_forall2 (mrelT_ops.(sem_value) mrel) v1 v2.

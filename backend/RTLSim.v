@@ -34,10 +34,16 @@ Hypothesis
        (function_lsim mrelT_ops)
        prog_src prog_tgt).
 
-Variable (mrel_init:mrelT). (* TODO *)
+Lemma Hweak_sim:
+  program_weak_lsim
+    (@common_fundef_dec function) fn_sig
+    (@common_fundef_dec function) fn_sig
+    (@Errors.OK _)
+    prog_src prog_tgt.
+Proof. eapply program_lsim_aux_le; eauto. Qed.
 
 Inductive match_stackframes: forall (height:nat) (mrel:mrelT) (cs_src cs_tgt:list stackframe), Prop :=
-| match_stackframes_nil:
+| match_stackframes_nil mrel_init:
     match_stackframes 0 mrel_init nil nil
 | match_stackframes_cons
     height ps_src ps_tgt s_src s_tgt
@@ -77,35 +83,33 @@ Proof.
   { (* initial *)
     intros. inversion H. 
     exploit funct_ptr_translated; eauto. intros [tf [A B]].
-    exists WF.elt. exists (Callstate nil tf nil m0); split.
-    - econstructor; eauto.
+    assert (Hinitial_tgt: initial_state prog_tgt (Callstate nil tf nil m0)).
+    { simpl. econstructor; eauto.
       eapply program_lsim_init_mem_match; eauto.
       replace (prog_main prog_tgt) with (prog_main prog_src).
       erewrite symbols_preserved; eauto; auto.
       destruct Hsim as [_ Hmain]. auto.
       rewrite <- H3. inv B. inv Hsig.
       destruct f, tf; auto.
-    - econstructor.
-      { apply match_stackframes_nil. }
-      { instantiate (1 := mrel_init).
-        destruct mrelT_props. reflexivity.
-      }
-      exploit funct_ptr_translated'; eauto.
-      intros [tf' [Htf' Hfundef_sim]]. rewrite A in Htf'. symmetry in Htf'. inv Htf'.
-      inv Hfundef_sim; destruct f, tf; inv Hsrc; inv Htgt.
-      + exploit Hsim0; try reflexivity. unfold F_future_lsim. intros.
-        destruct H4 as [Hfunction_sim Hfunction_sig].
-        exploit Hfunction_sim.
-        { eapply program_lsim_aux_le; eauto. }
-        intro X. inv X. eapply Hlsim; eauto.
-        * instantiate (1 := mrel_init).
-          destruct mrelT_props. reflexivity.
-        * admit. (* mrel_init *)
-        * constructor.
-        * apply sound_initial. auto.
-        * apply sound_initial.
-          admit. (* initial_state (hard) *)
-      + admit. (* if external function is main? (hard) *)
+    }
+    exploit (mrelT_props.(Hmrel_i_init)); try apply Hweak_sim; eauto.
+    intros [mrel_init [i_init Hinitial]].
+    exists i_init. exists (Callstate nil tf nil m0). split; auto.
+    econstructor.
+    { apply match_stackframes_nil. }
+    { destruct mrelT_props. reflexivity. }
+    exploit funct_ptr_translated'; eauto.
+    intros [tf' [Htf' Hfundef_sim]]. rewrite A in Htf'. symmetry in Htf'. inv Htf'.
+    inv Hfundef_sim; destruct f, tf; inv Hsrc; inv Htgt.
+    - exploit Hsim0; try reflexivity. unfold F_future_lsim. intros.
+      destruct H4 as [Hfunction_sim Hfunction_sig].
+      exploit Hfunction_sim; try apply Hweak_sim; eauto.
+      intro X. inv X. eapply Hlsim; eauto.
+      + destruct mrelT_props. reflexivity.
+      + constructor.
+      + apply sound_initial; auto.
+      + apply sound_initial; auto.
+    - admit. (* external function (hard) *)
   }
   { (* final *)
     simpl. intros. inv H0. inv H. punfold Hsim0. inv Hsim0.
@@ -160,8 +164,7 @@ Proof.
       inv Hfundef_sim; destruct fundef_src, fundef_tgt; inv Hsrc0; inv Htgt0.
       + exploit Hsim0; try reflexivity. unfold F_future_lsim. intros.
         destruct H0 as [Hfunction_sim Hfunction_sig].
-        exploit Hfunction_sim.
-        { eapply program_lsim_aux_le; eauto. }
+        exploit Hfunction_sim; try apply Hweak_sim; eauto.
         intro X. inv X. eapply Hlsim; eauto.
         { eapply sound_past_step; eauto. }
         destruct Hstep2 as [Hstep2|[Hstep2 _]].
