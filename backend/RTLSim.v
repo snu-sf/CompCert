@@ -52,7 +52,7 @@ Inductive match_stackframes: forall (height:nat) (mrel:mrelT) (cs_src cs_tgt:lis
               (Hsound_src: sound_state_ext prog_src st_src)
               (Hsound_tgt: sound_state_ext prog_tgt st_tgt)
               (Hrmrel_le: mrelT_ops.(le_public) mrel rmrel)
-              (Hst_mem: mrelT_ops.(sem) rmrel ri st_src st_tgt),
+              (Hst_mem: mrelT_ops.(sem) rmrel prog_src prog_tgt ri st_src st_tgt),
          state_lsim mrelT_ops prog_src prog_tgt ps_src ps_tgt emrel rmrel ri st_src st_tgt):
     match_stackframes (S height) mrel s_src s_tgt
 .
@@ -86,30 +86,26 @@ Proof.
       rewrite <- H3. inv B. inv Hsig.
       destruct f, tf; auto.
     - econstructor.
-      + apply match_stackframes_nil.
-      + instantiate (1 := mrel_init).
+      { apply match_stackframes_nil. }
+      { instantiate (1 := mrel_init).
         destruct mrelT_props. reflexivity.
-      + exploit funct_ptr_translated'; eauto.
-        intros [tf' [Htf' Hfundef_sim]]. rewrite A in Htf'. symmetry in Htf'. inv Htf'.
-        inv Hfundef_sim; destruct f, tf; inv Hsrc; inv Htgt.
-        { exploit Hsim0; try reflexivity. unfold F_future_lsim. intros.
-          destruct H4 as [Hfunction_sim Hfunction_sig].
-          exploit Hfunction_sim.
-          { eapply program_lsim_aux_le; eauto. }
-          intro X. inv X. eapply Hlsim; eauto.
-          { instantiate (1 := mrel_init).
-            destruct mrelT_props. reflexivity.
-          }
-          { admit. (* mrel_init *)
-          }
-          { constructor. }
-          { apply sound_initial. auto. }
-          { apply sound_initial.
-            admit. (* initial_state (hard) *)
-          }
-        }
-        { admit. (* if external function is main? (hard) *)
-        }
+      }
+      exploit funct_ptr_translated'; eauto.
+      intros [tf' [Htf' Hfundef_sim]]. rewrite A in Htf'. symmetry in Htf'. inv Htf'.
+      inv Hfundef_sim; destruct f, tf; inv Hsrc; inv Htgt.
+      + exploit Hsim0; try reflexivity. unfold F_future_lsim. intros.
+        destruct H4 as [Hfunction_sim Hfunction_sig].
+        exploit Hfunction_sim.
+        { eapply program_lsim_aux_le; eauto. }
+        intro X. inv X. eapply Hlsim; eauto.
+        * instantiate (1 := mrel_init).
+          destruct mrelT_props. reflexivity.
+        * admit. (* mrel_init *)
+        * constructor.
+        * apply sound_initial. auto.
+        * apply sound_initial.
+          admit. (* initial_state (hard) *)
+      + admit. (* if external function is main? (hard) *)
   }
   { (* final *)
     simpl. intros. inv H0. inv H. punfold Hsim0. inv Hsim0.
@@ -138,50 +134,48 @@ Proof.
     revert height i s2 ps_src ps_tgt emrel mrel Hp Hmrel_le Hsim0.
     refine (strong_nat_ind _ _). intros height IHheight. intros.
     punfold Hsim0. inv Hsim0.
-    { (* term *)
+    - (* term *)
       inv Hst_src. inv H.
-    }
-    { (* return *)
+    - (* return *)
       inversion Hp; symmetry in H1; subst; inv H.
       assert (Hmrel_le': mrelT_ops.(le) emrel0 mrel).
       { destruct mrelT_props. etransitivity; eauto. }
       exploit Hreturn; eauto.
-    }
-    { (* step *)
+    - (* step *)
       exploit Hpreserve; eauto. intros [i2 [st2_tgt [mrel2 [Hstep2 [Hle2 [Hmrel2 Hsim2]]]]]].
       assert (Hmrel2_le: mrelT_ops.(le) emrel mrel2).
       { destruct mrelT_props. etransitivity; eauto. }
       exists i2. exists st2_tgt. split; auto.
       inv Hsim2.
       { pclearbot. econstructor; eauto. }
-      { econstructor.
-        { eapply match_stackframes_cons; eauto.
-          instantiate (1 := stack_tgt). instantiate (1 := stack_src). intros. subst.
-          exploit Hreturn; eauto. intro Hsim2. pclearbot. eauto.
-        }
-        { destruct mrelT_props. reflexivity. }
-        { inv Hfundef. exploit funct_ptr_translated'; eauto.
-          intros [tf [Htf Hfundef_sim]]. unfold Genv.find_funct_ptr in Htf.
-          unfold fundef in *. rewrite Htgt in Htf. symmetry in Htf. inv Htf.
-          inv Hfundef_sim; destruct fundef_src, fundef_tgt; inv Hsrc0; inv Htgt0.
-          { exploit Hsim0; try reflexivity. unfold F_future_lsim. intros.
-            destruct H0 as [Hfunction_sim Hfunction_sig].
-            exploit Hfunction_sim.
-            { eapply program_lsim_aux_le; eauto. }
-            intro X. inv X. eapply Hlsim; eauto.
-            { eapply sound_past_step; eauto. }
-            { admit. (* sound_past_step for Plus|Star (easy) *) }
-          }
-          { pfold. constructor.
-            { intros ? Hfinal. inv Hfinal. }
-            { eapply sound_past_step; eauto. }
-            { admit. (* sound_past_step for Plus|Star (easy) *) }
-            intros. exists WF.elt.
-            admit. (* external function (hard) *)
-          }
-        }
+      econstructor.
+      { eapply match_stackframes_cons; eauto.
+        instantiate (1 := stack_tgt). instantiate (1 := stack_src). intros. subst.
+        exploit Hreturn; eauto. intro Hsim2. pclearbot. eauto.
       }
-    }
+      { destruct mrelT_props. reflexivity. }
+      inv Hfundef. exploit funct_ptr_translated'; eauto.
+      intros [tf [Htf Hfundef_sim]]. unfold Genv.find_funct_ptr in Htf.
+      unfold fundef in *. rewrite Htgt in Htf. symmetry in Htf. inv Htf.
+      inv Hfundef_sim; destruct fundef_src, fundef_tgt; inv Hsrc0; inv Htgt0.
+      + exploit Hsim0; try reflexivity. unfold F_future_lsim. intros.
+        destruct H0 as [Hfunction_sim Hfunction_sig].
+        exploit Hfunction_sim.
+        { eapply program_lsim_aux_le; eauto. }
+        intro X. inv X. eapply Hlsim; eauto.
+        { eapply sound_past_step; eauto. }
+        destruct Hstep2 as [Hstep2|[Hstep2 _]].
+        * eapply sound_past_plus; eauto.
+        * eapply sound_past_star; eauto.
+      + pfold. constructor.
+        { intros ? Hfinal. inv Hfinal. }
+        { eapply sound_past_step; eauto. }
+        { destruct Hstep2 as [Hstep2|[Hstep2 _]].
+          - eapply sound_past_plus; eauto.
+          - eapply sound_past_star; eauto.
+        }
+        intros.
+        admit. (* external function (hard) *)
   }
   { eapply symbols_preserved; eauto. }
 Qed.

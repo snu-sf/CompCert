@@ -23,6 +23,64 @@ Require Import WFType paco.
 
 Set Implicit Arguments.
 
+(** A (compile-time) function environment is compatible with a
+  (run-time) global environment if the following condition holds. *)
+
+Lemma funenv_program_spec p i:
+  (funenv_program p) ! i =
+  match find (fun id => peq i (fst id)) (rev p.(prog_defs)) with
+    | Some (_, Gfun (Internal f)) =>
+      if should_inline i f
+      then Some f
+      else None
+    | _ => None
+  end.
+Proof.
+  unfold funenv_program. rewrite <- fold_left_rev_right.
+  induction (rev (prog_defs p)); simpl.
+  - apply PTree.gempty.
+  - destruct a. simpl.
+    destruct g; simpl.
+    + destruct f; simpl.
+      * destruct (should_inline i0 f) eqn:Hinline.
+        { rewrite PTree.gsspec. destruct (peq i i0); subst; simpl; auto.
+          rewrite Hinline. auto.
+        }
+        { rewrite PTree.grspec. unfold PTree.elt_eq.
+          destruct (peq i i0); subst; simpl; auto.
+          rewrite Hinline. auto.
+        }
+      * rewrite PTree.grspec. unfold PTree.elt_eq.
+        destruct (peq i i0); subst; simpl; auto.
+    + rewrite PTree.grspec. unfold PTree.elt_eq.
+      destruct (peq i i0); simpl; auto.
+Qed.
+
+Lemma program_linkeq_fenv_le prog fprog
+      (Hlink: program_linkeq (@common_fundef_dec _) prog fprog):
+  PTree_le (funenv_program prog) (funenv_program fprog).
+Proof.
+  constructor. intros. rewrite ? funenv_program_spec in *.
+  match goal with
+    | [H: context[find ?f ?l] |- _] => destruct (find f l) as [[]|] eqn:Hf; inv H
+  end.
+  destruct g; inv H0. destruct f; inv H1. destruct (should_inline b f) eqn:Hinline; inv H0.
+  destruct Hlink as [Hdefs Hmain].
+  exploit Hdefs; eauto.
+  { rewrite PTree_guespec. instantiate (2 := b).
+    unfold fundef in Hf. unfold ident in *. rewrite Hf.
+    simpl. eauto.
+  }
+  intros [def2 [Hdef2 Hle]]. inv Hle. inv Hv.
+  - rewrite PTree_guespec in Hdef2.
+    unfold fundef, ident.
+    match goal with
+      | [|- context[find ?f ?l]] => destruct (find f l) as [[]|] eqn:Hf'; inv Hdef2
+    end.
+    rewrite Hinline. auto.
+  - inv H; simpl in *; inv H1.
+Qed.
+
 Section INLINING.
 
 Let transf_EF (ef:external_function) := OK ef.
@@ -98,73 +156,6 @@ Proof.
   destruct f, tf; simpl in *; auto.
 Qed.
 
-(** A (compile-time) function environment is compatible with a
-  (run-time) global environment if the following condition holds. *)
-
-Lemma funenv_program_spec p i:
-  (funenv_program p) ! i =
-  match find (fun id => peq i (fst id)) (rev p.(prog_defs)) with
-    | Some (_, Gfun (Internal f)) =>
-      if should_inline i f
-      then Some f
-      else None
-    | _ => None
-  end.
-Proof.
-  unfold funenv_program. rewrite <- fold_left_rev_right.
-  induction (rev (prog_defs p)); simpl.
-  - apply PTree.gempty.
-  - destruct a. simpl.
-    destruct g; simpl.
-    + destruct f; simpl.
-      * destruct (should_inline i0 f) eqn:Hinline.
-        { rewrite PTree.gsspec. destruct (peq i i0); subst; simpl; auto.
-          rewrite Hinline. auto.
-        }
-        { rewrite PTree.grspec. unfold PTree.elt_eq.
-          destruct (peq i i0); subst; simpl; auto.
-          rewrite Hinline. auto.
-        }
-      * rewrite PTree.grspec. unfold PTree.elt_eq.
-        destruct (peq i i0); subst; simpl; auto.
-    + rewrite PTree.grspec. unfold PTree.elt_eq.
-      destruct (peq i i0); simpl; auto.
-Qed.
-
-Lemma funenv_program_compat: fenv_compat ge (funenv_program prog).
-Proof.
-  unfold ge. repeat intro.
-  rewrite funenv_program_spec in H.
-  match goal with
-    | [H: context[find ?f ?l] |- _] => destruct (find f l) as [[]|] eqn:Hf; inv H
-  end.
-  destruct g; inv H2. destruct f0; inv H1. destruct (should_inline id f0) eqn:Hinline; inv H2.
-  destruct Hfprog as [Hdefs Hmain].
-  exploit Hdefs; eauto.
-  { rewrite PTree_guespec. instantiate (2 := id).
-    unfold fundef in Hf. unfold ident in *. rewrite Hf.
-    simpl. eauto.
-  }
-  intros [def2 [Hdef2 Hle]]. inv Hle. inv Hv.
-  - rewrite PTree_guespec in Hdef2.
-    revert Hdef2 b H0. clear.
-    unfold Genv.find_funct_ptr, Genv.globalenv, Genv.add_globals in *.
-    rewrite <- fold_left_rev_right.
-    unfold fundef, ident in *. 
-    induction ((@rev (prod positive (globdef (AST.fundef function) unit))
-                     (@prog_defs (AST.fundef function) unit fprog)));
-      simpl; intros; [inv Hdef2|].
-    unfold Genv.find_symbol in H0. simpl in *.
-    destruct a. simpl in *. rewrite PTree.gsspec in H0.
-    destruct (peq id p); simpl in *; subst.
-    + inv Hdef2. inv H0. rewrite PTree.gss. auto.
-    + exploit IHl; eauto. intro X.
-      destruct g; auto.
-      rewrite PTree.gso; auto. intro Y. subst.
-      apply Genv.genv_funs_range in X. apply Plt_strict in X. auto.
-  - inv H; simpl in *; inv H1.
-Qed.  
-
 (** ** Relating global environments *)
 
 Inductive match_globalenvs (F: meminj) (bound: block): Prop :=
@@ -212,7 +203,7 @@ Inductive match_stacks (F: meminj) (m m': mem):
       match_stacks F m m' nil nil bound
   | match_stacks_cons: forall res f sp pc rs stk f' sp' rs' stk' bound ctx fenv
         (MS: match_stacks_inside F m m' stk stk' f' ctx sp' rs')
-        (FENV: PTree_le fenv (funenv_program prog))
+        (FENV: PTree_le fenv (funenv_program fprog))
         (FB: tr_funbody fenv f'.(fn_stacksize) ctx f f'.(fn_code))
         (AG: agree_regs F ctx rs rs')
         (SP: F sp = Some(sp', ctx.(dstk)))
@@ -246,7 +237,7 @@ with match_stacks_inside (F: meminj) (m m': mem):
       match_stacks_inside F m m' stk stk' f' ctx sp' rs'
   | match_stacks_inside_inlined: forall res f sp pc rs stk stk' f' ctx sp' rs' ctx' fenv
         (MS: match_stacks_inside F m m' stk stk' f' ctx' sp' rs')
-        (FENV: PTree_le fenv (funenv_program prog))
+        (FENV: PTree_le fenv (funenv_program fprog))
         (FB: tr_funbody fenv f'.(fn_stacksize) ctx' f f'.(fn_code))
         (AG: agree_regs F ctx' rs rs')
         (SP: F sp = Some(sp', ctx'.(dstk)))
@@ -590,7 +581,7 @@ Qed.
 Inductive match_states (F:meminj): state -> state -> Prop :=
   | match_regular_states: forall stk f sp pc rs m stk' f' sp' rs' m' ctx fenv
         (MS: match_stacks_inside F m m' stk stk' f' ctx sp' rs')
-        (FENV: PTree_le fenv (funenv_program prog))
+        (FENV: PTree_le fenv (funenv_program fprog))
         (FB: tr_funbody fenv f'.(fn_stacksize) ctx f f'.(fn_code))
         (AG: agree_regs F ctx rs rs')
         (SP: F sp = Some(sp', ctx.(dstk)))
@@ -604,7 +595,7 @@ Inductive match_states (F:meminj): state -> state -> Prop :=
                    (State stk' f' (Vptr sp' Int.zero) (spc ctx pc) rs' m')
   | match_call_regular_states: forall stk f vargs m stk' f' sp' rs' m' ctx ctx' pc' pc1' rargs fenv
         (MS: match_stacks_inside F m m' stk stk' f' ctx sp' rs')
-        (FENV: PTree_le fenv (funenv_program prog))
+        (FENV: PTree_le fenv (funenv_program fprog))
         (FB: tr_funbody fenv f'.(fn_stacksize) ctx f f'.(fn_code))
         (BELOW: context_below ctx' ctx)
         (NOP: f'.(fn_code)!pc' = Some(Inop pc1'))
@@ -755,7 +746,7 @@ Proof.
   assert (fd = Internal f0).
     simpl in H0. destruct (Genv.find_symbol ge id) as [b|] eqn:?; try discriminate.
     exploit funenv_program_compat; eauto. apply FENV. eauto. intros.
-    congruence.
+    unfold ge in H0. congruence.
   subst fd.
   right; econstructor; split. simpl; omega. split. auto. 
   left. econstructor; eauto. 
@@ -809,7 +800,7 @@ Proof.
   assert (fd = Internal f0).
     simpl in H0. destruct (Genv.find_symbol ge id) as [b|] eqn:?; try discriminate.
     exploit funenv_program_compat; eauto. apply FENV. eauto. intros.
-    congruence.
+    unfold ge in H0. congruence.
   subst fd.
   right; econstructor; split. simpl; omega. split. auto. 
   left. econstructor; eauto.
@@ -1043,12 +1034,14 @@ Inductive match_states_ext F st tst: Prop :=
     (Htgt: sound_state_ext ftprog tst)
 .
 
+End FUTURE.
+
 (* memory relation *)
 
-Inductive mrelT_sem (mrel:meminj) (i:WF.t) (s1 s2:state): Prop :=
+Inductive mrelT_sem (mrel:meminj) (fprog ftprog:program) (i:WF.t) (s1 s2:state): Prop :=
 | mrelT_sem_intro
     (MEASURE: i = WF.from_nat (measure s1))
-    (MS: match_states mrel s1 s2 \/ match_call mrel s1 s2)
+    (MS: match_states fprog mrel s1 s2 \/ match_call fprog ftprog mrel s1 s2)
 .
 
 Definition mrelT_ops: mrelT_opsT meminj :=
@@ -1072,8 +1065,19 @@ Proof.
   - apply IHv1. auto.
 Qed.
 
+Section STATE_LSIM.
+  
+Variable (fprog ftprog:program).
+Hypothesis (Hfsim:
+              program_weak_lsim
+                fundef_dec fn_sig fundef_dec fn_sig transf_V
+                fprog ftprog).
+
+Hypothesis (Hfprog: program_linkeq (@common_fundef_dec function) prog fprog).
+Hypothesis (Hftprog: program_linkeq (@common_fundef_dec function) tprog ftprog).
+
 Lemma match_states_state_lsim es es' (eF F:meminj) s1 s2
-      (MS: match_states_ext F s1 s2):
+      (MS: match_states_ext fprog ftprog F s1 s2):
   state_lsim mrelT_ops fprog ftprog es es' eF F (WF.from_nat (measure s1)) s1 s2.
 Proof.
   revert F s1 s2 MS. pcofix CIH. intros F s1 s1' MS. pfold.
@@ -1119,7 +1123,7 @@ Proof.
 Qed.
 
 Lemma transf_function_lsim
-      fenv (FENV: PTree_le fenv (funenv_program prog))
+      fenv (FENV: PTree_le fenv (funenv_program fprog))
       f f' (Hfd: Inlining.transf_function fenv f = OK f'):
   function_lsim mrelT_ops fprog ftprog f f'.
 Proof.
@@ -1139,7 +1143,7 @@ Proof.
   eexists. eexists. eexists. split.
   left. eapply plus_one. eapply exec_function_internal; eauto.
   split; [auto|]. instantiate (2 := F').
-  cut (match_states F'
+  cut (match_states fprog F'
                     (State cs_entry_src f (Vptr stk Int.zero) (fn_entrypoint f)
                            (init_regs args_src (fn_params f)) m')
                     (State cs_entry_tgt f' (Vptr sp' Int.zero) (fn_entrypoint f')
@@ -1176,14 +1180,14 @@ Proof.
   intros. exploit Mem.perm_alloc_inv; eauto. rewrite dec_eq_true. omega.
 Qed.
 
-End FUTURE.
+End STATE_LSIM.
 
-Lemma Inlining_program_lsim fprog ftprog:
+Lemma Inlining_program_lsim:
   program_lsim
     (@common_fundef_dec function) fn_sig
     (@common_fundef_dec function) fn_sig
     (@Errors.OK _)
-    (function_lsim (mrelT_ops fprog ftprog))
+    (function_lsim mrelT_ops)
     prog tprog.
 Proof.
   generalize transf_function_lsim.
@@ -1197,7 +1201,7 @@ Proof.
   simpl in *. intro Hlsim. constructor; simpl; auto.
   revert Hlsim Hglobdefs.
   generalize tdefs at 2 as ftdefs.
-  generalize defs at 1 2 3 5 as fdefs.
+  generalize defs at 1 3 as fdefs.
   revert defs tdefs.
   induction defs; simpl; intros tdefs fdefs ftdefs Hlsim Hglobdefs; inv Hglobdefs.
   { constructor. }
@@ -1229,8 +1233,14 @@ Proof.
               destruct (zlt a b); inv H
           end.
           simpl. split; auto. repeat intro.
-          admit.
-          (* apply Hlsim; auto. *)
+          exploit Hlsim; eauto.
+          { apply program_linkeq_fenv_le. eauto. }
+          unfold Inlining.transf_function.
+          rewrite Hr.
+          match goal with
+            | [|- context[zlt ?a ?b]] =>
+              destruct (zlt a b); auto; try xomega
+          end.
         }
         { inv Htf.
           eapply globfun_lsim_e; eauto;
