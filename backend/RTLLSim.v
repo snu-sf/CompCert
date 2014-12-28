@@ -200,14 +200,11 @@ Inductive function_lsim (func_src func_tgt:function): Prop :=
 | function_lsim_intro
     (Hlsim:
        forall
-         mrel_init
          mrel_entry mem_entry_src mem_entry_tgt
          cs_entry_src cs_entry_tgt
          args_src args_tgt
          st_src st_tgt
          i
-         (Hmrel_init: True) (* TODO *)
-         (Hmrel_entry_le: mrelT_ops.(le) mrel_init mrel_entry)
          (Hmrel_entry: mrelT_ops.(sem) mrel_entry fprog_src fprog_tgt i st_src st_tgt)
          (Hargs: list_forall2 (mrelT_ops.(sem_value) mrel_entry) args_src args_tgt)
          (Hst_src: st_src = (Callstate cs_entry_src (Internal func_src) args_src mem_entry_src))

@@ -105,7 +105,6 @@ Proof.
       destruct H4 as [Hfunction_sim Hfunction_sig].
       exploit Hfunction_sim; try apply Hweak_sim; eauto.
       intro X. inv X. eapply Hlsim; eauto.
-      + destruct mrelT_props. reflexivity.
       + constructor.
       + apply sound_initial; auto.
       + apply sound_initial; auto.

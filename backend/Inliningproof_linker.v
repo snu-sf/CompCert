@@ -1173,13 +1173,13 @@ Proof.
   intros [F' [m1' [sp' [A [B [C [D E]]]]]]].
   eexists. eexists. eexists. split.
   left. eapply plus_one. eapply exec_function_internal; eauto.
-  split; [auto|]. instantiate (2 := F').
+  instantiate (2 := F'). split; [simpl; auto|].
   cut (match_states fprog F'
                     (State cs_entry_src f (Vptr stk Int.zero) (fn_entrypoint f)
                            (init_regs args_src (fn_params f)) m')
                     (State cs_entry_tgt f' (Vptr sp' Int.zero) (fn_entrypoint f')
                            (init_regs args_tgt (fn_params f')) m1')).
-  { intro MS. split. constructor; eauto.
+  { intro MS. split; [constructor; eauto|].
     constructor. left. apply match_states_state_lsim. constructor; auto.
     - eapply sound_past_step; eauto.
     - eapply sound_past_step; eauto. constructor; auto.
