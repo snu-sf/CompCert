@@ -41,6 +41,7 @@ Lemma Hweak_sim:
     (@Errors.OK _)
     prog_src prog_tgt.
 Proof. eapply program_lsim_aux_le; eauto. Qed.
+Hint Resolve Hweak_sim.
 
 Inductive match_stackframes: forall (height:nat) (mrel:mrelT) (cs_src cs_tgt:list stackframe), Prop :=
 | match_stackframes_nil mrel_init:
@@ -82,17 +83,18 @@ Proof.
             match_states).
   { (* initial *)
     intros. inversion H. 
-    exploit funct_ptr_translated; eauto. intros [tf [A B]].
+    exploit funct_ptr_translated; eauto.
+    intros [tf [A B]].
     assert (Hinitial_tgt: initial_state prog_tgt (Callstate nil tf nil m0)).
     { simpl. econstructor; eauto.
       eapply program_lsim_init_mem_match; eauto.
       replace (prog_main prog_tgt) with (prog_main prog_src).
-      erewrite symbols_preserved; eauto; auto.
+      erewrite symbols_preserved; eauto.
       destruct Hsim as [_ Hmain]. auto.
       rewrite <- H3. inv B. inv Hsig.
       destruct f, tf; auto.
     }
-    exploit (mrelT_props.(Hmrel_i_init)); try apply Hweak_sim; eauto.
+    exploit (mrelT_props.(Hmrel_i_init)); eauto.
     intros [mrel_init [i_init Hinitial]].
     exists i_init. exists (Callstate nil tf nil m0). split; auto.
     econstructor.
@@ -103,7 +105,7 @@ Proof.
     inv Hfundef_sim; destruct f, tf; inv Hsrc; inv Htgt.
     - exploit Hsim0; try reflexivity. unfold F_future_lsim. intros.
       destruct H4 as [Hfunction_sim Hfunction_sig].
-      exploit Hfunction_sim; try apply Hweak_sim; eauto.
+      exploit Hfunction_sim; eauto.
       intro X. inv X. eapply Hlsim; eauto.
       + constructor.
       + apply sound_initial; auto.
@@ -114,7 +116,6 @@ Proof.
       { apply sound_initial; auto. }
       intros. inversion Hst2_src. subst.
       exploit (mrelT_props.(Hexternal_call)); eauto.
-      { apply Hweak_sim. }
       { constructor. }
       intros [mrel2 [i2 [s2 [res2 [m2' [Hs2 [Hs2_step [Hmrel2 [Hmrel2_val Hmrel2_le]]]]]]]]].
       exists i2. exists s2. exists mrel2.
@@ -183,7 +184,7 @@ Proof.
       inv Hfundef_sim; destruct fundef_src, fundef_tgt; inv Hsrc0; inv Htgt0.
       + exploit Hsim0; try reflexivity. unfold F_future_lsim. intros.
         destruct H0 as [Hfunction_sim Hfunction_sig].
-        exploit Hfunction_sim; try apply Hweak_sim; eauto.
+        exploit Hfunction_sim; eauto.
         intro X. inv X. eapply Hlsim; eauto.
         { eapply sound_past_step; eauto. }
         destruct Hstep2 as [Hstep2|[Hstep2 _]].
@@ -198,7 +199,6 @@ Proof.
         }
         intros. inversion Hst2_src. subst.
         exploit (mrelT_props.(Hexternal_call)); eauto.
-        { apply Hweak_sim. }
         intros [mrel3 [i3 [s3 [res3 [m3' [Hs3 [Hs3_step [Hmrel3 [Hmrel3_val Hmrel3_le]]]]]]]]].
         exists i3. exists s3. exists mrel3.
         split; [left; apply plus_one; auto|].

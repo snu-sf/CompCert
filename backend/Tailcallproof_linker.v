@@ -29,7 +29,6 @@ Require Import WFType paco.
 
 Section PRESERVATION.
 
-Let transf_EF (ef:external_function) := OK ef.
 Let transf_V (v_src:unit) := OK v_src.
 Let fundef_dec := (@common_fundef_dec function).
 
@@ -59,71 +58,6 @@ Let rm := romem_for_program prog.
 Lemma rm_frm: PTree_le rm (romem_for_program fprog).
 Proof.
   apply program_linkeq_romem_le. auto.
-Qed.
-
-Lemma symbols_preserved:
-  forall (s: ident), Genv.find_symbol tge s = Genv.find_symbol ge s.
-Proof (symbols_preserved Hfsim).
-
-Lemma varinfo_preserved:
-  forall b, Genv.find_var_info tge b = Genv.find_var_info ge b.
-Proof.
-  intros. exploit varinfo_preserved.
-  { instantiate (1 := ftprog). instantiate (1 := fprog). apply Hfsim. }
-  instantiate (1 := b). unfold ge, tge.
-  destruct (Genv.find_var_info (Genv.globalenv ftprog) b), (Genv.find_var_info (Genv.globalenv fprog) b); intros; auto; inv H.
-  destruct g0; auto.
-Qed.
-
-Lemma funct_ptr_translated:
-  forall (b: block) (f: RTL.fundef),
-  Genv.find_funct_ptr ge b = Some f ->
-  exists tf, Genv.find_funct_ptr tge b = Some tf /\
-             fundef_weak_lsim
-               (@common_fundef_dec function) fn_sig
-               (@common_fundef_dec function) fn_sig
-               ge tge f tf.
-Proof (funct_ptr_translated Hfsim).
-
-Lemma functions_translated:
-  forall (v: val) (f: RTL.fundef),
-  Genv.find_funct ge v = Some f ->
-  exists tf, Genv.find_funct tge v = Some tf /\
-             fundef_weak_lsim
-               (@common_fundef_dec function) fn_sig
-               (@common_fundef_dec function) fn_sig
-               ge tge f tf.
-Proof (functions_translated Hfsim).
-
-Lemma find_function_translated:
-  forall ros rs fd rs',
-  find_function ge ros rs = Some fd ->
-  regset_lessdef rs rs' ->
-  exists tfd, find_function tge ros rs' = Some tfd /\
-              fundef_weak_lsim
-               (@common_fundef_dec function) fn_sig
-               (@common_fundef_dec function) fn_sig
-                ge tge fd tfd.
-Proof.
-  unfold find_function; intros; destruct ros.
-- specialize (H0 r). inv H0.
-  apply functions_translated; auto.
-  rewrite <- H2 in H; discriminate.
-- rewrite symbols_preserved. destruct (Genv.find_symbol ge i).
-  apply funct_ptr_translated; auto.
-  discriminate.
-Qed.
-
-Lemma sig_preserved:
-  forall f tf,
-    fundef_weak_lsim
-      (@common_fundef_dec function) fn_sig
-      (@common_fundef_dec function) fn_sig
-      ge tge f tf ->
-    funsig tf = funsig f.
-Proof.
-  intros. inv H. inv Hsig. unfold common_fundef_dec in *.
-  destruct f, tf; simpl in *; auto.
 Qed.
 
 Inductive match_stackframes (es es':list stackframe): list stackframe -> list stackframe -> Prop :=
@@ -231,7 +165,7 @@ Proof.
   intros [v' [EVAL' VLD]]. 
   left. exists (State s' (transf_function f) (Vptr sp0 Int.zero) pc' (rs'#res <- v') m'); split.
   eapply exec_Iop; eauto.  rewrite <- EVAL'.
-  apply eval_operation_preserved. exact symbols_preserved.
+  apply eval_operation_preserved. apply symbols_preserved. auto.
   left. econstructor; eauto. apply regset_set; auto.
 (* eliminated move *)
   rewrite H1 in H. clear H1. inv H. 
@@ -247,7 +181,7 @@ Proof.
   intros [v' [LOAD' VLD]].
   left. exists (State s' (transf_function f) (Vptr sp0 Int.zero) pc' (rs'#dst <- v') m'); split.
   eapply exec_Iload with (a := a'). eauto.  rewrite <- ADDR'.
-  apply eval_addressing_preserved. exact symbols_preserved. eauto.
+  apply eval_addressing_preserved. apply symbols_preserved. auto. eauto.
   left. econstructor; eauto. apply regset_set; auto.
 
 (* store *)
@@ -259,12 +193,12 @@ Proof.
   intros [m'1 [STORE' MLD']].
   left. exists (State s' (transf_function f) (Vptr sp0 Int.zero) pc' rs' m'1); split.
   eapply exec_Istore with (a := a'). eauto.  rewrite <- ADDR'.
-  apply eval_addressing_preserved. exact symbols_preserved. eauto.
+  apply eval_addressing_preserved. apply symbols_preserved. auto. eauto.
   destruct a; simpl in H1; try discriminate.
   left. econstructor; eauto.
 
 (* call *)
-  exploit find_function_translated; eauto. intros [fd' [Hfd' FIND']].  
+  exploit find_function_translated_Tailcall; eauto. intros [fd' [Hfd' FIND']].  
   TransfInstr.
 (* call turned tailcall *)
   assert ({ m'' | Mem.free m' sp0 0 (fn_stacksize (transf_function f)) = Some m''}).
@@ -272,22 +206,22 @@ Proof.
     red; intros; omegaContradiction.
   destruct X as [m'' FREE].
   left. exists (Callstate s' fd' (rs'##args) m''); split.
-  eapply exec_Itailcall; eauto. apply sig_preserved. auto.
+  eapply exec_Itailcall; eauto. eapply sig_preserved. eauto. auto.
   right. constructor; auto. eapply match_stackframes_tail; eauto. apply regset_get_list; auto.
   eapply Mem.free_right_extends; eauto.
   rewrite stacksize_preserved. rewrite H7. intros. omegaContradiction.
 (* call that remains a call *)
   left. exists (Callstate (Stackframe res (transf_function f) (Vptr sp0 Int.zero) pc' rs' :: s')
                           fd' (rs'##args) m'); split.
-  eapply exec_Icall; eauto. apply sig_preserved. auto. 
+  eapply exec_Icall; eauto. eapply sig_preserved. eauto. auto. 
   right. constructor; auto. constructor; auto. apply regset_get_list; auto.
 
 (* tailcall *) 
-  exploit find_function_translated; eauto. intros [fd' [Hfd' FIND']].
+  exploit find_function_translated_Tailcall; eauto. intros [fd' [Hfd' FIND']].
   exploit Mem.free_parallel_extends; eauto. intros [m'1 [FREE EXT]].
   TransfInstr.
   left. exists (Callstate s' fd' (rs'##args) m'1); split.
-  eapply exec_Itailcall; eauto. apply sig_preserved. auto.
+  eapply exec_Itailcall; eauto. eapply sig_preserved. eauto. auto.
   rewrite stacksize_preserved; auto.
   right. constructor; auto.  apply regset_get_list; auto.
 
@@ -299,7 +233,7 @@ Proof.
   left. exists (State s' (transf_function f) (Vptr sp0 Int.zero) pc' (rs'#res <- v') m'1); split.
   eapply exec_Ibuiltin; eauto.
   eapply external_call_symbols_preserved; eauto.
-  exact symbols_preserved. exact varinfo_preserved.
+  apply symbols_preserved. auto. apply varinfo_preserved. auto.
   left. econstructor; eauto. apply regset_set; auto.
 
 (* cond *)

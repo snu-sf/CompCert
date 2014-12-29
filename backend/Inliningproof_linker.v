@@ -83,7 +83,6 @@ Qed.
 
 Section INLINING.
 
-Let transf_EF (ef:external_function) := OK ef.
 Let transf_V (v_src:unit) := OK v_src.
 Let fundef_dec := (@common_fundef_dec function).
 
@@ -107,54 +106,6 @@ Let globfun_weak_lsim :=
 
 Let ge := Genv.globalenv fprog.
 Let tge := Genv.globalenv ftprog.
-
-(* TODO: duplicated lemmas of CSEproof_linker. Modularize? *)
-
-Lemma symbols_preserved:
-  forall (s: ident), Genv.find_symbol tge s = Genv.find_symbol ge s.
-Proof (symbols_preserved Hfsim).
-
-Lemma varinfo_preserved:
-  forall b, Genv.find_var_info tge b = Genv.find_var_info ge b.
-Proof.
-  intros. exploit varinfo_preserved.
-  { instantiate (1 := ftprog). instantiate (1 := fprog). apply Hfsim. }
-  instantiate (1 := b). unfold ge, tge.
-  destruct (Genv.find_var_info (Genv.globalenv ftprog) b), (Genv.find_var_info (Genv.globalenv fprog) b); intros; auto; inv H.
-  destruct g0; auto.
-Qed.
-
-Lemma funct_ptr_translated:
-  forall (b: block) (f: RTL.fundef),
-  Genv.find_funct_ptr ge b = Some f ->
-  exists tf, Genv.find_funct_ptr tge b = Some tf /\
-             fundef_weak_lsim
-               (@common_fundef_dec function) fn_sig
-               (@common_fundef_dec function) fn_sig
-               ge tge f tf.
-Proof (funct_ptr_translated Hfsim).
-
-Lemma functions_translated:
-  forall (v: val) (f: RTL.fundef),
-  Genv.find_funct ge v = Some f ->
-  exists tf, Genv.find_funct tge v = Some tf /\
-             fundef_weak_lsim
-               (@common_fundef_dec function) fn_sig
-               (@common_fundef_dec function) fn_sig
-               ge tge f tf.
-Proof (functions_translated Hfsim).
-
-Lemma sig_preserved:
-  forall f tf,
-    fundef_weak_lsim
-      (@common_fundef_dec function) fn_sig
-      (@common_fundef_dec function) fn_sig
-      ge tge f tf ->
-    funsig tf = funsig f.
-Proof.
-  intros. inv H. inv Hsig. unfold common_fundef_dec in *.
-  destruct f, tf; simpl in *; auto.
-Qed.
 
 (** ** Relating global environments *)
 
@@ -189,7 +140,7 @@ Proof.
     rewrite EQ in H; rewrite Genv.find_funct_find_funct_ptr in H. auto.
   rewrite H2. eapply functions_translated; eauto.
   (* symbol *)
-  rewrite symbols_preserved. destruct (Genv.find_symbol ge id); try discriminate.
+  unfold ge, tge in *. erewrite symbols_preserved; try apply Hfsim. destruct (Genv.find_symbol (Genv.globalenv fprog) id); try discriminate.
   eapply funct_ptr_translated; eauto.
 Qed.
 
@@ -685,7 +636,7 @@ Proof.
   fold (sop ctx op). intros [v' [A B]].
   left; econstructor; econstructor; split.
   eapply plus_one. eapply exec_Iop; eauto. erewrite eval_operation_preserved; eauto.
-  exact symbols_preserved. 
+  apply symbols_preserved. auto.
   left. econstructor; eauto. 
   apply match_stacks_inside_set_reg; auto.
   apply agree_set_reg; auto. 
@@ -700,7 +651,7 @@ Proof.
   fold (saddr ctx addr). intros [a' [P Q]].
   exploit Mem.loadv_inject; eauto. intros [v' [U V]].
   assert (eval_addressing tge (Vptr sp' Int.zero) (saddr ctx addr) rs' ## (sregs ctx args) = Some a').
-  rewrite <- P. apply eval_addressing_preserved. exact symbols_preserved.
+  rewrite <- P. apply eval_addressing_preserved. apply symbols_preserved. auto.
   left; econstructor; econstructor; split.
   eapply plus_one. eapply exec_Iload; eauto.
   left. econstructor; eauto. 
@@ -718,7 +669,7 @@ Proof.
   exploit Mem.storev_mapped_inject; eauto. eapply agree_val_reg; eauto. 
   intros [m1' [U V]].
   assert (eval_addressing tge (Vptr sp' Int.zero) (saddr ctx addr) rs' ## (sregs ctx args) = Some a').
-    rewrite <- P. apply eval_addressing_preserved. exact symbols_preserved.
+    rewrite <- P. apply eval_addressing_preserved. apply symbols_preserved. auto.
   left; econstructor; econstructor; split.
   eapply plus_one. eapply exec_Istore; eauto.
   destruct a; simpl in H1; try discriminate.
@@ -822,7 +773,7 @@ Proof.
   left; econstructor; econstructor; split.
   eapply plus_one. eapply exec_Ibuiltin; eauto. 
     eapply external_call_symbols_preserved; eauto. 
-    exact symbols_preserved. exact varinfo_preserved.
+    apply symbols_preserved. auto. apply varinfo_preserved. auto.
   left. econstructor.
     eapply match_stacks_inside_set_reg. 
     eapply match_stacks_inside_extcall with (F1 := F) (F2 := F1) (m1 := m) (m1' := m'0); eauto.
@@ -1035,9 +986,9 @@ Proof.
   eexists. exists (Callstate nil tf nil m0); split.
   econstructor; eauto.
     erewrite program_lsim_init_mem_match; eauto.
-    rewrite symbols_preserved.
+    unfold ge0 in *. erewrite symbols_preserved; eauto. 
     destruct Hfsim as [_ Hmain]. unfold fundef in *. rewrite <- Hmain. auto.
-    rewrite <- H3. apply sig_preserved; auto. 
+    rewrite <- H3. eapply sig_preserved; eauto. 
   econstructor; eauto. 
   instantiate (1 := Mem.flat_inj (Mem.nextblock m0)). 
   apply match_stacks_nil with (Mem.nextblock m0).

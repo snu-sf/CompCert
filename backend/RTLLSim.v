@@ -19,14 +19,138 @@ Require Import ValueAnalysis_linker.
 
 Set Implicit Arguments.
 
+(* common lemmas on RTL's program simulation *)
+
+Section FUTURE.
+
+Let transf_V := @Errors.OK unit.
+Let fundef_dec := (@common_fundef_dec function).
+
+Variable (fprog ftprog:program).
+Hypothesis (Hfsim:
+              program_weak_lsim
+                fundef_dec fn_sig fundef_dec fn_sig transf_V
+                fprog ftprog).
+
+Let globfun_weak_lsim :=
+  globfun_lsim fundef_dec fn_sig fundef_dec fn_sig (fun _ _ _ _ => True) fprog ftprog.
+
+Let ge := Genv.globalenv fprog.
+Let tge := Genv.globalenv ftprog.
+
+Lemma symbols_preserved:
+  forall (s: ident), Genv.find_symbol tge s = Genv.find_symbol ge s.
+Proof (symbols_preserved Hfsim).
+
+Lemma varinfo_preserved:
+  forall b, Genv.find_var_info tge b = Genv.find_var_info ge b.
+Proof.
+  intros. exploit varinfo_preserved.
+  { instantiate (1 := ftprog). instantiate (1 := fprog). apply Hfsim. }
+  instantiate (1 := b). unfold ge, tge.
+  destruct (Genv.find_var_info (Genv.globalenv ftprog) b), (Genv.find_var_info (Genv.globalenv fprog) b); intros; auto; inv H.
+  destruct g0; auto.
+Qed.
+
+Lemma funct_ptr_translated:
+  forall (b: block) (f: RTL.fundef),
+  Genv.find_funct_ptr ge b = Some f ->
+  exists tf, Genv.find_funct_ptr tge b = Some tf /\
+             fundef_weak_lsim
+               (@common_fundef_dec function) fn_sig
+               (@common_fundef_dec function) fn_sig
+               ge tge f tf.
+Proof (funct_ptr_translated Hfsim).
+
+Lemma functions_translated:
+  forall (v: val) (f: RTL.fundef),
+  Genv.find_funct ge v = Some f ->
+  exists tf, Genv.find_funct tge v = Some tf /\
+             fundef_weak_lsim
+               (@common_fundef_dec function) fn_sig
+               (@common_fundef_dec function) fn_sig
+               ge tge f tf.
+Proof (functions_translated Hfsim).
+
+Lemma find_function_translated_CSE:
+  forall ros rs fd rs',
+  find_function ge ros rs = Some fd ->
+  CSEproof.regs_lessdef rs rs' ->
+  exists tfd, find_function tge ros rs' = Some tfd /\
+              fundef_weak_lsim
+               (@common_fundef_dec function) fn_sig
+               (@common_fundef_dec function) fn_sig
+                ge tge fd tfd.
+Proof.
+  unfold find_function; intros; destruct ros.
+- specialize (H0 r). inv H0.
+  apply functions_translated; auto.
+  rewrite <- H2 in H; discriminate.
+- rewrite symbols_preserved. destruct (Genv.find_symbol ge i).
+  apply funct_ptr_translated; auto.
+  discriminate.
+Qed.
+
+Lemma find_function_translated_Tailcall:
+  forall ros rs fd rs',
+  find_function ge ros rs = Some fd ->
+  Tailcallproof.regset_lessdef rs rs' ->
+  exists tfd, find_function tge ros rs' = Some tfd /\
+              fundef_weak_lsim
+               (@common_fundef_dec function) fn_sig
+               (@common_fundef_dec function) fn_sig
+                ge tge fd tfd.
+Proof.
+  unfold find_function; intros; destruct ros.
+- specialize (H0 r). inv H0.
+  apply functions_translated; auto.
+  rewrite <- H2 in H; discriminate.
+- rewrite symbols_preserved. destruct (Genv.find_symbol ge i).
+  apply funct_ptr_translated; auto.
+  discriminate.
+Qed.
+
+Lemma find_function_translated_Constprop:
+  forall ros rs fd rs',
+  find_function ge ros rs = Some fd ->
+  Constpropproof.regs_lessdef rs rs' ->
+  exists tfd, find_function tge ros rs' = Some tfd /\
+              fundef_weak_lsim
+               (@common_fundef_dec function) fn_sig
+               (@common_fundef_dec function) fn_sig
+                ge tge fd tfd.
+Proof.
+  unfold find_function; intros; destruct ros.
+- specialize (H0 r). inv H0.
+  apply functions_translated; auto.
+  rewrite <- H2 in H; discriminate.
+- rewrite symbols_preserved. destruct (Genv.find_symbol ge i).
+  apply funct_ptr_translated; auto.
+  discriminate.
+Qed.
+
+Lemma sig_preserved:
+  forall f tf,
+    fundef_weak_lsim
+      (@common_fundef_dec function) fn_sig
+      (@common_fundef_dec function) fn_sig
+      ge tge f tf ->
+    funsig tf = funsig f.
+Proof.
+  intros. inv H. inv Hsig. unfold common_fundef_dec in *.
+  destruct f, tf; simpl in *; auto.
+Qed.
+
+End FUTURE.
+
+(* memory relation *)
+
 Definition state_mem (st:state): mem :=
   match st with
     | State _ _ _ _ _ m => m
     | Callstate _ _ _ m => m
     | Returnstate _ _ m => m
   end.
-
-(* memory relation *)
 
 Record mrelT_opsT (t:Type): Type := mkmrelT_opsT {
   sem :> t -> forall (p1 p2:program) (i:WF.t) (s1 s2:state), Prop;
@@ -108,9 +232,7 @@ Next Obligation.
   split; [eauto|]. split.
   - constructor; eauto. eapply external_call_symbols_preserved; eauto.
     + eapply symbols_preserved; eauto.
-    + intros. exploit varinfo_preserved; eauto. instantiate (1 := b).
-      unfold fundef. destruct (Genv.find_var_info (Genv.globalenv p1) b), (Genv.find_var_info (Genv.globalenv p2) b); intro X; inv X; auto.
-      f_equal. destruct g; auto.
+    + intros. exploit varinfo_preserved; eauto.
   - split; auto.
 Qed.
 
@@ -149,9 +271,7 @@ Next Obligation.
   split; [eauto|]. split.
   - constructor; eauto. eapply external_call_symbols_preserved; eauto.
     + eapply symbols_preserved; eauto.
-    + intros. exploit varinfo_preserved; eauto. instantiate (1 := b).
-      unfold fundef. destruct (Genv.find_var_info (Genv.globalenv p1) b), (Genv.find_var_info (Genv.globalenv p2) b); intro X; inv X; auto.
-      f_equal. destruct g; auto.
+    + intros. exploit varinfo_preserved; eauto.
   - split; auto.
 Qed.
 
