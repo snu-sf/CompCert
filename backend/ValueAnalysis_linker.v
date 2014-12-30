@@ -593,12 +593,6 @@ Hint Resolve areg_sound aregs_sound: va.
 
 (** * Interface with other optimizations *)
 
-Definition avalue (a: VA.t) (r: reg) : aval :=
-  match a with
-  | VA.Bot => Vbot
-  | VA.State ae am => AE.get r ae
-  end.
-
 Lemma avalue_sound:
   forall prog s f sp pc e m r
          prm (Hprm: PTree_le prm (romem_for_program prog)),
@@ -610,12 +604,6 @@ Lemma avalue_sound:
 Proof.
   intros. inv H. specialize (Hsound prm Hprm). inv Hsound. exists bc; split; auto. rewrite AN. apply EM.
 Qed. 
-
-Definition aaddr (a: VA.t) (r: reg) : aptr :=
-  match a with
-  | VA.Bot => Pbot
-  | VA.State ae am => aptr_of_aval (AE.get r ae)
-  end.
 
 Lemma aaddr_sound:
   forall prog s f sp pc e m r b ofs
@@ -630,12 +618,6 @@ Proof.
   intros. inv H. specialize (Hsound prm Hprm). inv Hsound. exists bc; split; auto.
   unfold aaddr; rewrite AN. apply match_aptr_of_aval. rewrite <- H0. apply EM.
 Qed. 
-
-Definition aaddressing (a: VA.t) (addr: addressing) (args: list reg) : aptr :=
-  match a with
-  | VA.Bot => Pbot
-  | VA.State ae am => aptr_of_aval (eval_static_addressing addr (aregs ae args))
-  end.
 
 Lemma aaddressing_sound:
   forall prog s f sp pc e m addr args b ofs
