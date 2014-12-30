@@ -72,6 +72,22 @@ Lemma functions_translated:
                ge tge f tf.
 Proof (functions_translated Hfsim).
 
+Lemma find_function_translated_Renumber:
+  forall ros rs fd,
+  find_function ge ros rs = Some fd ->
+  exists tfd, find_function tge ros rs = Some tfd /\
+              fundef_weak_lsim
+               (@common_fundef_dec function) fn_sig
+               (@common_fundef_dec function) fn_sig
+                ge tge fd tfd.
+Proof.
+  unfold find_function; intros; destruct ros.
+- apply functions_translated; auto.
+- rewrite symbols_preserved. destruct (Genv.find_symbol ge i).
+  apply funct_ptr_translated; auto.
+  discriminate.
+Qed.
+
 Lemma find_function_translated_CSE:
   forall ros rs fd rs',
   find_function ge ros rs = Some fd ->
