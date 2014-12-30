@@ -374,13 +374,17 @@ Inductive match_states_ext es es' st tst: Prop :=
     (Htgt: sound_state_ext ftprog tst)
 .
 
-Lemma match_states_state_lsim es es' i:
-  match_states_ext es es' <2= state_lsim mrelT_ops_extends fprog ftprog es es' tt tt i.
+Definition mrelT_ops_extends := mrelT_ops_extends (fun _ _ => WF.elt).
+
+Lemma match_states_state_lsim es es' s1 s1'
+      (MS: match_states_ext es es' s1 s1'):
+  state_lsim mrelT_ops_extends fprog ftprog es es' tt tt WF.elt s1 s1'.
 Proof.
-  revert i. pcofix CIH. intros i s1 s1' MS. pfold.
+  revert s1 s1' MS. pcofix CIH. intros s1 s1' MS. pfold.
   inv MS. destruct (classic (match_return es es' s1 s1')).
   { inv H. eapply _state_lsim_return; eauto.
-    reflexivity.
+    - constructor; auto.
+    - reflexivity.
   }
   constructor; auto.
   { intros ? Hfinal. inv Hfinal. inv Hmatch. inv H3.
@@ -398,7 +402,9 @@ Proof.
     + eapply sound_past_step; eauto.
   - inv Hmatch'. eapply _state_lsim_or_csim_csim; eauto.
     { apply mrelT_ops_extends_lessdef_list. auto. }
-    intros. right. destruct mrel2. apply CIH. constructor; auto.
+    { constructor; auto. }
+    intros. inversion Hst2_mem. subst.
+    right. destruct mrel2. apply CIH. constructor; auto.
     subst. constructor; auto.
 Qed.
 
@@ -419,16 +425,20 @@ Proof.
     end.
   }
   split; [reflexivity|].
-  simpl in *. exploit Mem.alloc_extends; eauto. apply Zle_refl. apply Zle_refl.
+  destruct Hmrel_entry as [Hi Hext]. simpl in *. subst.
+
+  (* internal function *)
+  exploit Mem.alloc_extends; eauto. apply Zle_refl. apply Zle_refl.
   intros (m'' & A & B).
-  simpl. rewrite A. simpl. split; auto.
-  apply _state_lsim_or_csim_lsim. left.
-  destruct mrel_entry. apply match_states_state_lsim. split.
+
+  rewrite A. split; [eauto|].
+  destruct mrel_entry. constructor. left.
+  apply match_states_state_lsim. split.
   - constructor; auto.
     + eapply analysis_correct_entry; eauto.
     + apply init_regs_lessdef; auto.
       eapply mrelT_ops_extends_lessdef_list.
-      instantiate (1 := tt). eauto.
+      instantiate (1 := tt). instantiate (1 := (fun _ _ => WF.elt)). eauto.
     + constructor.
   - eapply sound_past_step; eauto.
   - eapply sound_past_step; eauto.
@@ -448,61 +458,35 @@ Lemma CSE_program_lsim:
 Proof.
   generalize transf_function'_lsim.
   destruct prog as [defs main]. clear prog. simpl in *.
-  unfold transf_program, transform_partial_program in TRANSF.
-  unfold transform_partial_program2 in TRANSF.
-  match goal with
-    | [H: bind ?b _ = OK _ |- _] =>
-      destruct b as [tdefs|] eqn:Hglobdefs; inv H
-  end.
+  unfold transf_program, transform_partial_program, transform_partial_program2 in TRANSF.
+  monadInv TRANSF. rename x into tdefs.
   simpl in *. intro Hlsim. constructor; simpl; auto.
-  revert Hlsim Hglobdefs.
+  revert Hlsim EQ.
   generalize tdefs at 2 as ftdefs.
   generalize defs at 1 2 3 5 as fdefs.
   revert defs tdefs.
-  induction defs; simpl; intros tdefs fdefs ftdefs Hlsim Hglobdefs; inv Hglobdefs.
-  { constructor. }
-  { destruct a. destruct g.
-    { match goal with
-        | [H: match ?tf with | OK _ => _ | Error _ => _ end = _ |- _] =>
-          destruct tf eqn:Htf; inv H
-      end.
+  induction defs; simpl; intros tdefs fdefs ftdefs Hlsim Hglobdefs; inv Hglobdefs; try constructor.
+  destruct a. destruct g.
+  - match goal with
+      | [H: match ?tf with | OK _ => _ | Error _ => _ end = _ |- _] => destruct tf eqn:Htf; inv H
+    end.
+    monadInv H1. constructor; simpl in *; try apply IHdefs; auto.
+    split; auto. constructor.
+    destruct f; simpl in *.
+    + monadInv Htf.
+      eapply globfun_lsim_i; eauto;
+      unfold common_fundef_dec; eauto.
+      unfold transf_function in EQ0.
       match goal with
-        | [H: bind ?b _ = OK _ |- _] =>
-          destruct b eqn:Hglobdefs; inv H
+        | [H: match ?a with | Some _ => _ | None => _ end = _ |- _] => destruct a as [a'|] eqn:Hanalyze; inv H
       end.
-      constructor; simpl in *.
-      { split; auto. constructor.
-        destruct f; simpl in *.
-        { match goal with
-            | [H: bind ?b _ = OK _ |- _] =>
-              destruct b eqn:Htf'; inv H
-          end.
-          eapply globfun_lsim_i; eauto;
-          unfold common_fundef_dec; eauto.
-          unfold transf_function in Htf'.
-          match goal with
-            | [H: match ?a with | Some _ => _ | None => _ end = _ |- _] =>
-              destruct a as [a'|] eqn:Hanalyze; inv H
-          end.
-          simpl. split; auto. repeat intro.
-          apply Hlsim; auto.
-        }
-        { inv Htf.
-          eapply globfun_lsim_e; eauto;
-          unfold common_fundef_dec; eauto.
-        }
-      }
-      { apply IHdefs; auto. }
-    }
-    { match goal with
-        | [H: bind ?b _ = OK _ |- _] =>
-          destruct b eqn:Hglobdefs; inv H
-      end.
-      constructor; simpl in *.
-      { split; auto. repeat constructor. }
-      apply IHdefs; auto.
-    }
-  }
+      simpl. split; auto. repeat intro.
+      apply Hlsim; auto.
+    + inv Htf.
+      eapply globfun_lsim_e; eauto;
+      unfold common_fundef_dec; eauto.
+  - monadInv H0. constructor; simpl in *; try apply IHdefs; auto.
+    split; auto. repeat constructor.
 Qed.
 
 End PRESERVATION.

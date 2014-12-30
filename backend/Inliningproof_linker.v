@@ -1048,10 +1048,10 @@ Next Obligation.
 Qed.
 Next Obligation.
   simpl in *. apply (mrelT_ops_val_inject_list mrel args1 args2) in Hargs. subst. inv Hs0.
-
-(* external function *)
   inversion Hmrel. subst. destruct MS as [MS|MS]; [inv MS|].
   inversion MS. subst.
+
+(* external function *)
   exploit match_stacks_globalenvs; eauto. intros [bound MG].
   exploit external_call_mem_inject; eauto.
     eapply match_globalenvs_preserves_globals; eauto.
@@ -1198,72 +1198,40 @@ Lemma Inlining_program_lsim:
 Proof.
   generalize transf_function_lsim.
   destruct prog as [defs main]. simpl in *. simpl in *.
-  unfold transf_program, transform_partial_program in TRANSF.
-  unfold transform_partial_program2 in TRANSF.
-  match goal with
-    | [H: Errors.bind ?b _ = OK _ |- _] =>
-      destruct b as [tdefs|] eqn:Hglobdefs; inv H
-  end.
+  unfold transf_program, transform_partial_program, transform_partial_program2 in TRANSF.
+  Errors.monadInv TRANSF. rename x into tdefs.
   simpl in *. intro Hlsim. constructor; simpl; auto.
-  revert Hlsim Hglobdefs.
+  revert Hlsim EQ.
   generalize tdefs at 2 as ftdefs.
   generalize defs at 1 3 as fdefs.
   revert defs tdefs.
-  induction defs; simpl; intros tdefs fdefs ftdefs Hlsim Hglobdefs; inv Hglobdefs.
-  { constructor. }
-  { destruct a. destruct g.
-    { match goal with
-        | [H: match ?tf with | OK _ => _ | Error _ => _ end = _ |- _] =>
-          destruct tf eqn:Htf; inv H
-      end.
-      match goal with
-        | [H: Errors.bind ?b _ = OK _ |- _] =>
-          destruct b eqn:Hglobdefs; inv H
-      end.
-      constructor; simpl in *.
-      { split; auto. constructor.
-        destruct f; simpl in *.
-        { match goal with
-            | [H: Errors.bind ?b _ = OK _ |- _] =>
-              destruct b eqn:Htf'; inv H
-          end.
-          eapply globfun_lsim_i; eauto;
-          unfold common_fundef_dec; eauto.
-          unfold Inlining.transf_function in Htf'.
-          match goal with
-            | [H: context[let 'R _ _ _ := ?r:res in _] |- _] =>
-              destruct r eqn:Hr
-          end.
-          match goal with
-            | [H: context[zlt ?a ?b] |- _] =>
-              destruct (zlt a b); inv H
-          end.
-          simpl. split; auto. repeat intro.
-          exploit Hlsim; eauto.
-          { apply program_linkeq_fenv_le. eauto. }
-          unfold Inlining.transf_function.
-          rewrite Hr.
-          match goal with
-            | [|- context[zlt ?a ?b]] =>
-              destruct (zlt a b); auto; try xomega
-          end.
-        }
-        { inv Htf.
-          eapply globfun_lsim_e; eauto;
-          unfold common_fundef_dec; eauto.
-        }
-      }
-      { apply IHdefs; auto. }
-    }
-    { match goal with
-        | [H: Errors.bind ?b _ = OK _ |- _] =>
-          destruct b eqn:Hglobdefs; inv H
-      end.
-      constructor; simpl in *.
-      { split; auto. repeat constructor. }
-      apply IHdefs; auto.
-    }
-  }
+  induction defs; simpl; intros tdefs fdefs ftdefs Hlsim Hglobdefs; inv Hglobdefs; try constructor.
+  destruct a. destruct g.
+  - match goal with
+      | [H: match ?tf with | OK _ => _ | Error _ => _ end = _ |- _] => destruct tf eqn:Htf; inv H
+    end.
+    Errors.monadInv H1. constructor; simpl in *; try apply IHdefs; auto.
+    split; auto. constructor.
+    destruct f; simpl in *.
+    + Errors.monadInv Htf.
+      eapply globfun_lsim_i; eauto;
+      unfold common_fundef_dec; eauto.
+      unfold Inlining.transf_function in EQ0.
+      repeat match goal with
+               | [H: context[let 'R _ _ _ := ?r:res in _] |- _] => destruct r eqn:Hr
+               | [H: context[zlt ?a ?b] |- _] => destruct (zlt a b); inv H
+             end.
+      simpl. split; auto. repeat intro.
+      exploit Hlsim; eauto.
+      { apply program_linkeq_fenv_le. eauto. }
+      unfold Inlining.transf_function.
+      rewrite Hr. rewrite zlt_true; auto.
+    + inv Htf.
+      eapply globfun_lsim_e; eauto;
+      unfold common_fundef_dec; eauto.
+  - Errors.monadInv H0.
+    constructor; simpl in *; try apply IHdefs; auto.
+    split; auto. repeat constructor.
 Qed.
 
 End INLINING.

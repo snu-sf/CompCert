@@ -200,11 +200,16 @@ Record mrelT_propsT (t:Type) (ops:mrelT_opsT t): Prop := mkmrelT_propsT {
       ops.(le_public) mrel mrel'
 }.
 
+Section MemoryRelation.
+
+Definition measureT := forall (s1 s2:state), WF.t.
+Variable (measure:measureT).
+
 (* memory relation - equals *)
 
 Definition mrelT_ops_equals: mrelT_opsT unit :=
   mkmrelT_opsT
-    (fun _ _ _ _ s1 s2 => state_mem s1 = state_mem s2)
+    (fun _ _ _ i s1 s2 => i = measure s1 s2 /\ state_mem s1 = state_mem s2)
     (fun _ v1 v2 => v1 = v2)
     (fun _ _ => True)
     (fun _ _ => True).
@@ -222,25 +227,25 @@ Program Definition mrelT_props_equals: mrelT_propsT mrelT_ops_equals := mkmrelT_
 Next Obligation. repeat constructor. Qed.
 Next Obligation. repeat constructor. Qed.
 Next Obligation.
-  exists tt. exists WF.elt. inv H1. inv H2. simpl.
+  exists tt. eexists. inv H1. inv H2. simpl; split; auto.
   exploit program_lsim_init_mem_match; eauto. intro X.
   unfold fundef in *. rewrite H1 in X. inv X. auto.
 Qed.
 Next Obligation.
   simpl in *. apply (mrelT_ops_equals_equal_list mrel args1 args2) in Hargs. subst. inv Hs0.
-  exists tt. exists WF.elt. eexists. eexists. eexists.
+  exists tt. eexists. eexists. eexists. eexists.
   split; [eauto|]. split.
   - constructor; eauto. eapply external_call_symbols_preserved; eauto.
     + eapply symbols_preserved; eauto.
     + intros. exploit varinfo_preserved; eauto.
-  - split; auto.
+  - auto.
 Qed.
 
 (* memory relation - extends *)
 
 Definition mrelT_ops_extends: mrelT_opsT unit :=
   mkmrelT_opsT
-    (fun _ _ _ _ s1 s2 => Mem.extends (state_mem s1) (state_mem s2))
+    (fun _ _ _ i s1 s2 => i = measure s1 s2 /\ Mem.extends (state_mem s1) (state_mem s2))
     (fun _ v1 v2 => Val.lessdef v1 v2)
     (fun _ _ => True)
     (fun _ _ => True).
@@ -259,7 +264,7 @@ Next Obligation. repeat constructor. Qed.
 Next Obligation. repeat constructor. Qed.
 Next Obligation. inv H. auto. Qed.
 Next Obligation.
-  exists tt. exists WF.elt. inv H1. inv H2. simpl.
+  exists tt. eexists. inv H1. inv H2. simpl; split; auto.
   exploit program_lsim_init_mem_match; eauto. intro X.
   unfold fundef in *. rewrite H1 in X. inv X.
   apply Mem.extends_refl.
@@ -267,13 +272,15 @@ Qed.
 Next Obligation.
   simpl in *. apply (mrelT_ops_extends_lessdef_list mrel args1 args2) in Hargs. inv Hs0.
   exploit external_call_mem_extends; eauto. intros [vres_tgt [m2_tgt [Hef2 [Hvres [Hm2 _]]]]].
-  exists tt. exists WF.elt. eexists. eexists. eexists.
+  exists tt. eexists. eexists. eexists. eexists.
   split; [eauto|]. split.
   - constructor; eauto. eapply external_call_symbols_preserved; eauto.
     + eapply symbols_preserved; eauto.
     + intros. exploit varinfo_preserved; eauto.
-  - split; auto.
+  - auto.
 Qed.
+
+End MemoryRelation.
 
 Section LSIM.
 

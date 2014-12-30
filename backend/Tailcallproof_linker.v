@@ -322,13 +322,16 @@ Inductive match_states_ext es es' st tst: Prop :=
     (Htgt: sound_state_ext ftprog tst)
 .
 
-Lemma match_states_state_lsim es es' i:
-  match_states_ext es es' <2= state_lsim mrelT_ops_extends fprog ftprog es es' tt tt i.
+Definition mrelT_ops_extends := mrelT_ops_extends (fun s1 _ => WF.from_nat (measure s1)).
+
+Lemma match_states_state_lsim es es' s1 s1'
+      (MS: match_states_ext es es' s1 s1'):
+  state_lsim mrelT_ops_extends fprog ftprog es es' tt tt (WF.from_nat (measure s1)) s1 s1'.
 Proof.
-  revert i. pcofix CIH. intros i s1 s1' MS. pfold.
+  revert s1 s1' MS. pcofix CIH. intros s1 s1' MS. pfold.
   inv MS. destruct (classic (match_return es es' s1 s1')).
   { inv H. eapply _state_lsim_return; eauto.
-    reflexivity.
+    split; eauto. reflexivity.
   }
   constructor; auto.
   { intros ? Hfinal. inv Hfinal. inv Hmatch. inv H3.
@@ -339,31 +342,33 @@ Proof.
   - eexists. eexists. exists tt.
     split; [left; apply plus_one; eauto|].
     split; [simpl; auto|].
-    split; [destruct Hmatch' as [Hmatch'|Hmatch']; inv Hmatch'; auto|].
+    split; [destruct Hmatch' as [Hmatch'|Hmatch']; inv Hmatch'; split; eauto|].
     destruct Hmatch' as [Hmatch'|Hmatch'].
     + constructor. right. apply CIH. constructor; auto.
       * eapply sound_past_step; eauto.
       * eapply sound_past_step; eauto.
     + inv Hmatch'. eapply _state_lsim_or_csim_csim; eauto.
       { apply mrelT_ops_extends_lessdef_list. auto. }
-      intros. right. destruct mrel2. apply CIH. constructor; auto.
+      { split; eauto. }
+      intros. inversion Hst2_mem. subst.
+      right. destruct mrel2. apply CIH. constructor; auto.
       subst. constructor; auto.
   - subst. eexists. eexists. exists tt.
     split.
     { right. split. apply star_refl.
-      instantiate (1 := i). admit. (* index *)
+      constructor. eauto.
     }
-    split; [admit|]. (* index *)
-    split; [destruct Hmatch' as [Hmatch'|Hmatch']; inv Hmatch'; auto|].
+    split; [simpl; auto|].
+    split; [destruct Hmatch' as [Hmatch'|Hmatch']; inv Hmatch'; split; eauto|].
     destruct Hmatch' as [Hmatch'|Hmatch'].
     + constructor. right. apply CIH. constructor; auto.
       * eapply sound_past_step; eauto.
     + inv Hmatch'. eapply _state_lsim_or_csim_csim; eauto.
       { apply mrelT_ops_extends_lessdef_list. auto. }
-      intros. right. destruct mrel2. apply CIH. constructor; auto.
+      { split; eauto. }
+      intros. inversion Hst2_mem. subst.
+      right. destruct mrel2. apply CIH. constructor; auto.
       subst. constructor; auto.
-Grab Existential Variables.
-  { apply i. }
 Qed.
 
 Lemma transf_function_lsim f:
@@ -372,18 +377,14 @@ Proof.
   constructor. repeat intro. pfold. constructor; subst; auto.
   { intros ? Hfinal. inv Hfinal. }
   intros. inversion Hst2_src. subst.
-  exists WF.elt. eexists. exists tt.
+  eexists. eexists. exists tt.
   split; [left; apply plus_one; eauto|].
-  { econstructor; eauto.
-    match goal with
-      | [|- ?b = _] =>
-        instantiate (1 := snd b); instantiate (1 := fst b); auto
-    end.
-  }
+  { econstructor; eauto. rewrite surjective_pairing at 1. eauto. }
   split; [reflexivity|].
+  destruct Hmrel_entry as [Hi Hext]. simpl in *. subst.
 
 (* internal call *)
-  simpl in *. exploit Mem.alloc_extends; eauto.
+  exploit Mem.alloc_extends; eauto.
     instantiate (1 := 0). omega.
     instantiate (1 := fn_stacksize f). omega.
   intros [m'1 [ALLOC EXT]].
@@ -392,16 +393,22 @@ Proof.
           fn_params (transf_function f) = fn_params f).
     unfold transf_function. destruct (zeq (fn_stacksize f) 0 && Compopts.eliminate_tailcalls tt); auto.
   destruct H as [EQ1 [EQ2 EQ3]].
-  rewrite EQ1, ALLOC. simpl. split; auto.
-  constructor. destruct mrel_entry.
-  exploit match_states_state_lsim; eauto.
+
+  rewrite EQ1, EQ2, EQ3, ALLOC.
+  split; [eauto|].
+  destruct mrel_entry. simpl. constructor. left.
+  exploit (match_states_state_lsim
+             cs_entry_src cs_entry_tgt
+             (State cs_entry_src f (Vptr stk Int.zero) (fn_entrypoint f)
+                    (init_regs args_src (fn_params f)) m')); eauto.
   constructor.
-  - rewrite EQ2, EQ3. repeat (constructor; auto).
+  - repeat (constructor; auto).
     apply regset_init_regs.
     eapply mrelT_ops_extends_lessdef_list.
-    instantiate (1 := tt). auto.
+    instantiate (1 := tt). instantiate (1 := (fun s1 _ => WF.from_nat (measure s1))). auto.
   - eapply sound_past_step; eauto.
   - eapply sound_past_step; eauto.
+    instantiate (1 := E0). rewrite <- EQ2, <- EQ3.
     constructor. rewrite EQ1, ALLOC. auto.
 Qed.
 
@@ -421,31 +428,21 @@ Proof.
   inv TRANSF. intro Hlsim. constructor; simpl; auto.
   revert Hlsim.
   generalize defs at 1 2 3 as fdefs. revert defs.
-  induction defs; simpl; intros fdefs Hlsim; simpl.
-  { constructor. }
-  { destruct a. destruct g.
-    { constructor; simpl in *.
-      { split; auto. constructor.
-        destruct f; simpl in *.
-        { eapply globfun_lsim_i; eauto;
-          unfold common_fundef_dec; eauto.
-          split; auto. repeat intro.
-          apply Hlsim; auto.
-          unfold transf_function. destruct (zeq (fn_stacksize f) 0 && Compopts.eliminate_tailcalls tt); simpl; auto.
-        }
-        { eapply globfun_lsim_e; eauto;
-          unfold common_fundef_dec; eauto.
-        }
-      }
-      { apply IHdefs; auto. }
-    }
-    { constructor; simpl in *.
-      { split; auto. repeat constructor.
-        unfold transf_globvar. simpl. destruct v; auto.
-      }
-      apply IHdefs; auto.
-    }
-  }
+  induction defs; simpl; intros fdefs Hlsim; simpl; [constructor|].
+  destruct a. destruct g.
+  - constructor; simpl in *; try apply IHdefs; auto.
+    split; auto. constructor.
+    destruct f; simpl in *.
+    + eapply globfun_lsim_i; eauto;
+      unfold common_fundef_dec; eauto.
+      split; auto. repeat intro.
+      apply Hlsim; auto.
+      unfold transf_function. destruct (zeq (fn_stacksize f) 0 && Compopts.eliminate_tailcalls tt); simpl; auto.
+    + eapply globfun_lsim_e; eauto;
+      unfold common_fundef_dec; eauto.
+  - constructor; simpl in *; try apply IHdefs; auto.
+    split; auto. repeat constructor.
+    unfold transf_globvar. simpl. destruct v; auto.
 Qed.
 
 End PRESERVATION.
