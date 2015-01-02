@@ -31,23 +31,18 @@ Set Implicit Arguments.
 
 Section PRESERVATION.
 
-Let transf_V (v_src:unit) := OK v_src.
-Let fundef_dec := (@common_fundef_dec function).
-
-Variable prog: program.
-Variable tprog: program.
+Variable (prog tprog: program).
 Hypothesis TRANSF: transf_program prog = OK tprog.
 
 Section FUTURE.
 
 Variable (fprog ftprog:program).
-Hypothesis (Hfsim:
-              program_weak_lsim
-                fundef_dec fn_sig fundef_dec fn_sig transf_V
-                fprog ftprog).
+Hypothesis (Hfsim: program_weak_lsim
+                     fundef_dec fn_sig fundef_dec fn_sig transf_V
+                     fprog ftprog).
 
-Hypothesis (Hfprog: program_linkeq (@common_fundef_dec function) prog fprog).
-Hypothesis (Hftprog: program_linkeq (@common_fundef_dec function) tprog ftprog).
+Hypothesis (Hfprog: program_linkeq fundef_dec prog fprog).
+Hypothesis (Hftprog: program_linkeq fundef_dec tprog ftprog).
 
 Let globfun_weak_lsim :=
   globfun_lsim fundef_dec fn_sig fundef_dec fn_sig (fun _ _ _ _ => True) fprog ftprog.
@@ -55,67 +50,48 @@ Let globfun_weak_lsim :=
 Let ge := Genv.globalenv fprog.
 Let tge := Genv.globalenv ftprog.
 
-Let rm := romem_for_program prog.
-
-Lemma rm_frm: PTree_le rm (romem_for_program fprog).
-Proof. apply program_linkeq_romem_le. auto. Qed.
-
-Inductive match_stackframes (es es':list stackframe): list stackframe -> list stackframe -> Prop :=
+Inductive match_stackframes: list stackframe -> list stackframe -> Prop :=
   | match_stackframes_nil:
-      match_stackframes es es' es es'
+      match_stackframes nil nil
   | match_stackframes_cons:
-      forall res sp pc rs f approx s rs' s'
+      forall res sp pc rs f approx s rs' s' rm
+           (RM: PTree_le rm (romem_for_program fprog))
            (ANALYZE: analyze f (vanalyze rm f) = Some approx)
            (SAT: forall v m, exists valu, numbering_holds valu ge sp (rs#res <- v) m approx!!pc)
            (RLD: regs_lessdef rs rs')
-           (STACKS: match_stackframes es es' s s'),
-    match_stackframes es es'
+           (STACKS: match_stackframes s s'),
+    match_stackframes
       (Stackframe res f sp pc rs :: s)
       (Stackframe res (transf_function' f approx) sp pc rs' :: s').
 
-Inductive match_states (es es':list stackframe): state -> state -> Prop :=
+Inductive match_states: state -> state -> Prop :=
   | match_states_intro:
-      forall s sp pc rs m s' rs' m' f approx
+      forall s sp pc rs m s' rs' m' f approx rm
+             (RM: PTree_le rm (romem_for_program fprog))
              (ANALYZE: analyze f (vanalyze rm f) = Some approx)
              (SAT: exists valu, numbering_holds valu ge sp rs m approx!!pc)
              (RLD: regs_lessdef rs rs')
              (MEXT: Mem.extends m m')
-             (STACKS: match_stackframes es es' s s'),
-      match_states es es'
-                   (State s f sp pc rs m)
+             (STACKS: match_stackframes s s'),
+      match_states (State s f sp pc rs m)
                    (State s' (transf_function' f approx) sp pc rs' m')
   | match_states_return:
       forall s s' v v' m m',
-      match_stackframes es es' s s' ->
+      match_stackframes s s' ->
       Val.lessdef v v' ->
       Mem.extends m m' ->
-      match_states es es'
-                   (Returnstate s v m)
+      match_states (Returnstate s v m)
                    (Returnstate s' v' m').
 
-Inductive match_call (es es':list stackframe): state -> state -> Prop :=
+Inductive match_call: state -> state -> Prop :=
   | match_states_call:
       forall s f tf args m s' args' m',
-      match_stackframes es es' s s' ->
-      fundef_weak_lsim
-        (common_fundef_dec (F:=function)) fn_sig
-        (common_fundef_dec (F:=function)) fn_sig
-        ge tge f tf ->
+      match_stackframes s s' ->
+      fundef_weak_lsim fundef_dec fn_sig fundef_dec fn_sig ge tge f tf ->
       Val.lessdef_list args args' ->
       Mem.extends m m' ->
-      match_call es es'
-                 (Callstate s f args m)
+      match_call (Callstate s f args m)
                  (Callstate s' tf args' m').
-
-Inductive match_return (es es':list stackframe): state -> state -> Prop :=
-  | match_return_intro:
-      forall v v' m m',
-      match_stackframes es es' es es' ->
-      Val.lessdef v v' ->
-      Mem.extends m m' ->
-      match_return es es'
-                   (Returnstate es v m)
-                   (Returnstate es' v' m').
 
 Ltac TransfInstr :=
   match goal with
@@ -127,9 +103,9 @@ Ltac TransfInstr :=
   end.
 
 Lemma transf_step_correct:
-  forall es es' s1 t s2, step ge s1 t s2 ->
-  forall s1' (MS: match_states es es' s1 s1') (NMR: ~ match_return es es' s1 s1') (SOUND: sound_state_ext fprog s1),
-  exists s2', step tge s1' t s2' /\ (match_states es es' s2 s2' \/ match_call es es' s2 s2').
+  forall s1 t s2, step ge s1 t s2 ->
+  forall s1' (MS: match_states s1 s1') (SOUND: sound_state_ext fprog s1),
+  exists s2', step tge s1' t s2' /\ (match_states s2 s2' \/ match_call s2 s2').
 Proof.
   induction 1; intros; inv MS; try (TransfInstr; intro C).
 
@@ -237,7 +213,7 @@ Proof.
   left. econstructor; eauto.
   eapply analysis_correct_1; eauto. simpl; auto. 
   unfold transfer; rewrite H.
-  inv SOUND. specialize (Hsound _ rm_frm). inv Hsound.
+  inv SOUND. specialize (Hsound _ RM). inv Hsound.
   eapply add_store_result_hold; eauto. 
   eapply kill_loads_after_store_holds; eauto.
 
@@ -296,7 +272,7 @@ Proof.
     simpl in H0. inv H0. 
     exists valu. 
     apply set_unknown_holds. 
-    inv SOUND. specialize (Hsound _ rm_frm). inv Hsound. eapply add_memcpy_holds; eauto. 
+    inv SOUND. specialize (Hsound _ RM). inv Hsound. eapply add_memcpy_holds; eauto. 
     eapply kill_loads_after_storebytes_holds; eauto. 
     eapply Mem.loadbytes_length; eauto. 
     simpl. apply Ple_refl. 
@@ -358,104 +334,173 @@ Proof.
 
 - (* return *)
   inv H2.
-  { contradict NMR. constructor; auto. constructor; auto. }
   econstructor; split.
   eapply exec_return; eauto.
   left. econstructor; eauto.
   apply set_reg_lessdef; auto.
 Qed.
 
-Inductive match_states_ext es es' st tst: Prop :=
+Lemma transf_initial_states:
+  forall st1, initial_state fprog st1 ->
+  exists st2, initial_state ftprog st2 /\ match_call st1 st2.
+Proof.
+  intros. inversion H. 
+  exploit funct_ptr_translated; eauto. intros [tf [A B]].
+  exists (Callstate nil tf nil m0); split.
+  econstructor; eauto.
+  eapply program_lsim_init_mem_match; eauto.
+  replace (prog_main ftprog) with (prog_main fprog).
+  erewrite symbols_preserved; eauto.
+  destruct Hfsim as [_ Hmain]. unfold fundef in *. rewrite <- Hmain. auto.
+  rewrite <- H3. eapply sig_preserved; eauto.
+  constructor. constructor. auto. auto. apply Mem.extends_refl.
+Qed.
+
+Lemma transf_final_states:
+  forall st1 st2 r, 
+  match_states st1 st2 -> final_state st1 r -> final_state st2 r.
+Proof.
+  intros. inv H0. inv H. inv H5. inv H3. constructor. 
+Qed.
+
+Inductive match_states_ext st tst: Prop :=
 | match_states_ext_intro
-    (Hmatch: match_states es es' st tst)
+    (Hmatch: match_states st tst)
     (Hsrc: sound_state_ext fprog st)
     (Htgt: sound_state_ext ftprog tst)
 .
 
-Definition mrelT_ops_extends := mrelT_ops_extends (fun _ _ => WF.elt).
+End FUTURE.
 
-Lemma match_states_state_lsim es es' s1 s1'
-      (MS: match_states_ext es es' s1 s1'):
-  state_lsim mrelT_ops_extends fprog ftprog es es' tt tt WF.elt s1 s1'.
+(* memory relation *)
+
+Inductive mrelT_sem (mrel:unit) (fprog ftprog:program) (i:WF.t) (s1 s2:state): Prop :=
+| mrelT_sem_intro
+    (MEASURE: i = WF.elt)
+    (MS: match_states fprog s1 s2 \/ match_call fprog ftprog s1 s2)
+.
+
+Definition mrelT_ops: mrelT_opsT unit :=
+  mkmrelT_opsT
+    mrelT_sem
+    (fun _ v1 v2 => Val.lessdef v1 v2)
+    (fun _ _ => True)
+    (fun _ _ => True).
+
+Lemma mrelT_ops_lessdef_list mrel v1 v2:
+  Val.lessdef_list v1 v2 <-> list_forall2 (mrelT_ops.(sem_value) mrel) v1 v2.
 Proof.
-  revert s1 s1' MS. pcofix CIH. intros s1 s1' MS. pfold.
-  inv MS. destruct (classic (match_return es es' s1 s1')).
-  { inv H. eapply _state_lsim_return; eauto.
-    - constructor; auto.
-    - reflexivity.
+  revert v2.
+  induction v1; intros; constructor; intro H; inv H; constructor; auto.
+  - apply IHv1. auto.
+  - apply IHv1. auto.
+Qed.
+
+Program Definition mrelT_props: mrelT_propsT mrelT_ops := mkmrelT_propsT _ _ _ _ _ _ _.
+Next Obligation. repeat constructor. Qed.
+Next Obligation. repeat constructor. Qed.
+Next Obligation. inv H. auto. Qed.
+Next Obligation.
+  exploit transf_initial_states; eauto. intros [s2' [Hs2' Hinit]].
+  generalize (initial_state_unique Hs2' H2). intro. subst.
+  exists tt. exists WF.elt. constructor; auto.
+Qed.
+Next Obligation.
+  apply (mrelT_ops_lessdef_list mrel args1 args2) in Hargs.
+  inv Hs0. inv Hmrel. destruct MS as [MS|MS]; inv MS.
+
+  (* external function *)
+  exploit external_call_mem_extends; eauto.
+  intros (v' & m2' & P & Q & R & S).
+  exists tt. exists WF.elt. eexists. eexists. eexists. split; eauto. split.
+  eapply exec_function_external; eauto.
+  eapply external_call_symbols_preserved; eauto.
+  apply symbols_preserved. auto. apply varinfo_preserved. auto.
+  repeat (econstructor; eauto).
+Qed.
+
+Section STATE_LSIM.
+  
+Variable (fprog ftprog:program).
+Hypothesis (Hfsim: program_weak_lsim
+                     fundef_dec fn_sig fundef_dec fn_sig transf_V
+                     fprog ftprog).
+
+Hypothesis (Hfprog: program_linkeq fundef_dec prog fprog).
+Hypothesis (Hftprog: program_linkeq fundef_dec tprog ftprog).
+
+Lemma match_states_state_lsim es es' eF F i s1 s1'
+      (MS: match_states_ext fprog ftprog s1 s1'):
+  state_lsim mrelT_ops fprog ftprog es es' eF F i s1 s1'.
+Proof.
+  revert F i s1 s1' MS. pcofix CIH. intros F i s1 s1' MS. pfold.
+  inv MS. destruct (classic (exists r, final_state s1 r)).
+  { destruct H as [rval Hrval]. eapply _state_lsim_term; eauto.
+    eapply transf_final_states; eauto.
   }
   constructor; auto.
-  { intros ? Hfinal. inv Hfinal. inv Hmatch. inv H3.
-    apply H. constructor; auto. constructor.
-  }
-  intros. exploit transf_step_correct; eauto.
-  intros [s2' [Hs2' Hmatch']].
-  exists WF.elt. exists s2'. exists tt. simpl.
-  split; [left; apply plus_one; auto|].
-  split; [auto|].
-  split; [destruct Hmatch' as [Hmatch'|Hmatch']; inv Hmatch'; auto|].
-  destruct Hmatch' as [Hmatch'|Hmatch'].
-  - constructor. right. apply CIH. constructor; auto.
+  { repeat intro. apply H. exists r0. auto. }
+  intros. exploit transf_step_correct; eauto. simpl.
+  intros [s2' [Hs2' Hmatch2]].
+  exists WF.elt. exists s2'. exists tt.
+  split; [destruct Hmatch2; left; apply plus_one; auto|].
+  split; auto. split; [constructor; auto|].
+  destruct Hmatch2 as [Hmatch2|Hmatch2].
+  - apply _state_lsim_or_csim_lsim. right. apply CIH.
+    constructor; auto.
     + eapply sound_past_step; eauto.
     + eapply sound_past_step; eauto.
-  - inv Hmatch'. eapply _state_lsim_or_csim_csim; eauto.
-    { apply mrelT_ops_extends_lessdef_list. auto. }
-    { constructor; auto. }
-    intros. inversion Hst2_mem. subst.
-    right. destruct mrel2. apply CIH. constructor; auto.
-    subst. constructor; auto.
+  - inversion Hmatch2. subst. eapply _state_lsim_or_csim_csim; eauto.
+    + apply (mrelT_ops_lessdef_list tt). auto.
+    + constructor; auto.
+    + intros. subst. inversion Hst2_mem. subst. destruct MS as [MS|MS]; [|inv MS].
+      right. apply CIH. constructor; auto.
 Qed.
 
 Lemma transf_function'_lsim
       f approx
       (ANALYZE: analyze f (vanalyze (romem_for_program prog) f) = Some approx):
-  function_lsim mrelT_ops_extends fprog ftprog f (transf_function' f approx).
+  function_lsim mrelT_ops fprog ftprog f (transf_function' f approx).
 Proof.
-  constructor. repeat intro. pfold. constructor; subst; auto.
+  constructor. intros. pfold. constructor; subst; auto.
   { intros ? Hfinal. inv Hfinal. }
   intros. inversion Hst2_src. subst.
-  exists WF.elt. eexists. exists tt.
-  split; [left; apply plus_one; eauto|].
-  { econstructor; eauto.
-    match goal with
-      | [|- ?b = _] =>
-        instantiate (1 := snd b); instantiate (1 := fst b); auto
-    end.
-  }
-  split; [reflexivity|].
-  destruct Hmrel_entry as [Hi Hext]. simpl in *. subst.
+  inv Hmrel_entry. destruct MS as [MS|MS]; inversion MS; subst.
 
   (* internal function *)
   exploit Mem.alloc_extends; eauto. apply Zle_refl. apply Zle_refl.
   intros (m'' & A & B).
-
-  rewrite A. split; [eauto|].
-  destruct mrel_entry. constructor. left.
-  apply match_states_state_lsim. split.
-  - constructor; auto.
-    + eapply analysis_correct_entry; eauto.
-    + apply init_regs_lessdef; auto.
-      eapply mrelT_ops_extends_lessdef_list.
-      instantiate (1 := tt). instantiate (1 := (fun _ _ => WF.elt)). eauto.
-    + constructor.
-  - eapply sound_past_step; eauto.
-  - eapply sound_past_step; eauto.
-    apply (exec_function_internal tge cs_entry_tgt (transf_function' f approx)).
-    auto.
+  eexists. eexists. exists tt. split.
+  left. apply plus_one. constructor; eauto.
+  simpl. split; [auto|].
+  cut (match_states fprog
+                    (State cs_entry_src f (Vptr stk Int.zero) (fn_entrypoint f)
+                           (init_regs args_src (fn_params f)) m')
+                    (State cs_entry_tgt (transf_function' f approx) 
+                           (Vptr stk Int.zero) (fn_entrypoint f)
+                           (init_regs args_tgt (fn_params f)) m'')).
+  { intro MS2. split; [constructor; eauto|].
+    constructor. left. apply match_states_state_lsim. constructor; auto.
+    - eapply sound_past_step; eauto.
+    - eapply sound_past_step; eauto.
+      apply (exec_function_internal _ cs_entry_tgt (transf_function' f approx)). auto.
+  }
+  simpl. econstructor; eauto.
+  apply program_linkeq_romem_le. auto.
+  eapply analysis_correct_entry; eauto.
+  apply init_regs_lessdef; auto.
 Qed.
 
-End FUTURE.
+End STATE_LSIM.
 
 Lemma CSE_program_lsim:
   program_lsim
-    (@common_fundef_dec function) fn_sig
-    (@common_fundef_dec function) fn_sig
-    (@Errors.OK _)
-    (function_lsim mrelT_ops_extends)
+    fundef_dec fn_sig fundef_dec fn_sig transf_V
+    (function_lsim mrelT_ops)
     prog tprog.
 Proof.
   generalize transf_function'_lsim.
-  destruct prog as [defs main]. clear prog. simpl in *.
+  destruct prog as [defs main]. simpl in *.
   unfold transf_program, transform_partial_program, transform_partial_program2 in TRANSF.
   monadInv TRANSF. rename x into tdefs.
   simpl in *. intro Hlsim. constructor; simpl; auto.
@@ -472,8 +517,7 @@ Proof.
     split; auto. constructor.
     destruct f; simpl in *.
     + monadInv Htf.
-      eapply globfun_lsim_i; eauto;
-      unfold common_fundef_dec; eauto.
+      eapply globfun_lsim_i; eauto; unfold fundef_dec, common_fundef_dec; eauto.
       unfold transf_function in EQ0.
       match goal with
         | [H: match ?a with | Some _ => _ | None => _ end = _ |- _] => destruct a as [a'|] eqn:Hanalyze; inv H
@@ -482,7 +526,7 @@ Proof.
       apply Hlsim; auto.
     + inv Htf.
       eapply globfun_lsim_e; eauto;
-      unfold common_fundef_dec; eauto.
+      unfold fundef_dec, common_fundef_dec; eauto.
   - monadInv H0. constructor; simpl in *; try apply IHdefs; auto.
     split; auto. repeat constructor.
 Qed.

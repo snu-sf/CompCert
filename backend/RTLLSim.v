@@ -19,18 +19,34 @@ Require Import ValueAnalysis_linker.
 
 Set Implicit Arguments.
 
-(* common lemmas on RTL's program simulation *)
+(* common definitions/lemmas on RTL *)
+
+Definition transf_V := fun (tt:unit) => Errors.OK tt.
+Definition fundef_dec := (@common_fundef_dec function).
+
+Definition state_mem (st:state): mem :=
+  match st with
+    | State _ _ _ _ _ m => m
+    | Callstate _ _ _ m => m
+    | Returnstate _ _ m => m
+  end.
+
+Lemma initial_state_unique p s1 s2
+      (H1: initial_state p s1)
+      (H2: initial_state p s2):
+  s1 = s2.
+Proof.
+  inv H1. inv H2. unfold ge, ge0 in *.
+  rewrite H in H1. inv H1. rewrite H0 in H5. inv H5. rewrite H3 in H6. inv H6.
+  auto.
+Qed.
 
 Section FUTURE.
 
-Let transf_V := @Errors.OK unit.
-Let fundef_dec := (@common_fundef_dec function).
-
 Variable (fprog ftprog:program).
-Hypothesis (Hfsim:
-              program_weak_lsim
-                fundef_dec fn_sig fundef_dec fn_sig transf_V
-                fprog ftprog).
+Hypothesis (Hfsim: program_weak_lsim
+                     fundef_dec fn_sig fundef_dec fn_sig transf_V
+                     fprog ftprog).
 
 Let globfun_weak_lsim :=
   globfun_lsim fundef_dec fn_sig fundef_dec fn_sig (fun _ _ _ _ => True) fprog ftprog.
@@ -56,30 +72,21 @@ Lemma funct_ptr_translated:
   forall (b: block) (f: RTL.fundef),
   Genv.find_funct_ptr ge b = Some f ->
   exists tf, Genv.find_funct_ptr tge b = Some tf /\
-             fundef_weak_lsim
-               (@common_fundef_dec function) fn_sig
-               (@common_fundef_dec function) fn_sig
-               ge tge f tf.
+             fundef_weak_lsim fundef_dec fn_sig fundef_dec fn_sig ge tge f tf.
 Proof (funct_ptr_translated Hfsim).
 
 Lemma functions_translated:
   forall (v: val) (f: RTL.fundef),
   Genv.find_funct ge v = Some f ->
   exists tf, Genv.find_funct tge v = Some tf /\
-             fundef_weak_lsim
-               (@common_fundef_dec function) fn_sig
-               (@common_fundef_dec function) fn_sig
-               ge tge f tf.
+             fundef_weak_lsim fundef_dec fn_sig fundef_dec fn_sig ge tge f tf.
 Proof (functions_translated Hfsim).
 
 Lemma find_function_translated_Renumber:
   forall ros rs fd,
   find_function ge ros rs = Some fd ->
   exists tfd, find_function tge ros rs = Some tfd /\
-              fundef_weak_lsim
-               (@common_fundef_dec function) fn_sig
-               (@common_fundef_dec function) fn_sig
-                ge tge fd tfd.
+              fundef_weak_lsim fundef_dec fn_sig fundef_dec fn_sig ge tge fd tfd.
 Proof.
   unfold find_function; intros; destruct ros.
 - apply functions_translated; auto.
@@ -93,10 +100,7 @@ Lemma find_function_translated_CSE:
   find_function ge ros rs = Some fd ->
   CSEproof.regs_lessdef rs rs' ->
   exists tfd, find_function tge ros rs' = Some tfd /\
-              fundef_weak_lsim
-               (@common_fundef_dec function) fn_sig
-               (@common_fundef_dec function) fn_sig
-                ge tge fd tfd.
+              fundef_weak_lsim fundef_dec fn_sig fundef_dec fn_sig ge tge fd tfd.
 Proof.
   unfold find_function; intros; destruct ros.
 - specialize (H0 r). inv H0.
@@ -112,10 +116,7 @@ Lemma find_function_translated_Tailcall:
   find_function ge ros rs = Some fd ->
   Tailcallproof.regset_lessdef rs rs' ->
   exists tfd, find_function tge ros rs' = Some tfd /\
-              fundef_weak_lsim
-               (@common_fundef_dec function) fn_sig
-               (@common_fundef_dec function) fn_sig
-                ge tge fd tfd.
+              fundef_weak_lsim fundef_dec fn_sig fundef_dec fn_sig ge tge fd tfd.
 Proof.
   unfold find_function; intros; destruct ros.
 - specialize (H0 r). inv H0.
@@ -131,10 +132,7 @@ Lemma find_function_translated_Constprop:
   find_function ge ros rs = Some fd ->
   Constpropproof.regs_lessdef rs rs' ->
   exists tfd, find_function tge ros rs' = Some tfd /\
-              fundef_weak_lsim
-               (@common_fundef_dec function) fn_sig
-               (@common_fundef_dec function) fn_sig
-                ge tge fd tfd.
+              fundef_weak_lsim fundef_dec fn_sig fundef_dec fn_sig ge tge fd tfd.
 Proof.
   unfold find_function; intros; destruct ros.
 - specialize (H0 r). inv H0.
@@ -147,10 +145,7 @@ Qed.
 
 Lemma sig_preserved:
   forall f tf,
-    fundef_weak_lsim
-      (@common_fundef_dec function) fn_sig
-      (@common_fundef_dec function) fn_sig
-      ge tge f tf ->
+    fundef_weak_lsim fundef_dec fn_sig fundef_dec fn_sig ge tge f tf ->
     funsig tf = funsig f.
 Proof.
   intros. inv H. inv Hsig. unfold common_fundef_dec in *.
@@ -158,15 +153,6 @@ Proof.
 Qed.
 
 End FUTURE.
-
-(* memory relation *)
-
-Definition state_mem (st:state): mem :=
-  match st with
-    | State _ _ _ _ _ m => m
-    | Callstate _ _ _ m => m
-    | Returnstate _ _ m => m
-  end.
 
 Record mrelT_opsT (t:Type): Type := mkmrelT_opsT {
   sem :> t -> forall (p1 p2:program) (i:WF.t) (s1 s2:state), Prop;
@@ -186,22 +172,14 @@ Record mrelT_propsT (t:Type) (ops:mrelT_opsT t): Prop := mkmrelT_propsT {
       v = Vint i;
   Hmrel_i_init:
     forall p1 p2 s1 s2
-           (Hp: program_weak_lsim
-                  (@common_fundef_dec _) fn_sig
-                  (@common_fundef_dec _) fn_sig
-                  (@Errors.OK _)
-                  p1 p2)
+           (Hp: program_weak_lsim fundef_dec fn_sig fundef_dec fn_sig transf_V p1 p2)
            (H1: initial_state p1 s1)
            (H2: initial_state p2 s2),
     exists mrel_init i_init,
       ops.(sem) mrel_init p1 p2 i_init s1 s2;
   Hexternal_call:
     forall p1 p2 s1 s2 cs1 cs2 ef args1 args2 m1 m2 evt s1' res1 m1' mrel i
-           (Hp: program_weak_lsim
-                  (@common_fundef_dec _) fn_sig
-                  (@common_fundef_dec _) fn_sig
-                  (@Errors.OK _)
-                  p1 p2)
+           (Hp: program_weak_lsim fundef_dec fn_sig fundef_dec fn_sig transf_V p1 p2)
            (Hs1: s1 = Callstate cs1 (External ef) args1 m1)
            (Hs2: s2 = Callstate cs2 (External ef) args2 m2)
            (Hs1': s1' = Returnstate cs1 res1 m1')
@@ -215,88 +193,6 @@ Record mrelT_propsT (t:Type) (ops:mrelT_opsT t): Prop := mkmrelT_propsT {
       ops.(sem_value) mrel' res1 res2 /\
       ops.(le_public) mrel mrel'
 }.
-
-Section MemoryRelation.
-
-Definition measureT := forall (s1 s2:state), WF.t.
-Variable (measure:measureT).
-
-(* memory relation - equals *)
-
-Definition mrelT_ops_equals: mrelT_opsT unit :=
-  mkmrelT_opsT
-    (fun _ _ _ i s1 s2 => i = measure s1 s2 /\ state_mem s1 = state_mem s2)
-    (fun _ v1 v2 => v1 = v2)
-    (fun _ _ => True)
-    (fun _ _ => True).
-
-Lemma mrelT_ops_equals_equal_list mrel v1 v2:
-  v1 = v2 <-> list_forall2 (mrelT_ops_equals.(sem_value) mrel) v1 v2.
-Proof.
-  revert v2.
-  induction v1; intros; constructor; intro H; inv H; try constructor; simpl; auto.
-  - apply IHv1. auto.
-  - inv H2. f_equal. apply IHv1. auto.
-Qed.
-
-Program Definition mrelT_props_equals: mrelT_propsT mrelT_ops_equals := mkmrelT_propsT _ _ _ _ _ _ _.
-Next Obligation. repeat constructor. Qed.
-Next Obligation. repeat constructor. Qed.
-Next Obligation.
-  exists tt. eexists. inv H1. inv H2. simpl; split; auto.
-  exploit program_lsim_init_mem_match; eauto. intro X.
-  unfold fundef in *. rewrite H1 in X. inv X. auto.
-Qed.
-Next Obligation.
-  simpl in *. apply (mrelT_ops_equals_equal_list mrel args1 args2) in Hargs. subst. inv Hs0.
-  exists tt. eexists. eexists. eexists. eexists.
-  split; [eauto|]. split.
-  - constructor; eauto. eapply external_call_symbols_preserved; eauto.
-    + eapply symbols_preserved; eauto.
-    + intros. exploit varinfo_preserved; eauto.
-  - auto.
-Qed.
-
-(* memory relation - extends *)
-
-Definition mrelT_ops_extends: mrelT_opsT unit :=
-  mkmrelT_opsT
-    (fun _ _ _ i s1 s2 => i = measure s1 s2 /\ Mem.extends (state_mem s1) (state_mem s2))
-    (fun _ v1 v2 => Val.lessdef v1 v2)
-    (fun _ _ => True)
-    (fun _ _ => True).
-
-Lemma mrelT_ops_extends_lessdef_list mrel v1 v2:
-  Val.lessdef_list v1 v2 <-> list_forall2 (mrelT_ops_extends.(sem_value) mrel) v1 v2.
-Proof.
-  revert v2.
-  induction v1; intros; constructor; intro H; inv H; constructor; auto.
-  - apply IHv1. auto.
-  - apply IHv1. auto.
-Qed.
-
-Program Definition mrelT_props_extends: mrelT_propsT mrelT_ops_extends := mkmrelT_propsT _ _ _ _ _ _ _.
-Next Obligation. repeat constructor. Qed.
-Next Obligation. repeat constructor. Qed.
-Next Obligation. inv H. auto. Qed.
-Next Obligation.
-  exists tt. eexists. inv H1. inv H2. simpl; split; auto.
-  exploit program_lsim_init_mem_match; eauto. intro X.
-  unfold fundef in *. rewrite H1 in X. inv X.
-  apply Mem.extends_refl.
-Qed.
-Next Obligation.
-  simpl in *. apply (mrelT_ops_extends_lessdef_list mrel args1 args2) in Hargs. inv Hs0.
-  exploit external_call_mem_extends; eauto. intros [vres_tgt [m2_tgt [Hef2 [Hvres [Hm2 _]]]]].
-  exists tt. eexists. eexists. eexists. eexists.
-  split; [eauto|]. split.
-  - constructor; eauto. eapply external_call_symbols_preserved; eauto.
-    + eapply symbols_preserved; eauto.
-    + intros. exploit varinfo_preserved; eauto.
-  - auto.
-Qed.
-
-End MemoryRelation.
 
 Section LSIM.
 
@@ -323,10 +219,7 @@ Inductive _state_lsim_or_csim
     (Hst_src: st_src = Callstate stack_src fundef_src args_src mem_src)
     stack_tgt fundef_tgt args_tgt mem_tgt
     (Hst_tgt: st_tgt = Callstate stack_tgt fundef_tgt args_tgt mem_tgt)
-    (Hfundef: fundef_weak_lsim
-                (@common_fundef_dec function) fn_sig
-                (@common_fundef_dec function) fn_sig
-                ge_src ge_tgt fundef_src fundef_tgt)
+    (Hfundef: fundef_weak_lsim fundef_dec fn_sig fundef_dec fn_sig ge_src ge_tgt fundef_src fundef_tgt)
     (Hargs: list_forall2 (mrelT_ops.(sem_value) mrel) args_src args_tgt)
     (Hmrel: mrelT_ops.(sem) mrel fprog_src fprog_tgt i st_src st_tgt)
     (Hreturn:
