@@ -22,17 +22,18 @@ Require Import LinkerSpecification Linkeq.
 
 Set Implicit Arguments.
 
+Ltac clarify := simpl in *; fold ident fundef in *.
+
 Lemma program_linkeq_romem_le
       prog fprog
-      (Hlinkeq: program_linkeq (@common_fundef_dec function) prog fprog):
+      (Hlinkeq: program_linkeq Language_RTL prog fprog):
   PTree_le (romem_for_program prog) (romem_for_program fprog).
 Proof.
   unfold romem_for_program. rewrite <- ? fold_left_rev_right.
   constructor. intro b.
   destruct Hlinkeq as [Hdefs _]. specialize (Hdefs b).
   rewrite ? PTree_guespec in Hdefs.
-  revert b Hdefs.
-  fold ident fundef in *.
+  revert b Hdefs. clarify.
   generalize (@rev (prod ident _) (prog_defs fprog)) as l2.
   generalize (@rev (prod ident _) (prog_defs prog)) as l1.
   clear prog fprog.
@@ -74,7 +75,7 @@ Proof.
             }
           }
         }
-        { inv H0. rewrite Hinit in H1. inv H1. }
+        { inv H0. clarify. rewrite Hinit in H1. inv H1. }
       }
       { apply IHl1; auto. intros.
         exploit H; eauto.

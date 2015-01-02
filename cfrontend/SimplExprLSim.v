@@ -20,11 +20,6 @@ Set Implicit Arguments.
 
 Definition transf_V := fun (type:Ctypes.type) => Errors.OK type.
 
-Definition signature_of_C_function (f:Csyntax.function) :=
-  {| sig_args := map Ctypes.typ_of_type (map snd (Csyntax.fn_params f));
-     sig_res  := Ctypes.opttyp_of_type (Csyntax.fn_return f);
-     sig_cc   := Csyntax.fn_callconv f |}.
-
 Lemma Clight_initial_state_unique p s1 s2
       (H1: Clight.initial_state p s1)
       (H2: Clight.initial_state p s2):
@@ -35,36 +30,43 @@ Proof.
   auto.
 Qed.
 
+Lemma transf_efT_sigT:
+  forall (ef_src : efT Language_C) (ef_tgt : efT Language_Clight),
+    Errors.OK ef_src = Errors.OK ef_tgt ->
+    id (EF_sig (efT Language_C) ef_src) =
+    EF_sig (efT Language_Clight) ef_tgt.
+Proof. intros. inv H. auto. Qed.
+
+Lemma Fundef_sig_C f: Fundef_sig Fundef_C f = Csyntax.type_of_fundef f.
+Proof. unfold Fundef_sig, Fundef_dec. simpl. destruct f; auto. Qed.
+
+Lemma Fundef_sig_Clight f: Fundef_sig Fundef_Clight f = Clight.type_of_fundef f.
+Proof. unfold Fundef_sig, Fundef_dec. simpl. destruct f; auto. Qed.
+
 Section FUTURE.
 
 Variable (fprog:Csyntax.program).
 Variable (ftprog:Clight.program).
-Hypothesis (Hfsim: program_weak_lsim
-                     C_fundef_dec signature_of_C_function
-                     Clight_fundef_dec Cshmgen.signature_of_function
-                     transf_V
-                     fprog ftprog).
+Hypothesis (Hfsim: @program_weak_lsim Language_C Language_Clight id (@Errors.OK _) transf_V
+                                      fprog ftprog).
 
 Let globfun_weak_lsim :=
-  globfun_lsim
-    C_fundef_dec signature_of_C_function
-    Clight_fundef_dec Cshmgen.signature_of_function
-    (fun _ _ _ _ => True)
-    fprog ftprog.
+  @globfun_lsim Language_C Language_Clight id (@Errors.OK _)
+                (fun _ _ _ _ => True)
+                fprog ftprog.
 
 Let ge := Genv.globalenv fprog.
 Let tge := Genv.globalenv ftprog.
 
 Lemma symbols_preserved:
   forall (s: ident), Genv.find_symbol tge s = Genv.find_symbol ge s.
-Proof (symbols_preserved Hfsim).
+Proof (symbols_preserved transf_efT_sigT Hfsim).
 
 Lemma varinfo_preserved:
   forall b, Genv.find_var_info tge b = Genv.find_var_info ge b.
 Proof.
-  intros. exploit varinfo_preserved.
-  { instantiate (1 := ftprog). instantiate (1 := fprog). apply Hfsim. }
-  instantiate (1 := b). unfold ge, tge.
+  intros. exploit varinfo_preserved; try exact transf_efT_sigT; try exact Hfsim.
+  instantiate (1 := b). unfold ge, tge. simpl in *.
   destruct (Genv.find_var_info (Genv.globalenv ftprog) b), (Genv.find_var_info (Genv.globalenv fprog) b); intros; auto; inv H.
   destruct g0; auto.
 Qed.
@@ -73,26 +75,28 @@ Lemma funct_ptr_translated:
   forall (b: block) (f: Csyntax.fundef),
   Genv.find_funct_ptr ge b = Some f ->
   exists tf, Genv.find_funct_ptr tge b = Some tf /\
-             fundef_weak_lsim
-               C_fundef_dec signature_of_C_function
-               Clight_fundef_dec Cshmgen.signature_of_function
-               ge tge f tf.
-Proof (funct_ptr_translated Hfsim).
+             fundef_weak_lsim Language_C Language_Clight id ge tge f tf.
+Proof (funct_ptr_translated transf_efT_sigT Hfsim).
 
 Lemma functions_translated:
   forall (v: val) (f: Csyntax.fundef),
   Genv.find_funct ge v = Some f ->
   exists tf, Genv.find_funct tge v = Some tf /\
-             fundef_weak_lsim
-               C_fundef_dec signature_of_C_function
-               Clight_fundef_dec Cshmgen.signature_of_function
-               ge tge f tf.
-Proof (functions_translated Hfsim).
+             fundef_weak_lsim Language_C Language_Clight id ge tge f tf.
+Proof (functions_translated transf_efT_sigT Hfsim).
 
 Lemma block_is_volatile_preserved:
   forall b, block_is_volatile tge b = block_is_volatile ge b.
 Proof.
   intros. unfold block_is_volatile. rewrite varinfo_preserved. auto.
+Qed.
+
+Lemma sig_preserved:
+  forall f tf,
+    fundef_weak_lsim Language_C Language_Clight id ge tge f tf ->
+    type_of_fundef tf = Csyntax.type_of_fundef f.
+Proof.
+  intros. inv H. inv Hsig. rewrite Fundef_sig_C, Fundef_sig_Clight in Hsig0. auto.
 Qed.
 
 End FUTURE.
@@ -115,10 +119,7 @@ Record mrelT_propsT (t:Type) (ops:mrelT_opsT t): Prop := mkmrelT_propsT {
       v = Vint i;
   Hmrel_i_init:
     forall p1 p2 s1 s2
-           (Hp: program_weak_lsim
-                  C_fundef_dec signature_of_C_function
-                  Clight_fundef_dec Cshmgen.signature_of_function
-                  transf_V
+           (Hp: @program_weak_lsim Language_C Language_Clight id (@Errors.OK _) transf_V
                   p1 p2)
            (H1: Csem.initial_state p1 s1)
            (H2: Clight.initial_state p2 s2),
@@ -126,11 +127,8 @@ Record mrelT_propsT (t:Type) (ops:mrelT_opsT t): Prop := mkmrelT_propsT {
       ops.(sem) mrel_init p1 p2 i_init s1 s2;
   Hexternal_call:
     forall p1 p2 s1 s2 ef targs1 targs2 tres1 tres2 cc1 cc2 args1 args2 cont1 cont2 m1 m2 evt s1' res1 m1' mrel i
-           (Hp: program_weak_lsim
-                  C_fundef_dec signature_of_C_function
-                  Clight_fundef_dec Cshmgen.signature_of_function
-                  transf_V
-                  p1 p2)
+           (Hp: @program_weak_lsim Language_C Language_Clight id (@Errors.OK _) transf_V
+                                   p1 p2)
            (Hs1: s1 = Csem.Callstate (Csyntax.External ef targs1 tres1 cc1) args1 cont1 m1)
            (Hs2: s2 = Clight.Callstate (Clight.External ef targs2 tres2 cc2) args2 cont2 m2)
            (Hs1': s1' = Csem.Returnstate res1 cont1 m1')
@@ -172,10 +170,8 @@ Inductive _state_lsim_or_csim
     (Hst_src: st_src = Csem.Callstate fundef_src args_src stack_src mem_src)
     stack_tgt fundef_tgt args_tgt mem_tgt
     (Hst_tgt: st_tgt = Clight.Callstate fundef_tgt args_tgt stack_tgt mem_tgt)
-    (Hfundef: fundef_weak_lsim
-                C_fundef_dec signature_of_C_function
-                Clight_fundef_dec Cshmgen.signature_of_function
-                ge_src ge_tgt fundef_src fundef_tgt)
+    (Hfundef: fundef_weak_lsim Language_C Language_Clight id
+                               ge_src ge_tgt fundef_src fundef_tgt)
     (Hargs: list_forall2 (mrelT_ops.(sem_value) mrel) args_src args_tgt)
     (Hmrel: mrelT_ops.(sem) mrel fprog_src fprog_tgt i st_src st_tgt)
     (Hreturn:

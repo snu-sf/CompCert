@@ -26,20 +26,13 @@ Hypothesis (mrelT_props:mrelT_propsT mrelT_ops).
 
 Variable (prog_src prog_tgt:program).
 Hypothesis
-  (Hsim:
-     program_lsim
-       (@common_fundef_dec function) fn_sig
-       (@common_fundef_dec function) fn_sig
-       (@Errors.OK _)
-       (function_lsim mrelT_ops)
-       prog_src prog_tgt).
+  (Hsim: @program_lsim Language_RTL Language_RTL id (@Errors.OK _) transf_V
+                       (function_lsim mrelT_ops)
+                       prog_src prog_tgt).
 
 Lemma Hweak_sim:
-  program_weak_lsim
-    (@common_fundef_dec function) fn_sig
-    (@common_fundef_dec function) fn_sig
-    (@Errors.OK _)
-    prog_src prog_tgt.
+  @program_weak_lsim Language_RTL Language_RTL id (@Errors.OK _) transf_V
+                     prog_src prog_tgt.
 Proof. eapply program_lsim_aux_le; eauto. Qed.
 Hint Resolve Hweak_sim.
 
@@ -87,7 +80,8 @@ Proof.
     intros [tf [A B]].
     assert (Hinitial_tgt: initial_state prog_tgt (Callstate nil tf nil m0)).
     { simpl. econstructor; eauto.
-      eapply program_lsim_init_mem_match; eauto.
+      eapply (@program_lsim_init_mem_match Language_RTL Language_RTL); eauto.
+      apply transf_efT_sigT.
       replace (prog_main prog_tgt) with (prog_main prog_src).
       erewrite symbols_preserved; eauto.
       destruct Hsim as [_ Hmain]. auto.
@@ -100,9 +94,9 @@ Proof.
     econstructor.
     { apply match_stackframes_nil. }
     { destruct mrelT_props. reflexivity. }
-    exploit funct_ptr_translated'; eauto.
-    intros [tf' [Htf' Hfundef_sim]]. rewrite A in Htf'. symmetry in Htf'. inv Htf'.
-    inv Hfundef_sim; destruct f, tf; inv Hsrc; inv Htgt.
+    exploit funct_ptr_translated'; try exact transf_efT_sigT; eauto.
+    intros [tf' [Htf' Hfundef_sim]]. unfold fundef in *. simpl in *. rewrite A in Htf'. symmetry in Htf'. inv Htf'.
+    inv Hfundef_sim; destruct f, tf; simpl in *; try (inv Hsim0; fail).
     - exploit Hsim0; try reflexivity. unfold F_future_lsim. intros.
       destruct H4 as [Hfunction_sim Hfunction_sig].
       exploit Hfunction_sim; eauto.
@@ -110,7 +104,7 @@ Proof.
       + constructor.
       + apply sound_initial; auto.
       + apply sound_initial; auto.
-    - pfold. constructor.
+    - inv Hsim0. pfold. constructor.
       { intros r Hr. inv Hr. }
       { apply sound_initial; auto. }
       { apply sound_initial; auto. }
@@ -178,10 +172,10 @@ Proof.
         exploit Hreturn; eauto. intro Hsim2. pclearbot. eauto.
       }
       { destruct mrelT_props. reflexivity. }
-      inv Hfundef. exploit funct_ptr_translated'; eauto.
+      inv Hfundef. exploit funct_ptr_translated'; try exact transf_efT_sigT; eauto.
       intros [tf [Htf Hfundef_sim]]. unfold Genv.find_funct_ptr in Htf.
-      unfold fundef in *. rewrite Htgt in Htf. symmetry in Htf. inv Htf.
-      inv Hfundef_sim; destruct fundef_src, fundef_tgt; inv Hsrc0; inv Htgt0.
+      unfold fundef in *. simpl in *. rewrite Htgt in Htf. symmetry in Htf. inv Htf.
+      inv Hfundef_sim; destruct fundef_src, fundef_tgt; simpl in *; try (inv Hsim0; fail).
       + exploit Hsim0; try reflexivity. unfold F_future_lsim. intros.
         destruct H0 as [Hfunction_sim Hfunction_sig].
         exploit Hfunction_sim; eauto.
@@ -190,7 +184,7 @@ Proof.
         destruct Hstep2 as [Hstep2|[Hstep2 _]].
         * eapply sound_past_plus; eauto.
         * eapply sound_past_star; eauto.
-      + pfold. constructor.
+      + inv Hsim0. pfold. constructor.
         { intros ? Hfinal. inv Hfinal. }
         { eapply sound_past_step; eauto. }
         { destruct Hstep2 as [Hstep2|[Hstep2 _]].

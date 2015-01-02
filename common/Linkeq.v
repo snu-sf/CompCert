@@ -11,20 +11,38 @@ Set Implicit Arguments.
 (* Future programs of a partial program after linkings *)
 Section Linkeq.
 
-Variable (fundefT F V:Type).
-Variable (fundef_dec: fundef_decT fundefT F).
-Variable (V_dec: forall (v1 v2:V), {v1 = v2} + {v1 <> v2}).
+Variable (lang:Language).
+  
+Let sigT := lang.(sigT).
+Let fT := lang.(fT).
+Let efT := lang.(efT).
+Let fundefT := lang.(fundefT).
+Let vT := lang.(vT).
+
+Let f_sig := fT.(F_sig).
+Let ef_sig := efT.(EF_sig).
+Let ef_dec := efT.(EF_dec).
+Let fundef_dec := fundefT.(Fundef_dec).
+Let v_dec := vT.(V_dec).
+
+Ltac clarify :=
+  repeat
+    (try match goal with
+           | [H1: fundef_dec ?f = _, H2: fundef_dec ?f = _ |- _] =>
+             rewrite H1 in H2; inv H2
+         end;
+     auto).
 
 (** `linkeq a b` means `b` is a possible future global definition of `a` after linkings *)
 
 Definition globfun_linkeq (f1 f2:fundefT): Prop :=
-  f1 = f2 \/ globfun_linkable fundef_dec f1 f2.
+  f1 = f2 \/ globfun_linkable lang f1 f2.
 
 
-Definition globvar_linkeq (v1 v2:globvar V): Prop :=
-  v1 = v2 \/ globvar_linkable v1 v2.
+Definition globvar_linkeq (v1 v2:globvar vT): Prop :=
+  v1 = v2 \/ globvar_linkable lang v1 v2.
 
-Inductive globdef_linkeq: forall (g1 g2:globdef fundefT V), Prop :=
+Inductive globdef_linkeq: forall (g1 g2:globdef fundefT vT), Prop :=
 | globdef_linkeq_fun
     f1 f2 (Hv: globfun_linkeq f1 f2):
     globdef_linkeq (Gfun f1) (Gfun f2)
@@ -33,16 +51,16 @@ Inductive globdef_linkeq: forall (g1 g2:globdef fundefT V), Prop :=
     globdef_linkeq (Gvar v1) (Gvar v2)
 .
 
-Definition globdefs_linkeq (defs1 defs2:PTree.t (globdef fundefT V)): Prop :=
+Definition globdefs_linkeq (defs1 defs2:PTree.t (globdef fundefT vT)): Prop :=
   forall var def1 (Hsrc: PTree.get var defs1 = Some def1),
   exists def2,
     PTree.get var defs2 = Some def2 /\
     globdef_linkeq def1 def2.
 
-Definition globdef_list_linkeq (defs1 defs2:list (positive * globdef fundefT V)): Prop :=
+Definition globdef_list_linkeq (defs1 defs2:list (positive * globdef fundefT vT)): Prop :=
   globdefs_linkeq (PTree_unelements defs1) (PTree_unelements defs2).
 
-Definition program_linkeq (p1 p2:program fundefT V): Prop :=
+Definition program_linkeq (p1 p2:program fundefT vT): Prop :=
   globdef_list_linkeq p1.(prog_defs) p2.(prog_defs) /\
   p1.(prog_main) = p2.(prog_main).
 
@@ -128,7 +146,7 @@ Qed.
 (** `linkable` and `linkeq` properties *)
 
 Lemma globdef_linkable_linkeq
-      g1 g2 (Hlinkable: globdef_linkable fundef_dec g1 g2):
+      g1 g2 (Hlinkable: globdef_linkable lang g1 g2):
   globdef_linkeq g1 g2.
 Proof.
   inv Hlinkable; constructor; auto.
@@ -141,11 +159,12 @@ Qed.
 
 Lemma link_globdefs_linkeq_l
       defs1 defs2 defs
-      (Hdefs: link_globdefs fundef_dec V_dec defs1 defs2 = Some defs):
+      (Hdefs: link_globdefs lang defs1 defs2 = Some defs):
   globdefs_linkeq defs1 defs.
 Proof.
   repeat intro.
-  exploit gtlink_globdefs; eauto. instantiate (1 := var). rewrite Hsrc.
+  exploit gtlink_globdefs; eauto. instantiate (1 := var).
+  unfold fundefT, vT in *. rewrite Hsrc.
   destruct (defs2 ! var) as [def2|], (defs ! var) as [def|]; intro X; inv X.
   - destruct H. subst. eexists. split; eauto.
     apply globdef_linkable_linkeq. auto.
@@ -157,11 +176,12 @@ Qed.
 
 Lemma link_globdefs_linkeq_r
       defs1 defs2 defs
-      (Hdefs: link_globdefs fundef_dec V_dec defs1 defs2 = Some defs):
+      (Hdefs: link_globdefs lang defs1 defs2 = Some defs):
   globdefs_linkeq defs2 defs.
 Proof.
   repeat intro.
-  exploit gtlink_globdefs; eauto. instantiate (1 := var). rewrite Hsrc.
+  exploit gtlink_globdefs; eauto. instantiate (1 := var).
+  unfold fundefT, vT in *. rewrite Hsrc.
   destruct (defs1 ! var) as [d1|], (defs ! var) as [d|]; intro X; inv X.
   - destruct H. subst. eexists. split; eauto.
     reflexivity.
@@ -173,13 +193,13 @@ Qed.
 
 Lemma link_globdef_list_linkeq_l
       defs1 defs2 defs
-      (Hdefs: link_globdef_list fundef_dec V_dec defs1 defs2 = Some defs):
+      (Hdefs: link_globdef_list lang defs1 defs2 = Some defs):
   globdef_list_linkeq defs1 defs.
 Proof.
   unfold globdef_list_linkeq, link_globdef_list in *.
   match goal with
-    | [H: context[link_globdefs ?fundef_dec ?V_dec ?defs1 ?defs2] |- _] =>
-      destruct (link_globdefs fundef_dec V_dec defs1 defs2) as [defs'|] eqn:Hdefs'; inv H
+    | [H: context[link_globdefs ?lang ?defs1 ?defs2] |- _] =>
+      destruct (link_globdefs lang defs1 defs2) as [defs'|] eqn:Hdefs'; inv H
   end.
   repeat intro. exploit link_globdefs_linkeq_l; eauto.
   intros [def2 [Hdef2 Hlinkeq]]. exists def2. split; auto.
@@ -188,13 +208,13 @@ Qed.
 
 Lemma link_globdef_list_linkeq_r
       defs1 defs2 defs
-      (Hdefs: link_globdef_list fundef_dec V_dec defs1 defs2 = Some defs):
+      (Hdefs: link_globdef_list lang defs1 defs2 = Some defs):
   globdef_list_linkeq defs2 defs.
 Proof.
   unfold globdef_list_linkeq, link_globdef_list in *.
   match goal with
-    | [H: context[link_globdefs ?fundef_dec ?V_dec ?defs1 ?defs2] |- _] =>
-      destruct (link_globdefs fundef_dec V_dec defs1 defs2) as [defs'|] eqn:Hdefs'; inv H
+    | [H: context[link_globdefs lang ?defs1 ?defs2] |- _] =>
+      destruct (link_globdefs lang defs1 defs2) as [defs'|] eqn:Hdefs'; inv H
   end.
   repeat intro. exploit link_globdefs_linkeq_r; eauto.
   intros [def2 [Hdef2 Hlinkeq]]. exists def2. split; auto.
@@ -202,7 +222,7 @@ Proof.
 Qed.
 
 Lemma link_program_linkeq_l
-      p1 p2 p (Hp: link_program fundef_dec V_dec p1 p2 = Some p):
+      p1 p2 p (Hp: link_program lang p1 p2 = Some p):
   program_linkeq p1 p.
 Proof.
   destruct p1 as [defs1 main1].
@@ -212,15 +232,15 @@ Proof.
   destruct ((main1 =? main2)%positive) eqn:Hmain; inv Hp.
   apply Pos.eqb_eq in Hmain. subst.
   match goal with
-    | [H: context[link_globdef_list ?fundef_dec ?V_dec ?defs1 ?defs2] |- _] =>
-      destruct (link_globdef_list fundef_dec V_dec defs1 defs2) as [defs'|] eqn:Hdefs'; inv H
+    | [H: context[link_globdef_list lang ?defs1 ?defs2] |- _] =>
+      destruct (link_globdef_list lang defs1 defs2) as [defs'|] eqn:Hdefs'; inv H
   end.
   split; simpl; auto.
   eapply link_globdef_list_linkeq_l. eauto.
 Qed.
 
 Lemma link_program_linkeq_r
-      p1 p2 p (Hp: link_program fundef_dec V_dec p1 p2 = Some p):
+      p1 p2 p (Hp: link_program lang p1 p2 = Some p):
   program_linkeq p2 p.
 Proof.
   destruct p1 as [defs1 main1].
@@ -230,8 +250,8 @@ Proof.
   destruct ((main1 =? main2)%positive) eqn:Hmain; inv Hp.
   apply Pos.eqb_eq in Hmain. subst.
   match goal with
-    | [H: context[link_globdef_list ?fundef_dec ?V_dec ?defs1 ?defs2] |- _] =>
-      destruct (link_globdef_list fundef_dec V_dec defs1 defs2) as [defs'|] eqn:Hdefs'; inv H
+    | [H: context[link_globdef_list lang ?defs1 ?defs2] |- _] =>
+      destruct (link_globdef_list lang defs1 defs2) as [defs'|] eqn:Hdefs'; inv H
   end.
   split; simpl; auto.
   eapply link_globdef_list_linkeq_r. eauto.

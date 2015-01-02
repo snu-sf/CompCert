@@ -22,14 +22,6 @@ Set Implicit Arguments.
 (* common definitions/lemmas on RTL *)
 
 Definition transf_V := fun (tt:unit) => Errors.OK tt.
-Definition fundef_dec := (@common_fundef_dec function).
-
-Definition state_mem (st:state): mem :=
-  match st with
-    | State _ _ _ _ _ m => m
-    | Callstate _ _ _ m => m
-    | Returnstate _ _ m => m
-  end.
 
 Lemma initial_state_unique p s1 s2
       (H1: initial_state p s1)
@@ -41,30 +33,43 @@ Proof.
   auto.
 Qed.
 
+Lemma transf_efT_sigT:
+  forall (ef_src : efT Language_RTL) (ef_tgt : efT Language_RTL),
+    Errors.OK ef_src = Errors.OK ef_tgt ->
+    id (EF_sig (efT Language_RTL) ef_src) =
+    EF_sig (efT Language_RTL) ef_tgt.
+Proof. intros. inv H. auto. Qed.
+
+Lemma Fundef_sig_RTL f: Fundef_sig (Fundef_common F_RTL) f = RTL.funsig f.
+Proof. unfold Fundef_sig, Fundef_dec. simpl. destruct f; auto. Qed.
+
 Section FUTURE.
 
 Variable (fprog ftprog:program).
-Hypothesis (Hfsim: program_weak_lsim
-                     fundef_dec fn_sig fundef_dec fn_sig transf_V
-                     fprog ftprog).
+Hypothesis (Hfsim: @program_weak_lsim Language_RTL Language_RTL id (@Errors.OK _) transf_V
+                                      fprog ftprog).
 
 Let globfun_weak_lsim :=
-  globfun_lsim fundef_dec fn_sig fundef_dec fn_sig (fun _ _ _ _ => True) fprog ftprog.
+  @globfun_lsim Language_RTL Language_RTL id (@Errors.OK _)
+                (fun _ _ _ _ => True)
+                fprog ftprog.
 
 Let ge := Genv.globalenv fprog.
 Let tge := Genv.globalenv ftprog.
 
 Lemma symbols_preserved:
   forall (s: ident), Genv.find_symbol tge s = Genv.find_symbol ge s.
-Proof (symbols_preserved Hfsim).
+Proof (symbols_preserved transf_efT_sigT Hfsim).
 
 Lemma varinfo_preserved:
   forall b, Genv.find_var_info tge b = Genv.find_var_info ge b.
 Proof.
-  intros. exploit varinfo_preserved.
-  { instantiate (1 := ftprog). instantiate (1 := fprog). apply Hfsim. }
-  instantiate (1 := b). unfold ge, tge.
-  destruct (Genv.find_var_info (Genv.globalenv ftprog) b), (Genv.find_var_info (Genv.globalenv fprog) b); intros; auto; inv H.
+  intros. exploit varinfo_preserved; try exact transf_efT_sigT; try exact Hfsim.
+  instantiate (1 := b). unfold ge, tge, fundef. simpl in *.
+  match goal with
+    | [|- context[match ?v1 with | Some _ => match ?v2 with | Some _ => _ | None => _ end | None => _ end]] =>
+      destruct v1, v2; intros; auto; inv H
+  end.
   destruct g0; auto.
 Qed.
 
@@ -72,21 +77,21 @@ Lemma funct_ptr_translated:
   forall (b: block) (f: RTL.fundef),
   Genv.find_funct_ptr ge b = Some f ->
   exists tf, Genv.find_funct_ptr tge b = Some tf /\
-             fundef_weak_lsim fundef_dec fn_sig fundef_dec fn_sig ge tge f tf.
-Proof (funct_ptr_translated Hfsim).
+             fundef_weak_lsim Language_RTL Language_RTL id ge tge f tf.
+Proof (funct_ptr_translated transf_efT_sigT Hfsim).
 
 Lemma functions_translated:
   forall (v: val) (f: RTL.fundef),
   Genv.find_funct ge v = Some f ->
   exists tf, Genv.find_funct tge v = Some tf /\
-             fundef_weak_lsim fundef_dec fn_sig fundef_dec fn_sig ge tge f tf.
-Proof (functions_translated Hfsim).
+             fundef_weak_lsim Language_RTL Language_RTL id ge tge f tf.
+Proof (functions_translated transf_efT_sigT Hfsim).
 
 Lemma find_function_translated_Renumber:
   forall ros rs fd,
   find_function ge ros rs = Some fd ->
   exists tfd, find_function tge ros rs = Some tfd /\
-              fundef_weak_lsim fundef_dec fn_sig fundef_dec fn_sig ge tge fd tfd.
+              fundef_weak_lsim Language_RTL Language_RTL id ge tge fd tfd.
 Proof.
   unfold find_function; intros; destruct ros.
 - apply functions_translated; auto.
@@ -100,7 +105,7 @@ Lemma find_function_translated_CSE:
   find_function ge ros rs = Some fd ->
   CSEproof.regs_lessdef rs rs' ->
   exists tfd, find_function tge ros rs' = Some tfd /\
-              fundef_weak_lsim fundef_dec fn_sig fundef_dec fn_sig ge tge fd tfd.
+              fundef_weak_lsim Language_RTL Language_RTL id ge tge fd tfd.
 Proof.
   unfold find_function; intros; destruct ros.
 - specialize (H0 r). inv H0.
@@ -116,7 +121,7 @@ Lemma find_function_translated_Tailcall:
   find_function ge ros rs = Some fd ->
   Tailcallproof.regset_lessdef rs rs' ->
   exists tfd, find_function tge ros rs' = Some tfd /\
-              fundef_weak_lsim fundef_dec fn_sig fundef_dec fn_sig ge tge fd tfd.
+              fundef_weak_lsim Language_RTL Language_RTL id ge tge fd tfd.
 Proof.
   unfold find_function; intros; destruct ros.
 - specialize (H0 r). inv H0.
@@ -132,7 +137,7 @@ Lemma find_function_translated_Constprop:
   find_function ge ros rs = Some fd ->
   Constpropproof.regs_lessdef rs rs' ->
   exists tfd, find_function tge ros rs' = Some tfd /\
-              fundef_weak_lsim fundef_dec fn_sig fundef_dec fn_sig ge tge fd tfd.
+              fundef_weak_lsim Language_RTL Language_RTL id ge tge fd tfd.
 Proof.
   unfold find_function; intros; destruct ros.
 - specialize (H0 r). inv H0.
@@ -145,11 +150,10 @@ Qed.
 
 Lemma sig_preserved:
   forall f tf,
-    fundef_weak_lsim fundef_dec fn_sig fundef_dec fn_sig ge tge f tf ->
+    fundef_weak_lsim Language_RTL Language_RTL id ge tge f tf ->
     funsig tf = funsig f.
 Proof.
-  intros. inv H. inv Hsig. unfold common_fundef_dec in *.
-  destruct f, tf; simpl in *; auto.
+  intros. inv H. inv Hsig. rewrite ? Fundef_sig_RTL in Hsig0. auto.
 Qed.
 
 End FUTURE.
@@ -172,14 +176,16 @@ Record mrelT_propsT (t:Type) (ops:mrelT_opsT t): Prop := mkmrelT_propsT {
       v = Vint i;
   Hmrel_i_init:
     forall p1 p2 s1 s2
-           (Hp: program_weak_lsim fundef_dec fn_sig fundef_dec fn_sig transf_V p1 p2)
+           (Hp: @program_weak_lsim Language_RTL Language_RTL id (@Errors.OK _) transf_V
+                                   p1 p2)
            (H1: initial_state p1 s1)
            (H2: initial_state p2 s2),
     exists mrel_init i_init,
       ops.(sem) mrel_init p1 p2 i_init s1 s2;
   Hexternal_call:
     forall p1 p2 s1 s2 cs1 cs2 ef args1 args2 m1 m2 evt s1' res1 m1' mrel i
-           (Hp: program_weak_lsim fundef_dec fn_sig fundef_dec fn_sig transf_V p1 p2)
+           (Hp: @program_weak_lsim Language_RTL Language_RTL id (@Errors.OK _) transf_V
+                                   p1 p2)
            (Hs1: s1 = Callstate cs1 (External ef) args1 m1)
            (Hs2: s2 = Callstate cs2 (External ef) args2 m2)
            (Hs1': s1' = Returnstate cs1 res1 m1')
@@ -219,7 +225,7 @@ Inductive _state_lsim_or_csim
     (Hst_src: st_src = Callstate stack_src fundef_src args_src mem_src)
     stack_tgt fundef_tgt args_tgt mem_tgt
     (Hst_tgt: st_tgt = Callstate stack_tgt fundef_tgt args_tgt mem_tgt)
-    (Hfundef: fundef_weak_lsim fundef_dec fn_sig fundef_dec fn_sig ge_src ge_tgt fundef_src fundef_tgt)
+    (Hfundef: fundef_weak_lsim Language_RTL Language_RTL id ge_src ge_tgt fundef_src fundef_tgt)
     (Hargs: list_forall2 (mrelT_ops.(sem_value) mrel) args_src args_tgt)
     (Hmrel: mrelT_ops.(sem) mrel fprog_src fprog_tgt i st_src st_tgt)
     (Hreturn:

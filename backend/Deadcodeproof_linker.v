@@ -36,15 +36,16 @@ Hypothesis TRANSF: transf_program prog = OK tprog.
 Section FUTURE.
 
 Variable (fprog ftprog:program).
-Hypothesis (Hfsim: program_weak_lsim
-                     fundef_dec fn_sig fundef_dec fn_sig transf_V
-                     fprog ftprog).
+Hypothesis (Hfsim: @program_weak_lsim Language_RTL Language_RTL id (@Errors.OK _) transf_V
+                                      fprog ftprog).
 
-Hypothesis (Hfprog: program_linkeq fundef_dec prog fprog).
-Hypothesis (Hftprog: program_linkeq fundef_dec tprog ftprog).
+Hypothesis (Hfprog: program_linkeq Language_RTL prog fprog).
+Hypothesis (Hftprog: program_linkeq Language_RTL tprog ftprog).
 
 Let globfun_weak_lsim :=
-  globfun_lsim fundef_dec fn_sig fundef_dec fn_sig (fun _ _ _ _ => True) fprog ftprog.
+  @globfun_lsim Language_RTL Language_RTL id (@Errors.OK _)
+                (fun _ _ _ _ => True)
+                fprog ftprog.
 
 Let ge := Genv.globalenv fprog.
 Let tge := Genv.globalenv ftprog.
@@ -74,7 +75,7 @@ Lemma find_function_translated:
   find_function ge ros rs = Some fd ->
   eagree rs trs (add_ros_need_all ros ne) ->
   exists tfd, find_function tge ros trs = Some tfd /\
-              fundef_weak_lsim fundef_dec fn_sig fundef_dec fn_sig ge tge fd tfd.
+              fundef_weak_lsim Language_RTL Language_RTL id ge tge fd tfd.
 Proof.
   intros. destruct ros as [r|id]; simpl in *.
 - assert (LD: Val.lessdef rs#r trs#r) by eauto with na. inv LD.
@@ -120,7 +121,7 @@ Inductive match_call: state -> state -> Prop :=
   | match_call_states:
       forall s f args m ts tf targs tm
         (STACKS: list_forall2 match_stackframes s ts)
-        (FUN: fundef_weak_lsim fundef_dec fn_sig fundef_dec fn_sig ge tge f tf)
+        (FUN: fundef_weak_lsim Language_RTL Language_RTL id ge tge f tf)
         (ARGS: Val.lessdef_list args targs)
         (MEM: Mem.extends m tm),
       match_call (Callstate s f args m)
@@ -541,10 +542,10 @@ Proof.
   exploit funct_ptr_translated; eauto. intros [tf [A B]].
   exists (Callstate nil tf nil m0); split.
   econstructor; eauto.
-  eapply program_lsim_init_mem_match; eauto.
+  eapply (@program_lsim_init_mem_match Language_RTL Language_RTL); try apply transf_efT_sigT; eauto.
   replace (prog_main ftprog) with (prog_main fprog).
   erewrite symbols_preserved; eauto.
-  destruct Hfsim as [_ Hmain]. unfold fundef in *. rewrite <- Hmain. auto.
+  destruct Hfsim as [_ Hmain]. unfold fundef in *. simpl in *. rewrite <- Hmain. auto.
   rewrite <- H3. eapply sig_preserved; eauto.
   constructor. constructor. auto. auto. apply Mem.extends_refl.
 Qed.
@@ -615,12 +616,11 @@ Qed.
 Section STATE_LSIM.
   
 Variable (fprog ftprog:program).
-Hypothesis (Hfsim: program_weak_lsim
-                     fundef_dec fn_sig fundef_dec fn_sig transf_V
-                     fprog ftprog).
+Hypothesis (Hfsim: @program_weak_lsim Language_RTL Language_RTL id (@Errors.OK _) transf_V
+                                      fprog ftprog).
 
-Hypothesis (Hfprog: program_linkeq fundef_dec prog fprog).
-Hypothesis (Hftprog: program_linkeq fundef_dec tprog ftprog).
+Hypothesis (Hfprog: program_linkeq Language_RTL prog fprog).
+Hypothesis (Hftprog: program_linkeq Language_RTL tprog ftprog).
 
 Lemma match_states_state_lsim es es' eF F i s1 s1'
       (MS: match_states_ext fprog ftprog s1 s1'):
@@ -695,10 +695,9 @@ Qed.
 End STATE_LSIM.
 
 Lemma Deadcode_program_lsim:
-  program_lsim
-    fundef_dec fn_sig fundef_dec fn_sig transf_V
-    (function_lsim mrelT_ops)
-    prog tprog.
+  @program_lsim Language_RTL Language_RTL id (@Errors.OK _) transf_V
+                (function_lsim mrelT_ops)
+                prog tprog.
 Proof.
   generalize transf_function_lsim.
   destruct prog as [defs main]. simpl in *.
@@ -715,10 +714,9 @@ Proof.
       | [H: match ?tf with | OK _ => _ | Error _ => _ end = _ |- _] => destruct tf eqn:Htf; inv H
     end.
     monadInv H1. constructor; simpl in *; try apply IHdefs; auto.
-    split; auto. constructor.
+    split; auto. apply (@globdef_lsim_fun Language_RTL Language_RTL).
     destruct f; simpl in *.
-    + monadInv Htf.
-      eapply globfun_lsim_i; eauto; unfold fundef_dec, common_fundef_dec; eauto.
+    + monadInv Htf. constructor; simpl; intros.
       unfold transf_function in EQ0.
       match goal with
         | [H: match ?a with | Some _ => _ | None => _ end = _ |- _] => destruct a as [a'|] eqn:Hanalyze; inv H
@@ -727,10 +725,10 @@ Proof.
       apply Hlsim; auto.
       unfold transf_function. rewrite Hanalyze. auto.
     + inv Htf.
-      eapply globfun_lsim_e; eauto;
-      unfold fundef_dec, common_fundef_dec; eauto.
+      eapply globfun_lsim_intro; eauto; simpl; auto.
   - monadInv H0. constructor; simpl in *; try apply IHdefs; auto.
-    split; auto. repeat constructor.
+    split; auto. apply (@globdef_lsim_var Language_RTL Language_RTL).
+    repeat constructor.
 Qed.
 
 End PRESERVATION.
