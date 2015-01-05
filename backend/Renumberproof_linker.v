@@ -6,14 +6,14 @@ Require Import Postorder.
 Require Import Events.
 Require Import Globalenvs.
 Require Import Smallstep.
+Require Import Language Linker Linkeq.
+Require Import ProgramLSim FunctionLSim.
 Require Import Op.
 Require Import Registers.
 Require Import RTL.
 Require Import Renumber.
 Require Import Renumberproof.
-Require Import LinkerSpecification Linkeq.
-Require Import ProgramLSim.
-Require Import RTLLSim.
+Require Import RTL_linker ValueAnalysis_linker.
 Require Import WFType paco.
 
 Set Implicit Arguments.
@@ -26,7 +26,7 @@ Hypothesis TRANSF: transf_program prog = tprog.
 Section FUTURE.
 
 Variable (fprog ftprog:program).
-Hypothesis (Hfsim: @program_weak_lsim Language_RTL Language_RTL id (@Errors.OK _) transf_V
+Hypothesis (Hfsim: @program_weak_lsim Language_RTL Language_RTL transf_sigT transf_efT transf_vT
                                       fprog ftprog).
 
 Hypothesis (Hfprog: program_linkeq Language_RTL prog fprog).
@@ -168,9 +168,9 @@ Qed.
 
 Inductive match_states_ext st tst: Prop :=
 | match_states_ext_intro
-    (Hmatch: match_states st tst)
     (Hsrc: ValueAnalysis_linker.sound_state_ext fprog st)
     (Htgt: ValueAnalysis_linker.sound_state_ext ftprog tst)
+    (Hmatch: match_states st tst)
 .
 
 End FUTURE.
@@ -180,11 +180,14 @@ End FUTURE.
 Inductive mrelT_sem (mrel:unit) (fprog ftprog:program) (i:WF.t) (s1 s2:state): Prop :=
 | mrelT_sem_intro
     (MEASURE: i = WF.elt)
+    (Hsrc: ValueAnalysis_linker.sound_state_ext fprog s1)
+    (Htgt: ValueAnalysis_linker.sound_state_ext ftprog s2)
     (MS: match_states s1 s2 \/ match_call fprog ftprog s1 s2)
 .
 
-Definition mrelT_ops: mrelT_opsT unit :=
+Definition mrelT_ops: mrelT_opsT Language_ext_RTL Language_ext_RTL unit :=
   mkmrelT_opsT
+    Language_ext_RTL Language_ext_RTL
     mrelT_sem
     (fun _ v1 v2 => v1 = v2)
     (fun _ _ => True)
@@ -199,30 +202,41 @@ Proof.
   - f_equal; auto. apply IHv1. auto.
 Qed.
 
-Program Definition mrelT_props: mrelT_propsT mrelT_ops := mkmrelT_propsT _ _ _ _ _ _ _.
+Program Definition mrelT_props:
+  @mrelT_propsT Language_ext_RTL Language_ext_RTL
+                transf_sigT transf_efT transf_vT _ mrelT_ops :=
+  mkmrelT_propsT _ _ _ _ _ _ _.
 Next Obligation. repeat constructor. Qed.
 Next Obligation. repeat constructor. Qed.
 Next Obligation.
   exploit transf_initial_states; eauto. intros [s2' [Hs2' Hinit]].
   generalize (initial_state_unique Hs2' H2). intro. subst.
-  exists tt. exists WF.elt. constructor; auto.
+  exists tt. eexists. constructor; auto.
+  - apply sound_initial. auto.
+  - apply sound_initial. auto.
 Qed.
 Next Obligation.
   apply (mrelT_ops_equal_list mrel args1 args2) in Hargs.
   inv Hs0. inv Hmrel. destruct MS as [MS|MS]; inv MS.
+  inv Hfd1. destruct fd2; inv Hfd2.
 
-(* external function *)
-  exists tt. exists WF.elt. eexists. eexists. eexists. split; [eauto|]. split.
+  (* external function *)
+  exists tt. exists WF.elt. eexists. eexists. eexists. split; [eauto|].
+  cut (step (Genv.globalenv p2) (Callstate cs2 (AST.External ef2) args2 m2) evt (Returnstate cs2 res1 m1')).
+  { intro S. split; eauto. split; auto. econstructor; eauto.
+    - eapply sound_past_step; eauto. econstructor. eauto.
+    - eapply sound_past_step; eauto.
+    - left. econstructor; eauto.
+  }
   eapply exec_function_external; eauto.
     eapply external_call_symbols_preserved; eauto.
     apply symbols_preserved. auto. apply varinfo_preserved. auto.
-  repeat (constructor; auto).
 Qed.
 
 Section STATE_LSIM.
   
 Variable (fprog ftprog:program).
-Hypothesis (Hfsim: @program_weak_lsim Language_RTL Language_RTL id (@Errors.OK _) transf_V
+Hypothesis (Hfsim: @program_weak_lsim Language_RTL Language_RTL transf_sigT transf_efT transf_vT
                                       fprog ftprog).
 
 Hypothesis (Hfprog: program_linkeq Language_RTL prog fprog).
@@ -230,7 +244,8 @@ Hypothesis (Hftprog: program_linkeq Language_RTL tprog ftprog).
 
 Lemma match_states_state_lsim es es' eF F i s1 s1'
       (MS: match_states_ext fprog ftprog s1 s1'):
-  state_lsim mrelT_ops fprog ftprog es es' eF F i s1 s1'.
+  @state_lsim Language_ext_RTL Language_ext_RTL transf_sigT _
+              mrelT_ops fprog ftprog es es' eF F i s1 s1'.
 Proof.
   revert F i s1 s1' MS. pcofix CIH. intros F i s1 s1' MS. pfold.
   inversion MS. destruct (classic (exists r, final_state s1 r)).
@@ -244,6 +259,8 @@ Proof.
   exists WF.elt. exists s2'. exists tt.
   split; [destruct Hmatch2; left; apply plus_one; auto|].
   split; auto. split; [constructor; auto|].
+  { eapply sound_past_step; eauto. }
+  { eapply sound_past_step; eauto. }
   destruct Hmatch2 as [Hmatch2|Hmatch2].
   - apply _state_lsim_or_csim_lsim. right. apply CIH.
     constructor; auto.
@@ -252,16 +269,19 @@ Proof.
   - inversion Hmatch2. subst. eapply _state_lsim_or_csim_csim; eauto.
     + apply (mrelT_ops_equal_list tt). auto.
     + constructor; auto.
+      * eapply sound_past_step; eauto.
+      * eapply sound_past_step; eauto.
     + intros. subst. inversion Hst2_mem. subst. destruct MS0 as [MS0|MS0]; [|inv MS0].
       right. apply CIH. constructor; auto.
 Qed.
 
 Lemma transf_function_lsim f:
-  function_lsim mrelT_ops fprog ftprog f (transf_function f).
+  @function_lsim Language_ext_RTL Language_ext_RTL transf_sigT _
+                 mrelT_ops fprog ftprog f (transf_function f).
 Proof.
   constructor. intros. pfold. constructor; subst; auto.
   { intros ? Hfinal. inv Hfinal. }
-  intros. inversion Hst2_src. subst.
+  intros. destruct fd_src; inv Hfd_src. destruct fd_tgt; inv Hfd_tgt. inversion Hst2_src. subst.
   inv Hmrel_entry. destruct MS as [MS|MS]; inversion MS; subst.
 
 (* internal function *)
@@ -270,17 +290,21 @@ Proof.
   eapply exec_function_internal; eauto.
   simpl. split; [auto|].
   cut (match_states
-         (State cs_entry_src f (Values.Vptr stk Integers.Int.zero)
+         (State es_src f (Values.Vptr stk Integers.Int.zero)
                 (fn_entrypoint f) (init_regs args_tgt (fn_params f)) m')
-         (State cs_entry_tgt (transf_function f)
+         (State es_tgt (transf_function f)
                 (Values.Vptr stk Integers.Int.zero)
                 (renum_pc (postorder (successors_map f) (fn_entrypoint f))
                           (fn_entrypoint f)) (init_regs args_tgt (fn_params f)) m')).
   { intro MS2. split; [constructor; eauto|].
+    { eapply ValueAnalysis_linker.sound_past_step; eauto. }
+    { eapply ValueAnalysis_linker.sound_past_step; eauto.
+      apply (exec_function_internal _ es_tgt (transf_function f)). auto.
+    }
     constructor. left. apply match_states_state_lsim. constructor; auto.
     - eapply ValueAnalysis_linker.sound_past_step; eauto.
     - eapply ValueAnalysis_linker.sound_past_step; eauto.
-      apply (exec_function_internal _ cs_entry_tgt (transf_function f)). auto.
+      apply (exec_function_internal _ es_tgt (transf_function f)). auto.
   }
   constructor; auto. unfold reach. constructor. 
 Qed.
@@ -288,8 +312,8 @@ Qed.
 End STATE_LSIM.
 
 Lemma Renumber_program_lsim:
-  @program_lsim Language_RTL Language_RTL id (@Errors.OK _) transf_V
-                (function_lsim mrelT_ops)
+  @program_lsim Language_RTL Language_RTL transf_sigT transf_efT transf_vT
+                (@function_lsim Language_ext_RTL Language_ext_RTL transf_sigT _ mrelT_ops)
                 prog tprog.
 Proof.
   generalize transf_function_lsim.

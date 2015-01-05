@@ -17,9 +17,8 @@ Require Import Clight.
 Require Import SimplExpr.
 Require Import SimplExprspec.
 Require Import SimplExprproof.
-Require Import LinkerSpecification Linkeq.
-Require Import ProgramLSim.
-Require Import SimplExprLSim ValueAnalysis_linker.
+Require Import Linker Linkeq.
+Require Import ProgramLSim FunctionLSim.
 Require Import WFType paco.
 
 Section PRESERVATION.

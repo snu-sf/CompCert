@@ -3,7 +3,7 @@ Require String.
 Require Import Coqlib Coqlib_linker.
 Require Import Maps Maps_linker.
 Require Import Integers Floats Values AST Globalenvs.
-Require Import LinkerSpecification LinkerProp.
+Require Import Language Linker LinkerProp.
 
 Set Implicit Arguments.
 

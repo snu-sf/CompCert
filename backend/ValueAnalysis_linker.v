@@ -13,12 +13,12 @@ Require Import Lattice.
 Require Import Kildall.
 Require Import Registers.
 Require Import Op.
-Require Import RTL.
 Require Import ValueDomain.
 Require Import ValueAOp.
 Require Import Liveness.
 Require Import ValueAnalysis.
-Require Import LinkerSpecification Linkeq.
+Require Import Language Linker Linkeq.
+Require Import RTL.
 
 Set Implicit Arguments.
 
