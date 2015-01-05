@@ -42,11 +42,6 @@ Hypothesis (Hfsim: @program_weak_lsim Language_RTL Language_RTL transf_sigT tran
 Hypothesis (Hfprog: program_linkeq Language_RTL prog fprog).
 Hypothesis (Hftprog: program_linkeq Language_RTL tprog ftprog).
 
-Let globfun_weak_lsim :=
-  @globfun_lsim Language_RTL Language_RTL transf_sigT transf_efT
-                (fun _ _ _ _ => True)
-                fprog ftprog.
-
 Let ge := Genv.globalenv fprog.
 Let tge := Genv.globalenv ftprog.
 
@@ -75,7 +70,7 @@ Lemma find_function_translated:
   find_function ge ros rs = Some fd ->
   eagree rs trs (add_ros_need_all ros ne) ->
   exists tfd, find_function tge ros trs = Some tfd /\
-              fundef_weak_lsim Language_RTL Language_RTL transf_sigT ge tge fd tfd.
+              globfun_weak_lsim Language_RTL Language_RTL transf_sigT ge tge fd tfd.
 Proof.
   intros. destruct ros as [r|id]; simpl in *.
 - assert (LD: Val.lessdef rs#r trs#r) by eauto with na. inv LD.
@@ -121,7 +116,7 @@ Inductive match_call: state -> state -> Prop :=
   | match_call_states:
       forall s f args m ts tf targs tm
         (STACKS: list_forall2 match_stackframes s ts)
-        (FUN: fundef_weak_lsim Language_RTL Language_RTL transf_sigT ge tge f tf)
+        (FUN: globfun_weak_lsim Language_RTL Language_RTL transf_sigT ge tge f tf)
         (ARGS: Val.lessdef_list args targs)
         (MEM: Mem.extends m tm),
       match_call (Callstate s f args m)

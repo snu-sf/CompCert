@@ -917,7 +917,7 @@ Inductive match_states: Csem.state -> state -> Prop :=
 
 Inductive match_call: Csem.state -> state -> Prop :=
   | match_callstates: forall fd args k m tfd tk,
-      fundef_weak_lsim Language_C Language_Clight transf_sigT ge tge fd tfd ->
+      globfun_weak_lsim Language_C Language_Clight transf_sigT ge tge fd tfd ->
       match_cont k tk ->
       match_call (Csem.Callstate fd args k m)
                  (Callstate tfd args tk m).

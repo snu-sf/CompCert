@@ -32,11 +32,6 @@ Hypothesis (Hfsim: @program_weak_lsim Language_RTL Language_RTL transf_sigT tran
 Hypothesis (Hfprog: program_linkeq Language_RTL prog fprog).
 Hypothesis (Hftprog: program_linkeq Language_RTL tprog ftprog).
 
-Let globfun_weak_lsim :=
-  @globfun_lsim Language_RTL Language_RTL transf_sigT transf_efT
-                (fun _ _ _ _ => True)
-                fprog ftprog.
-
 Let ge := Genv.globalenv fprog.
 Let tge := Genv.globalenv ftprog.
 
@@ -66,7 +61,7 @@ Inductive match_states: RTL.state -> RTL.state -> Prop :=
 Inductive match_call: RTL.state -> RTL.state -> Prop :=
   | match_callstates: forall stk f args m stk' f'
         (STACKS: list_forall2 match_frames stk stk')
-        (FUN: fundef_weak_lsim Language_RTL Language_RTL transf_sigT ge tge f f'),
+        (FUN: globfun_weak_lsim Language_RTL Language_RTL transf_sigT ge tge f f'),
       match_call (Callstate stk f args m)
                  (Callstate stk' f' args m).
 

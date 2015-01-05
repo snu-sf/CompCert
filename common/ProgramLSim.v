@@ -477,16 +477,16 @@ Proof.
     intros. repeat intro. specialize (PR Hfprog). auto.
 Qed.
 
-Inductive fundef_sig_lsim (f_src:fundefT_src) (f_tgt:fundefT_tgt): Prop :=
-| fundef_sig_lsim_intro
+Inductive globfun_sig_lsim (f_src:fundefT_src) (f_tgt:fundefT_tgt): Prop :=
+| globfun_sig_lsim_intro
     (Hsig: sig_lsim (fd_sig_src f_src) (fd_sig_tgt f_tgt))
 .
 
-Inductive fundef_weak_lsim
+Inductive globfun_weak_lsim
           (ge_src:Genv.t fundefT_src vT_src) (ge_tgt:Genv.t fundefT_tgt vT_tgt)
           (f_src:fundefT_src) (f_tgt:fundefT_tgt): Prop :=
-| fundef_weak_lsim_intro
-    (Hsig: fundef_sig_lsim f_src f_tgt)
+| globfun_weak_lsim_intro
+    (Hsig: globfun_sig_lsim f_src f_tgt)
     b
     (Hsrc: Maps.PTree.get b ge_src.(Genv.genv_funs) = Some f_src)
     (Htgt: Maps.PTree.get b ge_tgt.(Genv.genv_funs) = Some f_tgt)
@@ -501,7 +501,7 @@ Variable (Hfprog: program_lsim_aux f_lsim fprog_src fprog_tgt).
 
 Inductive match_fundef (f_src:fundefT_src) (f_tgt:fundefT_tgt): Prop :=
 | match_fundef_intro
-    (Hsig: fundef_sig_lsim f_src f_tgt)
+    (Hsig: globfun_sig_lsim f_src f_tgt)
     (Hsim: globfun_lsim f_lsim fprog_src fprog_tgt f_src f_tgt)
 .
 
@@ -582,7 +582,7 @@ Lemma funct_ptr_translated:
   forall (b : block) (f : fundefT_src),
   Genv.find_funct_ptr (Genv.globalenv fprog_src) b = Some f ->
   exists tf : fundefT_tgt,
-  Genv.find_funct_ptr (Genv.globalenv fprog_tgt) b = Some tf /\ fundef_weak_lsim ge_src ge_tgt f tf.
+  Genv.find_funct_ptr (Genv.globalenv fprog_tgt) b = Some tf /\ globfun_weak_lsim ge_src ge_tgt f tf.
 Proof.
   intros. exploit Genv.find_funct_ptr_match; eauto. intros [tf [Htf Hsim]].
   eexists. split; eauto. inv Hsim. inv Hsig. unfold Genv.find_funct_ptr in *.
@@ -602,7 +602,7 @@ Qed.
 Lemma functions_translated:
   forall v f,
   Genv.find_funct (Genv.globalenv fprog_src) v = Some f ->
-  exists tf, Genv.find_funct (Genv.globalenv fprog_tgt) v = Some tf /\ fundef_weak_lsim ge_src ge_tgt f tf.
+  exists tf, Genv.find_funct (Genv.globalenv fprog_tgt) v = Some tf /\ globfun_weak_lsim ge_src ge_tgt f tf.
 Proof.
   intros. destruct v; inv H. 
   destruct (Int.eq_dec i Int.zero); inv H1.
@@ -610,7 +610,7 @@ Proof.
 Qed.
 
 Lemma sig_preserved:
-  forall f tf (Hsim: fundef_sig_lsim f tf),
+  forall f tf (Hsim: globfun_sig_lsim f tf),
     sig_lsim (fd_sig_src f) (fd_sig_tgt tf).
 Proof.
   intros. inv Hsim. auto.

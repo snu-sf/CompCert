@@ -210,7 +210,7 @@ Lemma function_ptr_translated:
   forall (b: block) (f: Cminor.fundef),
   Genv.find_funct_ptr ge b = Some f ->
   exists tf, Genv.find_funct_ptr tge b = Some tf /\
-             fundef_weak_lsim Language_Cminor Language_CminorSel transf_sigT ge tge f tf.
+             globfun_weak_lsim Language_Cminor Language_CminorSel transf_sigT ge tge f tf.
 Proof.  
   unfold ge, tge. intros. eapply (@ProgramLSim.funct_ptr_translated Language_Cminor Language_CminorSel); eauto.
 Qed.
@@ -220,7 +220,7 @@ Lemma functions_translated:
   Genv.find_funct ge v = Some f ->
   Val.lessdef v v' ->
   exists tf, Genv.find_funct tge v' = Some tf /\
-             fundef_weak_lsim Language_Cminor Language_CminorSel transf_sigT ge tge f tf.
+             globfun_weak_lsim Language_Cminor Language_CminorSel transf_sigT ge tge f tf.
 Proof.  
   unfold ge, tge. intros. inv H0.
   - eapply (@ProgramLSim.functions_translated Language_Cminor Language_CminorSel); eauto.
@@ -229,7 +229,7 @@ Qed.
 
 Lemma sig_preserved:
   forall f tf,
-    fundef_weak_lsim Language_Cminor Language_CminorSel id ge tge f tf ->
+    globfun_weak_lsim Language_Cminor Language_CminorSel id ge tge f tf ->
     CminorSel.funsig tf = Cminor.funsig f.
 Proof.
   intros. inv H. inv Hsig. rewrite ? Fundef_Cminor_funsig, Fundef_CminorSel_funsig in Hsig0. auto.
@@ -766,7 +766,7 @@ Inductive match_states: Cminor.state -> CminorSel.state -> Prop :=
 
 Inductive match_call: Cminor.state -> CminorSel.state -> Prop :=
   | match_callstate: forall f f' args args' k k' m m'
-        (TF: fundef_weak_lsim Language_Cminor Language_CminorSel transf_sigT ge tge f f')
+        (TF: globfun_weak_lsim Language_Cminor Language_CminorSel transf_sigT ge tge f f')
         (MC: match_cont k k')
         (LD: Val.lessdef_list args args')
         (ME: Mem.extends m m'),
