@@ -45,9 +45,11 @@ Proof. unfold Fundef_sig, Fundef_dec. simpl. destruct f; auto. Qed.
 Lemma initial_state_equiv p s:
   Language.initial_state Language_ext_RTL p s <-> RTL.initial_state p s.
 Proof.
-  constructor; intro X; inv X; simpl in *; econstructor; eauto.
-  - rewrite <- Fundef_funsig. auto.
-  - rewrite Fundef_funsig. auto.
+  constructor; intro X.
+  - destruct X as [a [f [m0 [Hm0 [Ha [Hf [Hsig ?]]]]]]]. subst.
+    econstructor; eauto. rewrite <- Fundef_funsig. auto.
+  - inv X. repeat eexists; eauto.
+    rewrite Fundef_funsig. auto.
 Qed.
 
 Lemma final_state_equiv p r:

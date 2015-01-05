@@ -1037,6 +1037,7 @@ Next Obligation. repeat constructor. Qed.
 Next Obligation. repeat constructor. Qed.
 Next Obligation. inv H. auto. Qed.
 Next Obligation.
+  apply initial_state_equiv in H1. apply initial_state_equiv in H2.
   exploit transf_initial_states; eauto. intros [F [st2 [Hst2 Hmatch]]].
   exists F. eexists. constructor; eauto.
   { apply sound_initial. auto. }
@@ -1047,18 +1048,17 @@ Next Obligation.
   auto.
 Qed.
 Next Obligation.
-  simpl in *. apply (mrelT_ops_val_inject_list mrel args1 args2) in Hargs. subst. inv Hs0.
-  inversion Hmrel. subst. destruct MS as [MS|MS]; [inv MS|].
-  inv Hfd1. destruct fd2; inv Hfd2.
-  inversion MS. subst.
+  simpl in *. apply (mrelT_ops_val_inject_list mrel args1 args2) in Hargs.
+  destruct fd1; inv Hfd1. destruct fd2; inv Hfd2.
+  inv Hs0. inv Hmrel. destruct MS as [MS|MS]; inv MS.
 
-(* external function *)
+  (* external function *)
   exploit match_stacks_globalenvs; eauto. intros [bound MG].
   exploit external_call_mem_inject; eauto.
     eapply match_globalenvs_preserves_globals; eauto.
     intros [F1 [v1 [m1'' [A [B [C [D [E [J K]]]]]]]]].
-  exists F1. eexists. eexists. eexists. eexists.
-  split; [eauto|]. split.
+  eexists. eexists. eexists. eexists. eexists. exists F1. eexists.
+  repeat (split; [eauto; fail|]). split.
   - econstructor. eapply external_call_symbols_preserved; eauto.
     + eapply symbols_preserved. apply Hp.
     + eapply varinfo_preserved. apply Hp.
@@ -1096,10 +1096,11 @@ Proof.
   revert F s1 s1' MS. pcofix CIH. intros F s1 s1' MS. pfold.
   inv MS. destruct (classic (exists r, final_state s1 r)).
   { destruct H as [rval Hrval]. eapply _state_lsim_term; eauto.
-    eapply transf_final_states; eauto.
+    - apply final_state_equiv. eauto.
+    - apply final_state_equiv. eapply transf_final_states; eauto.
   }
   constructor; auto.
-  { repeat intro. apply H. exists r0. auto. }
+  { repeat intro. apply H. exists r0. apply final_state_equiv. auto. }
   intros. exploit step_simulation; eauto. simpl.
   intros [[F' [s2' [Hs2' Hmatch']]]|[mrel2 [Hmrel2 [Hevt Hmatch']]]].
   - eexists. exists s2'. exists F'.
@@ -1148,7 +1149,7 @@ Proof.
   constructor. repeat intro. inv Hmrel_entry.
   destruct MS as [MS|MS]; inv MS.
   pfold. constructor; auto.
-  { intros ? Hfinal. inv Hfinal. }
+  { intros ? Hfinal. apply final_state_equiv in Hfinal. inv Hfinal. }
   intros. destruct fd_src; inv Hfd_src. destruct fd_tgt; inv Hfd_tgt. inversion Hst2_src. subst.
 
   (* internal function, not inlined *)

@@ -209,28 +209,30 @@ Program Definition mrelT_props:
 Next Obligation. repeat constructor. Qed.
 Next Obligation. repeat constructor. Qed.
 Next Obligation.
+  apply initial_state_equiv in H1. apply initial_state_equiv in H2.
   exploit transf_initial_states; eauto. intros [s2' [Hs2' Hinit]].
   generalize (initial_state_unique Hs2' H2). intro. subst.
-  exists tt. eexists. constructor; auto.
+  exists tt. eexists. econstructor; eauto.
   - apply sound_initial. auto.
   - apply sound_initial. auto.
 Qed.
 Next Obligation.
   apply (mrelT_ops_equal_list mrel args1 args2) in Hargs.
+  destruct fd1; inv Hfd1. destruct fd2; inv Hfd2.
   inv Hs0. inv Hmrel. destruct MS as [MS|MS]; inv MS.
-  inv Hfd1. destruct fd2; inv Hfd2.
 
   (* external function *)
-  exists tt. exists WF.elt. eexists. eexists. eexists. split; [eauto|].
-  cut (step (Genv.globalenv p2) (Callstate cs2 (AST.External ef2) args2 m2) evt (Returnstate cs2 res1 m1')).
+  eexists. eexists. eexists. eexists. eexists. exists tt. eexists.
+  repeat (split; [eauto; fail|]).
+  cut (step (Genv.globalenv p2) (Callstate es2 (AST.External ef2) args2 m2) evt (Returnstate es2 res m')).
   { intro S. split; eauto. split; auto. econstructor; eauto.
     - eapply sound_past_step; eauto. econstructor. eauto.
     - eapply sound_past_step; eauto.
     - left. econstructor; eauto.
   }
   eapply exec_function_external; eauto.
-    eapply external_call_symbols_preserved; eauto.
-    apply symbols_preserved. auto. apply varinfo_preserved. auto.
+  eapply external_call_symbols_preserved; eauto.
+  apply symbols_preserved. auto. apply varinfo_preserved. auto.
 Qed.
 
 Section STATE_LSIM.
@@ -250,10 +252,11 @@ Proof.
   revert F i s1 s1' MS. pcofix CIH. intros F i s1 s1' MS. pfold.
   inversion MS. destruct (classic (exists r, final_state s1 r)).
   { destruct H as [rval Hrval]. eapply _state_lsim_term; eauto.
-    eapply transf_final_states; eauto.
+    - apply final_state_equiv. eauto.
+    - apply final_state_equiv. eapply transf_final_states; eauto.
   }
   constructor; auto.
-  { repeat intro. apply H. exists r0. auto. }
+  { repeat intro. apply H. exists r0. apply final_state_equiv. auto. }
   intros. exploit step_simulation; eauto. simpl.
   intros [s2' [Hs2' Hmatch2]].
   exists WF.elt. exists s2'. exists tt.
@@ -280,7 +283,7 @@ Lemma transf_function_lsim f:
                  mrelT_ops fprog ftprog f (transf_function f).
 Proof.
   constructor. intros. pfold. constructor; subst; auto.
-  { intros ? Hfinal. inv Hfinal. }
+  { intros ? Hfinal. apply final_state_equiv in Hfinal. inv Hfinal. }
   intros. destruct fd_src; inv Hfd_src. destruct fd_tgt; inv Hfd_tgt. inversion Hst2_src. subst.
   inv Hmrel_entry. destruct MS as [MS|MS]; inversion MS; subst.
 
