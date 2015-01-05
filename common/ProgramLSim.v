@@ -567,6 +567,16 @@ Proof.
     intros [v [Hv Hsim]]. rewrite H in Hv. inv Hv.
 Qed.
 
+Lemma block_is_volatile_preserved:
+  forall b, Events.block_is_volatile ge_tgt b = Events.block_is_volatile ge_src b.
+Proof.
+  intros. unfold Events.block_is_volatile. generalize (varinfo_preserved b).
+  unfold ge_src, ge_tgt.
+  destruct (Genv.find_var_info (Genv.globalenv fprog_src) b),
+           (Genv.find_var_info (Genv.globalenv fprog_tgt) b); intro X; inv X; auto.
+  unfold transf_globvar in H0. destruct (transf_vT (gvar_info g)); inv H0; auto.
+Qed.
+
 Lemma funct_ptr_translated:
   forall (b : block) (f : fundefT_src),
   Genv.find_funct_ptr (Genv.globalenv fprog_src) b = Some f ->

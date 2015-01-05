@@ -183,7 +183,7 @@ Program Canonical Structure Language_ext_C: Language_ext :=
                   (fun k fd args m => Csem.Callstate fd args k m)
                   (fun k v m => Csem.Returnstate v k m)
                   Csem.Kstop
-                  Csem.step
+                  Cstrategy.step
                   (Ctypes.Tfunction Ctypes.Tnil Ctypes.type_int32s cc_default) _ _ _.
 Next Obligation. intros [ge [evt [state' Hstep]]]. inv Hstep. inv H. inv H. Qed.
 Canonical Structure Language_Clight: Language := mkLanguage Fundef_Clight V_type.
