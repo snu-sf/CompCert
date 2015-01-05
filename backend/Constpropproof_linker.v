@@ -61,7 +61,7 @@ Lemma transf_ros_correct:
   regs_lessdef rs rs' ->
   exists f',
   find_function tge (transf_ros ae ros) rs' = Some f' /\
-  fundef_weak_lsim Language_RTL Language_RTL id ge tge f f'.
+  fundef_weak_lsim Language_RTL Language_RTL transf_sigT ge tge f f'.
 Proof.
   intros until rs'; intros GE EM FF RLD.
   eapply find_function_translated_Constprop; eauto.
@@ -140,7 +140,7 @@ Inductive match_call: nat -> state -> state -> Prop :=
   | match_states_call:
       forall s f args m s' f' args' m'
            (STACKS: list_forall2 match_stackframes s s')
-           (FUN: fundef_weak_lsim Language_RTL Language_RTL id ge tge f f')
+           (FUN: fundef_weak_lsim Language_RTL Language_RTL transf_sigT ge tge f f')
            (ARGS: Val.lessdef_list args args')
            (MEM: Mem.extends m m'),
       match_call O (Callstate s f args m)

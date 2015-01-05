@@ -42,7 +42,7 @@ Hypothesis (Hfprog: program_linkeq Language_RTL prog fprog).
 Hypothesis (Hftprog: program_linkeq Language_RTL tprog ftprog).
 
 Let globfun_weak_lsim :=
-  @globfun_lsim Language_RTL Language_RTL id (@Errors.OK _)
+  @globfun_lsim Language_RTL Language_RTL transf_sigT transf_efT
                 (fun _ _ _ _ => True)
                 fprog ftprog.
 
@@ -95,7 +95,7 @@ Inductive match_call: state -> state -> Prop :=
   | match_states_call:
       forall s f args m s' f' args' m',
       match_stackframes s s' ->
-      fundef_weak_lsim Language_RTL Language_RTL id ge tge f f' ->
+      fundef_weak_lsim Language_RTL Language_RTL transf_sigT ge tge f f' ->
       Val.lessdef_list args args' ->
       Mem.extends m m' ->
       match_call (Callstate s f args m)

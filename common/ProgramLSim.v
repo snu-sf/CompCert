@@ -12,9 +12,7 @@ Set Implicit Arguments.
 (* external function prservation function *)
 Lemma external_function_OK_sig:
   forall ef1 ef2, (OK ef1 = OK ef2) -> ef_sig ef1 = ef_sig ef2.
-Proof.
-  intros. inv H. auto.
-Qed.
+Proof. intros. inv H. auto. Qed.
 
 (* lifting function simulation to program simulation *)
 Section PROGRAM_LSIM.
@@ -51,6 +49,7 @@ Variable (transf_sigT: forall (ef:sigT_src), sigT_tgt).
 Variable (transf_efT: forall (ef:efT_src), res efT_tgt).
 Variable (transf_vT: forall (v:vT_src), res vT_tgt).
 Hypothesis transf_efT_sigT: forall ef_src ef_tgt (H: transf_efT ef_src = OK ef_tgt), transf_sigT (ef_sig_src ef_src) = ef_sig_tgt ef_tgt.
+Hypothesis transf_efT_linkable: forall ef_src ef_tgt (H: transf_efT ef_src = OK ef_tgt), efT_src.(EF_linkable) ef_src = efT_tgt.(EF_linkable) ef_tgt.
 
 Let sig_lsim (sig_src:sigT_src) (sig_tgt:sigT_tgt) := transf_sigT sig_src = sig_tgt.
 Let ef_lsim (ef_src:efT_src) (ef_tgt:efT_tgt) := transf_efT ef_src = OK ef_tgt.
@@ -350,9 +349,10 @@ Proof.
     { inv H1; inv H2; inv H; inv Hv; try inv Hv0; try inv Hf; try inv Hf0; clarify;
       rewrite ? H0, ? H1, ? H2 in *; clarify.
       { contradict H12. constructor. eapply globfun_linkable_ei; eauto.
-        exploit Hsim0; eauto; try reflexivity. intros [_ Hsig1]. inv Hsig1.
-        inv Hsim. exploit transf_efT_sigT; eauto. intro X.
-        clarify. rewrite <- X, Hsig, H0. auto.
+        - inv Hsim. apply transf_efT_linkable in H0. congruence.
+        - exploit Hsim0; eauto; try reflexivity. intros [_ Hsig1]. inv Hsig1.
+          inv Hsim. exploit transf_efT_sigT; eauto. intro X.
+          clarify. rewrite <- X, Hsig, H0. auto.
       }
       { contradict H12. constructor. eapply globfun_linkable_ee; eauto.
         inv Hsim. inv Hsim0. rewrite H2 in H3. inv H3. auto.
@@ -367,9 +367,10 @@ Proof.
     { inv H1; inv H2; inv H; inv Hv; try inv Hv0; try inv Hf; try inv Hf0; clarify;
       rewrite ? H0, ? H1, ? H2 in *; clarify.
       { contradict H21. constructor. eapply globfun_linkable_ei; eauto.
-        exploit Hsim; eauto; try reflexivity. intros [_ Hsig1]. inv Hsig1.
-        inv Hsim0. exploit transf_efT_sigT; eauto. intro X.
-        clarify. rewrite <- X, Hsig, H0. auto.
+        - inv Hsim0. apply transf_efT_linkable in H0. congruence.
+        - exploit Hsim; eauto; try reflexivity. intros [_ Hsig1]. inv Hsig1.
+          inv Hsim0. exploit transf_efT_sigT; eauto. intro X.
+          clarify. rewrite <- X, Hsig, H0. auto.
       }
       { contradict H21. constructor. eapply globfun_linkable_ee; eauto.
         inv Hsim. inv Hsim0. rewrite H2 in H3. inv H3. auto.

@@ -36,9 +36,9 @@ Ltac clarify :=
 (** `linkable a b` means we can remove `a` and take `b` when the two are linked. *)
 
 Inductive globfun_linkable (f1 f2:fundefT): Prop :=
-| globfun_linkable_ei (* TODO: type check? *)
+| globfun_linkable_ei
     e1 i2 (H1: fundef_dec f1 = inr e1) (H2: fundef_dec f2 = inl i2)
-    (Hsig: ef_sig e1 = f_sig i2)
+    (Hlinkable: is_true (efT.(EF_linkable) e1)) (Hsig: ef_sig e1 = f_sig i2)
 | globfun_linkable_ee
     e (H1: fundef_dec f1 = inr e) (H1: fundef_dec f2 = inr e)
 .
@@ -72,7 +72,10 @@ Proof.
   }
   destruct (fundef_dec f2) as [i2|e2] eqn:Hf2.
   - destruct (sigT.(Sig_dec) (ef_sig e1) (f_sig i2)).
-    + left. econstructor; eauto.
+    + destruct (efT.(EF_linkable) e1) eqn:Hl.
+      * left. econstructor; eauto.
+      * right. intro X. inv X; clarify.
+        rewrite Hl in Hlinkable. inv Hlinkable.
     + right. contradict n. inv n; clarify.
   - destruct (ef_dec e1 e2); [subst|].
     + left. eapply globfun_linkable_ee; eauto.

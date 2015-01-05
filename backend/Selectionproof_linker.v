@@ -30,8 +30,141 @@ Require Import WFType paco.
 Local Open Scope cminorsel_scope.
 Local Open Scope error_monad_scope.
 
-Axiom get_helper_independent: forall ge1 ge2 fname fsig,
-                                get_helper ge1 fname fsig = get_helper ge2 fname fsig.
+Lemma find_symbol_spec (p:Cminor.program) i:
+  match Genv.find_symbol (Genv.globalenv p) i, option_map snd (find (fun id => peq i (fst id)) (rev p.(prog_defs))) with
+    | Some b, Some g =>
+      match
+        g,
+        Genv.find_funct_ptr (Genv.globalenv p) b,
+        Genv.find_var_info (Genv.globalenv p) b
+      with
+        | Gfun fd1, Some fd2, None => fd1 = fd2
+        | Gvar vi1, None, Some vi2 => vi1 = vi2
+        | _, _, _ => False
+      end
+    | None, None => True
+    | _, _ => False
+  end.
+Proof.
+  Ltac clarify :=
+    repeat (try match goal with
+                  | [H1: ?m ! ?b = _, H2: ?m ! ?b = _ |- _] => rewrite H1 in H2; inv H2
+                  | [H: Some _ = Some _ |- _] => inv H
+                  | [|- context[(PTree.set ?k _ _) ! ?k]] => rewrite PTree.gss
+                  | [H: context[(PTree.set ?k _ _) ! ?k] |- _] => rewrite PTree.gss in H
+                  | [|- context[(PTree.set _ _ _) ! _]] => rewrite PTree.gsspec
+                  | [H: context[(PTree.set _ _ _) ! _] |- _] => rewrite PTree.gsspec in H
+                  | [|- context[peq ?a ?b]] => destruct (peq a b)
+                  | [H: context[peq ?a ?b] |- _] => destruct (peq a b)
+                  | [H: context[match ?x with | Some _ => _ | None => _ end] |- _] =>
+                    let H := fresh "H" in destruct x eqn:H
+                  | [|- context[match ?x with | Some _ => _ | None => _ end]] =>
+                    let H := fresh "H" in destruct x eqn:H
+                  | [H: False |- _] => inv H
+                  | [g: globdef _ _ |- _] => destruct g
+                end; subst; auto).
+  destruct p as [defs main]. unfold Genv.globalenv. simpl in *.
+  unfold Genv.add_globals. rewrite <- fold_left_rev_right.
+  unfold Genv.find_symbol, Genv.find_funct_ptr, Genv.find_var_info.
+  induction (rev defs); simpl.
+  { rewrite PTree.gempty. auto. }
+  rewrite ? PTree.gsspec. destruct a. simpl. destruct (peq i i0); [subst|]; simpl.
+  { destruct g; clarify.
+    - apply Genv.genv_vars_range in H3. xomega.
+    - apply Genv.genv_vars_range in H3. xomega.
+    - apply Genv.genv_vars_range in H1. xomega.
+    - apply Genv.genv_funs_range in H3. xomega.
+    - apply Genv.genv_funs_range in H3. xomega.
+    - apply Genv.genv_funs_range in H1. xomega.
+  }
+  { clarify.
+    - apply Genv.genv_funs_range in H1. xomega.
+    - apply Genv.genv_funs_range in H1. xomega.
+    - apply Genv.genv_funs_range in H1. xomega.
+    - apply Genv.genv_vars_range in H2. xomega.
+    - apply Genv.genv_vars_range in H2. xomega.
+    - apply Genv.genv_vars_range in H2. xomega.
+  }
+Qed.
+
+Lemma classify_call_correct:
+  forall prog fprog sp e m a v fd
+         (Hle: program_linkeq Language_Cminor prog fprog),
+  Cminor.eval_expr (Genv.globalenv fprog) sp e m a v ->
+  Genv.find_funct (Genv.globalenv fprog) v = Some fd ->
+  match classify_call (Genv.globalenv prog) a with
+  | Call_default => True
+  | Call_imm id => exists b, Genv.find_symbol (Genv.globalenv fprog) id = Some b /\ v = Vptr b Int.zero
+  | Call_builtin ef => fd = External ef
+  end.
+Proof.
+  intros. exploit classify_call_correct; eauto.
+  unfold classify_call. destruct (expr_is_addrof_ident a) eqn:Hident; auto.
+  destruct Hle as [Hle _]. unfold Cminor.fundef in *. simpl in *.
+  generalize (find_symbol_spec fprog i).
+  generalize (find_symbol_spec prog i).
+  unfold Cminor.fundef in *.
+  destruct (Genv.find_symbol (Genv.globalenv prog) i) as [b_src|] eqn:Hb_src.
+  - match goal with
+      | [|- context[match ?g with | Some _ => _ | None => _ end -> _]] =>
+        let H := fresh "H" in destruct g as [g_src|] eqn:H; [|intro X; inv X]
+    end.
+    exploit (Hle i); [rewrite PTree_guespec; apply H1|]. intros [g_tgt [Hg_tgt Hsim]].
+    rewrite PTree_guespec in Hg_tgt. unfold ident, Cminor.fundef in *. simpl in *. rewrite Hg_tgt.
+    inv Hsim.
+    + destruct (Genv.find_funct_ptr (Genv.globalenv prog) b_src) eqn:Hfd_src; [|intro X; inv X].
+      destruct (Genv.find_var_info (Genv.globalenv prog) b_src) eqn:Hvi_src; [intro X; inv X|].
+      intro. subst.
+      destruct (Genv.find_symbol (Genv.globalenv fprog) i) eqn:Hb_tgt; [|intro X; inv X].
+      destruct (Genv.find_funct_ptr (Genv.globalenv fprog) b) eqn:Hfd'_src; [|intro X; inv X].
+      destruct (Genv.find_var_info (Genv.globalenv fprog) b) eqn:Hvi'_src; [intro X; inv X|].
+      intro. subst.
+      inv Hv; auto. inv H2.
+      * destruct f; inv H3. destruct f0; inv H4. destruct e1; inv Hlinkable. auto.
+      * destruct f; inv H3. destruct f0; inv H4. auto.
+    + destruct (Genv.find_funct_ptr (Genv.globalenv prog) b_src) eqn:Hfd_src; [intro X; inv X|].
+      destruct (Genv.find_var_info (Genv.globalenv prog) b_src) eqn:Hvi_src; [|intro X; inv X].
+      intro. subst.
+      destruct (Genv.find_symbol (Genv.globalenv fprog) i) eqn:Hb_tgt; [|intro X; inv X].
+      destruct (Genv.find_funct_ptr (Genv.globalenv fprog) b) eqn:Hfd'_src; [intro X; inv X|].
+      destruct (Genv.find_var_info (Genv.globalenv fprog) b) eqn:Hvi'_src; [|intro X; inv X].
+      intros ? [b' [Hb' Hv']]. subst. rewrite Hb_tgt in Hb'. inv Hb'.
+      eexists. split; eauto.
+  - match goal with
+      | [|- context[match ?g with | Some _ => _ | None => _ end -> _]] =>
+        let H := fresh "H" in destruct g as [g_src|] eqn:H; intro X; inv X
+    end.
+    destruct (Genv.find_symbol (Genv.globalenv fprog) i) eqn:Hb_tgt.
+    { match goal with
+        | [|- context[match ?g with | Some _ => _ | None => _ end -> _]] =>
+          let H := fresh "H" in destruct g as [g_tgt|] eqn:H; [|intro X; inv X]
+      end.
+      destruct g_tgt as [fd_tgt|vi_tgt].
+      { destruct (Genv.find_funct_ptr (Genv.globalenv fprog) b) eqn:Hfd_tgt; [|intro X; inv X].
+        destruct (Genv.find_var_info (Genv.globalenv fprog) b) eqn:Hvi_tgt; [intro X; inv X|].
+        intro. subst. destruct f.
+        { rewrite Hb_tgt. auto. }
+        { destruct (ef_inline e0) eqn:Hinline.
+          { intro. subst. eexists. split; eauto.
+            destruct a; inv Hident. destruct c; inv H4. destruct (Int.eq i1 Int.zero); inv H5.
+            destruct v; inv H0. destruct (Int.eq_dec i0 Int.zero); inv H4.
+            inv H. inv H4. unfold Cminor.fundef in *. simpl in *. rewrite Hb_tgt in *.
+            inv H0. auto.
+          }
+          { rewrite Hb_tgt. auto. }
+        }
+      }
+      { destruct (Genv.find_funct_ptr (Genv.globalenv fprog) b); [intro X; inv X|].
+        destruct (Genv.find_var_info (Genv.globalenv fprog) b) eqn:Hvi_tgt; [|intro X; inv X].
+        intro. subst. rewrite Hb_tgt. auto.
+      }
+    }
+    { rewrite Hb_tgt. auto. }
+Qed.
+
+Axiom get_helper_independent:
+  forall ge1 ge2 fname fsig,
+    get_helper ge1 fname fsig = get_helper ge2 fname fsig.
 
 Lemma get_helpers_independent ge1 ge2: get_helpers ge1 = get_helpers ge2.
 Proof. unfold get_helpers. erewrite ? (get_helper_independent ge1 ge2). auto. Qed.

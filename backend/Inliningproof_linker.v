@@ -88,7 +88,7 @@ Hypothesis (Hfprog: program_linkeq Language_RTL prog fprog).
 Hypothesis (Hftprog: program_linkeq Language_RTL tprog ftprog).
 
 Let globfun_weak_lsim :=
-  @globfun_lsim Language_RTL Language_RTL id (@Errors.OK _)
+  @globfun_lsim Language_RTL Language_RTL transf_sigT transf_efT
                 (fun _ _ _ _ => True)
                 fprog ftprog.
 
@@ -112,7 +112,7 @@ Lemma find_function_agree:
   match_globalenvs F bound ->
   exists fd',
   find_function tge (sros ctx ros) rs' = Some fd' /\
-  fundef_weak_lsim Language_RTL Language_RTL id ge tge fd fd'.
+  fundef_weak_lsim Language_RTL Language_RTL transf_sigT ge tge fd fd'.
 Proof.
   intros. destruct ros as [r | id]; simpl in *.
   (* register *)
@@ -569,7 +569,7 @@ Inductive match_states (F:meminj): state -> state -> Prop :=
 Inductive match_call (F:meminj): state -> state -> Prop :=
   | match_call_states: forall stk fd args m stk' fd' args' m'
         (MS: match_stacks F m m' stk stk' (Mem.nextblock m'))
-        (FD: fundef_weak_lsim Language_RTL Language_RTL id ge tge fd fd')
+        (FD: fundef_weak_lsim Language_RTL Language_RTL transf_sigT ge tge fd fd')
         (VINJ: val_list_inject F args args')
         (MINJ: Mem.inject F m m'),
       match_call F
