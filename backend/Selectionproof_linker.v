@@ -24,7 +24,6 @@ Require Import SelectOpproof.
 Require Import SelectDivproof.
 Require Import SelectLongproof.
 Require Import Selectionproof.
-Require Import RTL_linker ValueAnalysis_linker.
 Require Import WFType paco.
 
 Local Open Scope cminorsel_scope.
@@ -210,7 +209,7 @@ Lemma function_ptr_translated:
   forall (b: block) (f: Cminor.fundef),
   Genv.find_funct_ptr ge b = Some f ->
   exists tf, Genv.find_funct_ptr tge b = Some tf /\
-             globfun_weak_lsim Language_Cminor Language_CminorSel transf_sigT ge tge f tf.
+             globfun_weak_lsim Language_Cminor Language_CminorSel transf_sigT transf_efT ge tge f tf.
 Proof.  
   unfold ge, tge. intros. eapply (@ProgramLSim.funct_ptr_translated Language_Cminor Language_CminorSel); eauto.
 Qed.
@@ -220,7 +219,7 @@ Lemma functions_translated:
   Genv.find_funct ge v = Some f ->
   Val.lessdef v v' ->
   exists tf, Genv.find_funct tge v' = Some tf /\
-             globfun_weak_lsim Language_Cminor Language_CminorSel transf_sigT ge tge f tf.
+             globfun_weak_lsim Language_Cminor Language_CminorSel transf_sigT transf_efT ge tge f tf.
 Proof.  
   unfold ge, tge. intros. inv H0.
   - eapply (@ProgramLSim.functions_translated Language_Cminor Language_CminorSel); eauto.
@@ -229,10 +228,11 @@ Qed.
 
 Lemma sig_preserved:
   forall f tf,
-    globfun_weak_lsim Language_Cminor Language_CminorSel id ge tge f tf ->
+    globfun_weak_lsim Language_Cminor Language_CminorSel transf_sigT transf_efT ge tge f tf ->
     CminorSel.funsig tf = Cminor.funsig f.
 Proof.
-  intros. inv H. inv Hsig. rewrite ? Fundef_Cminor_funsig, Fundef_CminorSel_funsig in Hsig0. auto.
+  intros. exploit sig_preserved; try exact transf_efT_sigT; eauto.
+  unfold transf_sigT. rewrite Fundef_Cminor_funsig, Fundef_CminorSel_funsig. auto.
 Qed.
 
 Lemma sig_function_translated:
@@ -265,15 +265,14 @@ Lemma helper_implements_preserved:
   helper_implements ge id sg vargs vres ->
   helper_implements tge id sg vargs vres.
 Proof.
-  admit.
-  (* intros. destruct H as (b & ef & A & B & C & D). *)
-  (* exploit function_ptr_translated; eauto. simpl. intros (tf & P & Q). inv Q. *)
-  (* exists b; exists ef. *)
-  (* split. rewrite symbols_preserved. auto. *)
-  (* split. auto. *)
-  (* split. auto. *)
-  (* intros. eapply external_call_symbols_preserved; eauto. *)
-  (* exact symbols_preserved. exact varinfo_preserved. *)
+  intros. destruct H as (b & ef & A & B & C & D).
+  exploit function_ptr_translated; eauto. simpl. intros (tf & P & Q). inv Q. 
+  exists b; exists ef.
+  split. rewrite symbols_preserved. auto.
+  split. destruct tf; inv Hsim. auto.
+  split. auto.
+  intros. eapply external_call_symbols_preserved; eauto.
+  exact symbols_preserved. exact varinfo_preserved.
 Qed.
 
 Lemma builtin_implements_preserved:
@@ -766,7 +765,7 @@ Inductive match_states: Cminor.state -> CminorSel.state -> Prop :=
 
 Inductive match_call: Cminor.state -> CminorSel.state -> Prop :=
   | match_callstate: forall f f' args args' k k' m m'
-        (TF: globfun_weak_lsim Language_Cminor Language_CminorSel transf_sigT ge tge f f')
+        (TF: globfun_weak_lsim Language_Cminor Language_CminorSel transf_sigT transf_efT ge tge f f')
         (MC: match_cont k k')
         (LD: Val.lessdef_list args args')
         (ME: Mem.extends m m'),
@@ -1127,7 +1126,7 @@ Hypothesis (Hftprog: program_linkeq Language_CminorSel tprog ftprog).
 
 Lemma match_states_state_lsim es es' eF F s1 s1'
       (MS: match_states fprog ftprog s1 s1'):
-  @state_lsim Language_ext_Cminor Language_ext_CminorSel transf_sigT _
+  @state_lsim Language_ext_Cminor Language_ext_CminorSel transf_sigT transf_efT _
               mrelT_ops fprog ftprog es es' eF F (WF.from_nat (measure s1)) s1 s1'.
 Proof.
   revert F s1 s1' MS. pcofix CIH. intros F s1 s1' MS. pfold.
@@ -1168,7 +1167,7 @@ Qed.
 
 Lemma sel_function_lsim
       f tf (Hf: sel_function hf (Genv.globalenv prog) f = OK tf):
-  @function_lsim Language_ext_Cminor Language_ext_CminorSel transf_sigT _
+  @function_lsim Language_ext_Cminor Language_ext_CminorSel transf_sigT transf_efT _
                  mrelT_ops fprog ftprog f tf.
 Proof.
   constructor. intros. pfold. constructor; subst; auto.
@@ -1208,7 +1207,7 @@ End STATE_LSIM.
 
 Lemma Selection_program_lsim_aux:
   @program_lsim Language_Cminor Language_CminorSel transf_sigT transf_efT transf_vT
-                (@function_lsim Language_ext_Cminor Language_ext_CminorSel transf_sigT _ mrelT_ops)
+                (@function_lsim Language_ext_Cminor Language_ext_CminorSel transf_sigT transf_efT _ mrelT_ops)
                 prog tprog.
 Proof.
   generalize sel_function_lsim.
@@ -1242,7 +1241,7 @@ End PRESERVATION.
 
 Lemma Selection_program_lsim prog tprog (Hprog: sel_program prog = OK tprog):
   @program_lsim Language_Cminor Language_CminorSel transf_sigT transf_efT transf_vT
-                (@function_lsim Language_ext_Cminor Language_ext_CminorSel transf_sigT _ mrelT_ops)
+                (@function_lsim Language_ext_Cminor Language_ext_CminorSel transf_sigT transf_efT _ mrelT_ops)
                 prog tprog.
 Proof.
   apply Selection_program_lsim_aux.

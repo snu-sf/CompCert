@@ -58,7 +58,7 @@ Variable (prog_src:lang_src.(progT)).
 Variable (prog_tgt:lang_tgt.(progT)).
 Hypothesis
   (Hsim: @program_lsim lang_src lang_tgt transf_sigT transf_efT transf_vT
-                       (function_lsim transf_sigT mrelT_ops)
+                       (function_lsim transf_sigT transf_efT mrelT_ops)
                        prog_src prog_tgt).
 
 Lemma Hweak_sim:
@@ -82,7 +82,7 @@ Inductive match_stackframes: forall (height:nat) (mrel:mrelT) (es_src:lang_src.(
               (Hst_tgt: st_tgt = lang_tgt.(mkReturnstate) es_tgt vres_tgt mem_tgt)
               (Hrmrel_le: mrelT_ops.(le_public) mrel rmrel)
               (Hst_mem: mrelT_ops.(sem) rmrel prog_src prog_tgt ri st_src st_tgt),
-         state_lsim transf_sigT mrelT_ops prog_src prog_tgt ps_src ps_tgt emrel rmrel ri st_src st_tgt):
+         state_lsim transf_sigT transf_efT mrelT_ops prog_src prog_tgt ps_src ps_tgt emrel rmrel ri st_src st_tgt):
     match_stackframes (S height) mrel es_src es_tgt
 .
 
@@ -92,7 +92,7 @@ Inductive match_states (i:WF.t) (st_src:lang_src.(stateT)) (st_tgt:lang_tgt.(sta
     emrel mrel
     (Hp: match_stackframes height emrel es_src es_tgt)
     (Hmrel_le: mrelT_ops.(le) emrel mrel)
-    (Hsim: state_lsim transf_sigT mrelT_ops prog_src prog_tgt es_src es_tgt emrel mrel i st_src st_tgt)
+    (Hsim: state_lsim transf_sigT transf_efT mrelT_ops prog_src prog_tgt es_src es_tgt emrel mrel i st_src st_tgt)
 .
 
 Lemma program_sim_forward_simulation:
@@ -111,7 +111,7 @@ Proof.
         erewrite symbols_preserved; eauto. auto.
         destruct Hsim as [_ Hmain]. auto.
       repeat (split; auto).
-      rewrite <- transf_sigT_main, <- Hsig. inv B. inv Hsig0. auto.
+      rewrite <- transf_sigT_main, <- Hsig. apply sig_preserved in B; auto.
     }
     exploit (mrelT_props.(Hmrel_i_init)); eauto.
     { eexists. eexists. eexists. eauto. }
@@ -197,17 +197,19 @@ Proof.
         exploit Hreturn; eauto. intro Hsim2. pclearbot. eauto.
       }
       { destruct mrelT_props. reflexivity. }
-      inv Hfundef. exploit funct_ptr_translated'; try exact transf_efT_sigT; eauto.
-      intros [tf [Htf Hfundef_sim]]. unfold Genv.find_funct_ptr in Htf. rewrite Htgt in Htf. symmetry in Htf. inv Htf.
-      inv Hfundef_sim.
+      inv Hfundef.
       destruct (Fundef_dec (fundefT lang_src) fundef_src) as [f_src|ef_src] eqn:Hfundef_src,
                (Fundef_dec (fundefT lang_tgt) fundef_tgt) as [f_tgt|ef_tgt] eqn:Hfundef_tgt;
       try (inv Hsim0; fail).
-      + exploit Hsim0; try reflexivity. unfold F_future_lsim. intros.
+      + destruct Hsim0 as [Hf_sig [b [Hsrc Htgt]]].
+        exploit funct_ptr_translated'; try exact transf_efT_sigT; eauto.
+        intros [tf [Htf Hfundef_sim]]. unfold Genv.find_funct_ptr in Htf. rewrite Htgt in Htf. symmetry in Htf. inv Htf.
+        inv Hfundef_sim. rewrite Hfundef_src, Hfundef_tgt in *.
+        exploit Hsim0; try reflexivity. unfold F_future_lsim. intros.
         destruct H0 as [Hfunction_sim Hfunction_sig].
         exploit Hfunction_sim; eauto.
         intro X. inv X. eapply Hlsim; eauto.
-      + inv Hsim0. pfold. constructor.
+      + pfold. constructor.
         { intros ? Hfinal. inv Hfinal. exploit Hfinal_not_call; eauto. }
         intros. exploit (mrelT_props.(Hexternal_call)); eauto.
         intros [res [m3 [s3' [res' [m3' [mrel3 [i3 [? [? [Hst3_tgt [Hmrel3 [Hmrel3_val Hmrel3_le]]]]]]]]]]]].

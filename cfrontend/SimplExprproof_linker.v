@@ -917,7 +917,7 @@ Inductive match_states: Csem.state -> state -> Prop :=
 
 Inductive match_call: Csem.state -> state -> Prop :=
   | match_callstates: forall fd args k m tfd tk,
-      globfun_weak_lsim Language_C Language_Clight transf_sigT ge tge fd tfd ->
+      globfun_weak_lsim Language_C Language_Clight transf_sigT transf_efT ge tge fd tfd ->
       match_cont k tk ->
       match_call (Csem.Callstate fd args k m)
                  (Callstate tfd args tk m).
@@ -1642,7 +1642,7 @@ Proof.
   econstructor; split. 
   left. eapply plus_left. constructor.  apply star_one.
   econstructor; eauto. rewrite <- TY1; eauto.
-  inv K. exploit (@ProgramLSim.sig_preserved Language_C Language_Clight); eauto.
+  exploit (@ProgramLSim.sig_preserved Language_C Language_Clight); eauto.
   rewrite Fundef_C_type_of_fundef, Fundef_Clight_type_of_fundef. unfold id. congruence.
   traceEq.
   right. constructor; auto. econstructor; eauto.
@@ -1656,7 +1656,7 @@ Proof.
   econstructor; split. 
   left. eapply plus_left. constructor.  apply star_one.
   econstructor; eauto. rewrite <- TY1; eauto.
-  inv K. exploit (@ProgramLSim.sig_preserved Language_C Language_Clight); eauto.
+  exploit (@ProgramLSim.sig_preserved Language_C Language_Clight); eauto.
   rewrite Fundef_C_type_of_fundef, Fundef_Clight_type_of_fundef. unfold id. congruence.
   traceEq.
   right. constructor; auto. econstructor; eauto.
@@ -2025,7 +2025,7 @@ Proof.
   replace (prog_main ftprog) with (prog_main fprog).
   erewrite (@ProgramLSim.symbols_preserved Language_C Language_Clight); eauto.
   destruct Hfsim as [_ Hmain]. simpl in *. rewrite <- Hmain. auto.
-  inv TR. exploit (@ProgramLSim.sig_preserved Language_C Language_Clight); eauto.
+  exploit (@ProgramLSim.sig_preserved Language_C Language_Clight); eauto.
   rewrite Fundef_C_type_of_fundef, Fundef_Clight_type_of_fundef. unfold id. congruence.
   constructor; auto. constructor.
 Qed.
@@ -2146,7 +2146,7 @@ Hypothesis (Hftprog: program_linkeq Language_Clight tprog ftprog).
 
 Lemma match_states_state_lsim es es' eF F s1 s1'
       (MS: match_states ftprog s1 s1'):
-  @state_lsim Language_ext_C Language_ext_Clight1 transf_sigT _
+  @state_lsim Language_ext_C Language_ext_Clight1 transf_sigT transf_efT _
               mrelT_ops fprog ftprog es es' eF F (WF.from_nat (measure s1)) s1 s1'.
 Proof.
   revert F s1 s1' MS. pcofix CIH. intros F s1 s1' MS. pfold.
@@ -2174,7 +2174,7 @@ Qed.
 
 Lemma transf_function_lsim
       f tf (Hf: tr_function f tf):
-  @function_lsim Language_ext_C Language_ext_Clight1 transf_sigT _
+  @function_lsim Language_ext_C Language_ext_Clight1 transf_sigT transf_efT _
                  mrelT_ops fprog ftprog f tf.
 Proof.
   constructor. intros. pfold. constructor; subst; auto.
@@ -2200,7 +2200,7 @@ End STATE_LSIM.
 
 Lemma SimplExpr_program_lsim:
   @program_lsim Language_C Language_Clight transf_sigT transf_efT transf_vT
-                (@function_lsim Language_ext_C Language_ext_Clight1 transf_sigT _ mrelT_ops)
+                (@function_lsim Language_ext_C Language_ext_Clight1 transf_sigT transf_efT _ mrelT_ops)
                 prog tprog.
 Proof.
   generalize transf_function_lsim.

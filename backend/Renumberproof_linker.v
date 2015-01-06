@@ -61,7 +61,7 @@ Inductive match_states: RTL.state -> RTL.state -> Prop :=
 Inductive match_call: RTL.state -> RTL.state -> Prop :=
   | match_callstates: forall stk f args m stk' f'
         (STACKS: list_forall2 match_frames stk stk')
-        (FUN: globfun_weak_lsim Language_RTL Language_RTL transf_sigT ge tge f f'),
+        (FUN: globfun_weak_lsim Language_RTL Language_RTL transf_sigT transf_efT ge tge f f'),
       match_call (Callstate stk f args m)
                  (Callstate stk' f' args m).
 
@@ -241,7 +241,7 @@ Hypothesis (Hftprog: program_linkeq Language_RTL tprog ftprog).
 
 Lemma match_states_state_lsim es es' eF F i s1 s1'
       (MS: match_states_ext fprog ftprog s1 s1'):
-  @state_lsim Language_ext_RTL Language_ext_RTL transf_sigT _
+  @state_lsim Language_ext_RTL Language_ext_RTL transf_sigT transf_efT _
               mrelT_ops fprog ftprog es es' eF F i s1 s1'.
 Proof.
   revert F i s1 s1' MS. pcofix CIH. intros F i s1 s1' MS. pfold.
@@ -274,7 +274,7 @@ Proof.
 Qed.
 
 Lemma transf_function_lsim f:
-  @function_lsim Language_ext_RTL Language_ext_RTL transf_sigT _
+  @function_lsim Language_ext_RTL Language_ext_RTL transf_sigT transf_efT _
                  mrelT_ops fprog ftprog f (transf_function f).
 Proof.
   constructor. intros. pfold. constructor; subst; auto.
@@ -311,7 +311,7 @@ End STATE_LSIM.
 
 Lemma Renumber_program_lsim:
   @program_lsim Language_RTL Language_RTL transf_sigT transf_efT transf_vT
-                (@function_lsim Language_ext_RTL Language_ext_RTL transf_sigT _ mrelT_ops)
+                (@function_lsim Language_ext_RTL Language_ext_RTL transf_sigT transf_efT _ mrelT_ops)
                 prog tprog.
 Proof.
   generalize transf_function_lsim.

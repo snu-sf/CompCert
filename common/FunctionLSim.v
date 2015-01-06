@@ -120,7 +120,7 @@ Inductive _state_lsim_or_csim
     (Hst_src: st_src = lang_src.(mkCallstate) cont_src fundef_src args_src mem_src)
     cont_tgt fundef_tgt args_tgt mem_tgt
     (Hst_tgt: st_tgt = lang_tgt.(mkCallstate) cont_tgt fundef_tgt args_tgt mem_tgt)
-    (Hfundef: globfun_weak_lsim lang_src lang_tgt transf_sigT ge_src ge_tgt fundef_src fundef_tgt)
+    (Hfundef: globfun_weak_lsim lang_src lang_tgt transf_sigT transf_efT ge_src ge_tgt fundef_src fundef_tgt)
     (Hargs: list_forall2 (mrelT_ops.(sem_value) mrel) args_src args_tgt)
     (Hmrel: mrelT_ops.(sem) mrel fprog_src fprog_tgt i st_src st_tgt)
     (Hreturn:

@@ -61,7 +61,7 @@ Definition f_lsimT :=
     (f_src:fT_src) (f_tgt:fT_tgt), Prop.
 
 Ltac clarify :=
-  unfold fd_sig_src, fd_sig_tgt, Fundef_sig, f_sig_src, f_sig_tgt, ef_sig_src, ef_sig_tgt in *;
+  unfold fd_sig_src, fd_sig_tgt, ef_sig, f_sig_src, f_sig_tgt, ef_sig_src, ef_sig_tgt in *;
   unfold fundefT_src, vT_src, fundefT_tgt, vT_tgt, fundef_dec_src, fundef_dec_tgt in *;
   unfold fT_src, fT_tgt, efT_src, efT_tgt in *;
   repeat
@@ -484,13 +484,19 @@ Inductive globfun_sig_lsim (f_src:fundefT_src) (f_tgt:fundefT_tgt): Prop :=
 
 Inductive globfun_weak_lsim
           (ge_src:Genv.t fundefT_src vT_src) (ge_tgt:Genv.t fundefT_tgt vT_tgt)
-          (f_src:fundefT_src) (f_tgt:fundefT_tgt): Prop :=
+          (fd_src:fundefT_src) (fd_tgt:fundefT_tgt): Prop :=
 | globfun_weak_lsim_intro
-    (Hsig: globfun_sig_lsim f_src f_tgt)
-    b
-    (Hsrc: Maps.PTree.get b ge_src.(Genv.genv_funs) = Some f_src)
-    (Htgt: Maps.PTree.get b ge_tgt.(Genv.genv_funs) = Some f_tgt)
-.
+    (Hsim:
+       match fundef_dec_src fd_src, fundef_dec_tgt fd_tgt with
+         | inl f_src, inl f_tgt =>
+           sig_lsim (f_sig_src f_src) (f_sig_tgt f_tgt) /\
+           exists b,
+             Maps.PTree.get b ge_src.(Genv.genv_funs) = Some fd_src /\
+             Maps.PTree.get b ge_tgt.(Genv.genv_funs) = Some fd_tgt
+         | inr ef_src, inr ef_tgt =>
+           ef_lsim ef_src ef_tgt
+         | _, _ => False
+       end).
 
 Section INITIALIZE.
 
@@ -499,11 +505,7 @@ Variable (fprog_tgt: program fundefT_tgt vT_tgt).
 Variable (f_lsim:f_lsimT).
 Variable (Hfprog: program_lsim_aux f_lsim fprog_src fprog_tgt).
 
-Inductive match_fundef (f_src:fundefT_src) (f_tgt:fundefT_tgt): Prop :=
-| match_fundef_intro
-    (Hsig: globfun_sig_lsim f_src f_tgt)
-    (Hsim: globfun_lsim f_lsim fprog_src fprog_tgt f_src f_tgt)
-.
+Let match_fundef := globfun_lsim f_lsim fprog_src fprog_tgt.
 
 Let ge_src := Genv.globalenv fprog_src.
 Let ge_tgt := Genv.globalenv fprog_tgt.
@@ -523,7 +525,6 @@ Proof.
     + exploit Hsim; try reflexivity. intros [_ ?].
       repeat constructor; clarify; rewrite Hsrc, Htgt; auto.
     + repeat constructor; clarify; rewrite Hsrc, Htgt; auto.
-      apply transf_efT_sigT. auto.
   - destruct v_src, v_tgt. inv Hv. unfold transf_globvar in Hv0. simpl in *.
     destruct (transf_vT gvar_info) eqn:Hgvar_info; inv Hv0. constructor; auto.
 Qed.
@@ -585,8 +586,11 @@ Lemma funct_ptr_translated:
   Genv.find_funct_ptr (Genv.globalenv fprog_tgt) b = Some tf /\ globfun_weak_lsim ge_src ge_tgt f tf.
 Proof.
   intros. exploit Genv.find_funct_ptr_match; eauto. intros [tf [Htf Hsim]].
-  eexists. split; eauto. inv Hsim. inv Hsig. unfold Genv.find_funct_ptr in *.
-  repeat econstructor; eauto.
+  eexists. split; eauto. inv Hsim. constructor.
+  destruct (fundef_dec_src f) as [f_src|ef_src] eqn:Hfd_src,
+           (fundef_dec_tgt tf) as [f_tgt|ef_tgt] eqn:Hfd_tgt; try inv Hsim0; auto.
+  exploit Hsim0; try reflexivity; eauto. intros [_ ?]. split; auto.
+  eexists. split; eauto.
 Qed.
 
 Lemma funct_ptr_translated':
@@ -595,8 +599,7 @@ Lemma funct_ptr_translated':
   exists tf : fundefT_tgt,
   Genv.find_funct_ptr (Genv.globalenv fprog_tgt) b = Some tf /\ globfun_lsim f_lsim fprog_src fprog_tgt f tf.
 Proof.
-  intros. exploit Genv.find_funct_ptr_match; eauto. intros [tf [Htf Hsim]].
-  exists tf. split; auto. inv Hsim. auto.
+  intros. exploit Genv.find_funct_ptr_match; eauto.
 Qed.
 
 Lemma functions_translated:
@@ -610,10 +613,17 @@ Proof.
 Qed.
 
 Lemma sig_preserved:
-  forall f tf (Hsim: globfun_sig_lsim f tf),
+  forall f tf (Hsim: globfun_weak_lsim ge_src ge_tgt f tf),
     sig_lsim (fd_sig_src f) (fd_sig_tgt tf).
 Proof.
-  intros. inv Hsim. auto.
+  intros. inv Hsim.
+  unfold fd_sig_src, fd_sig_tgt, Fundef_sig.
+  destruct (fundef_dec_src f) as [f_src|ef_src] eqn:Hfd_src,
+           (fundef_dec_tgt tf) as [f_tgt|ef_tgt] eqn:Hfd_tgt; try (inv Hsim0; fail).
+  - unfold fundef_dec_src, fundef_dec_tgt in *. rewrite Hfd_src, Hfd_tgt.
+    destruct Hsim0 as [? _]. auto.
+  - unfold fundef_dec_src, fundef_dec_tgt in *. rewrite Hfd_src, Hfd_tgt.
+    apply transf_efT_sigT. auto.
 Qed.
 
 End INITIALIZE.

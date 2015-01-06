@@ -107,7 +107,7 @@ Lemma find_function_agree:
   match_globalenvs F bound ->
   exists fd',
   find_function tge (sros ctx ros) rs' = Some fd' /\
-  globfun_weak_lsim Language_RTL Language_RTL transf_sigT ge tge fd fd'.
+  globfun_weak_lsim Language_RTL Language_RTL transf_sigT transf_efT ge tge fd fd'.
 Proof.
   intros. destruct ros as [r | id]; simpl in *.
   (* register *)
@@ -564,7 +564,7 @@ Inductive match_states (F:meminj): state -> state -> Prop :=
 Inductive match_call (F:meminj): state -> state -> Prop :=
   | match_call_states: forall stk fd args m stk' fd' args' m'
         (MS: match_stacks F m m' stk stk' (Mem.nextblock m'))
-        (FD: globfun_weak_lsim Language_RTL Language_RTL transf_sigT ge tge fd fd')
+        (FD: globfun_weak_lsim Language_RTL Language_RTL transf_sigT transf_efT ge tge fd fd')
         (VINJ: val_list_inject F args args')
         (MINJ: Mem.inject F m m'),
       match_call F
@@ -1085,7 +1085,7 @@ Hypothesis (Hftprog: program_linkeq Language_RTL tprog ftprog).
 
 Lemma match_states_state_lsim es es' (eF F:meminj) s1 s1'
       (MS: match_states_ext fprog ftprog F s1 s1'):
-  @state_lsim Language_ext_RTL Language_ext_RTL transf_sigT _
+  @state_lsim Language_ext_RTL Language_ext_RTL transf_sigT transf_efT _
               mrelT_ops fprog ftprog es es' eF F (WF.from_nat (measure s1)) s1 s1'.
 Proof.
   revert F s1 s1' MS. pcofix CIH. intros F s1 s1' MS. pfold.
@@ -1138,7 +1138,7 @@ Qed.
 Lemma transf_function_lsim
       fenv (FENV: PTree_le fenv (funenv_program fprog))
       f f' (Hfd: Inlining.transf_function fenv f = OK f'):
-  @function_lsim Language_ext_RTL Language_ext_RTL transf_sigT _
+  @function_lsim Language_ext_RTL Language_ext_RTL transf_sigT transf_efT _
                  mrelT_ops fprog ftprog f f'.
 Proof.
   constructor. repeat intro. inv Hmrel_entry.
@@ -1200,7 +1200,7 @@ End STATE_LSIM.
 
 Lemma Inlining_program_lsim:
   @program_lsim Language_RTL Language_RTL transf_sigT transf_efT transf_vT
-                (@function_lsim Language_ext_RTL Language_ext_RTL transf_sigT _ mrelT_ops)
+                (@function_lsim Language_ext_RTL Language_ext_RTL transf_sigT transf_efT _ mrelT_ops)
                 prog tprog.
 Proof.
   generalize transf_function_lsim.

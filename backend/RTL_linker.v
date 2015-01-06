@@ -75,7 +75,7 @@ Let tge := Genv.globalenv ftprog.
 
 Lemma symbols_preserved:
   forall (s: ident), Genv.find_symbol tge s = Genv.find_symbol ge s.
-Proof (symbols_preserved transf_efT_sigT Hfsim).
+Proof (symbols_preserved Hfsim).
 
 Lemma varinfo_preserved:
   forall b, Genv.find_var_info tge b = Genv.find_var_info ge b.
@@ -93,21 +93,21 @@ Lemma funct_ptr_translated:
   forall (b: block) (f: RTL.fundef),
   Genv.find_funct_ptr ge b = Some f ->
   exists tf, Genv.find_funct_ptr tge b = Some tf /\
-             globfun_weak_lsim Language_RTL Language_RTL transf_sigT ge tge f tf.
-Proof (funct_ptr_translated transf_efT_sigT Hfsim).
+             globfun_weak_lsim Language_RTL Language_RTL transf_sigT transf_efT ge tge f tf.
+Proof (funct_ptr_translated Hfsim).
 
 Lemma functions_translated:
   forall (v: val) (f: RTL.fundef),
   Genv.find_funct ge v = Some f ->
   exists tf, Genv.find_funct tge v = Some tf /\
-             globfun_weak_lsim Language_RTL Language_RTL transf_sigT ge tge f tf.
-Proof (functions_translated transf_efT_sigT Hfsim).
+             globfun_weak_lsim Language_RTL Language_RTL transf_sigT transf_efT ge tge f tf.
+Proof (functions_translated Hfsim).
 
 Lemma find_function_translated_Renumber:
   forall ros rs fd,
   find_function ge ros rs = Some fd ->
   exists tfd, find_function tge ros rs = Some tfd /\
-              globfun_weak_lsim Language_RTL Language_RTL transf_sigT ge tge fd tfd.
+              globfun_weak_lsim Language_RTL Language_RTL transf_sigT transf_efT ge tge fd tfd.
 Proof.
   unfold find_function; intros; destruct ros.
 - apply functions_translated; auto.
@@ -121,7 +121,7 @@ Lemma find_function_translated_CSE:
   find_function ge ros rs = Some fd ->
   CSEproof.regs_lessdef rs rs' ->
   exists tfd, find_function tge ros rs' = Some tfd /\
-              globfun_weak_lsim Language_RTL Language_RTL transf_sigT ge tge fd tfd.
+              globfun_weak_lsim Language_RTL Language_RTL transf_sigT transf_efT ge tge fd tfd.
 Proof.
   unfold find_function; intros; destruct ros.
 - specialize (H0 r). inv H0.
@@ -137,7 +137,7 @@ Lemma find_function_translated_Tailcall:
   find_function ge ros rs = Some fd ->
   Tailcallproof.regset_lessdef rs rs' ->
   exists tfd, find_function tge ros rs' = Some tfd /\
-              globfun_weak_lsim Language_RTL Language_RTL transf_sigT ge tge fd tfd.
+              globfun_weak_lsim Language_RTL Language_RTL transf_sigT transf_efT ge tge fd tfd.
 Proof.
   unfold find_function; intros; destruct ros.
 - specialize (H0 r). inv H0.
@@ -153,7 +153,7 @@ Lemma find_function_translated_Constprop:
   find_function ge ros rs = Some fd ->
   Constpropproof.regs_lessdef rs rs' ->
   exists tfd, find_function tge ros rs' = Some tfd /\
-              globfun_weak_lsim Language_RTL Language_RTL transf_sigT ge tge fd tfd.
+              globfun_weak_lsim Language_RTL Language_RTL transf_sigT transf_efT ge tge fd tfd.
 Proof.
   unfold find_function; intros; destruct ros.
 - specialize (H0 r). inv H0.
@@ -166,10 +166,11 @@ Qed.
 
 Lemma sig_preserved:
   forall f tf,
-    globfun_weak_lsim Language_RTL Language_RTL transf_sigT ge tge f tf ->
+    globfun_weak_lsim Language_RTL Language_RTL transf_sigT transf_efT ge tge f tf ->
     funsig tf = funsig f.
 Proof.
-  intros. inv H. inv Hsig. rewrite ? Fundef_funsig in Hsig0. auto.
+  intros. exploit sig_preserved; try exact transf_efT_sigT; eauto.
+  unfold transf_sigT. rewrite ? Fundef_funsig. auto.
 Qed.
 
 End FUTURE.
