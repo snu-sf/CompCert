@@ -164,11 +164,6 @@ Proof.
     { rewrite Hb_tgt. auto. }
 Qed.
 
-Lemma Fundef_Cminor_funsig f: Fundef_sig (Fundef_common F_Cminor) f = Cminor.funsig f.
-Proof. unfold Fundef_sig, Fundef_dec. simpl. destruct f; auto. Qed.
-Lemma Fundef_CminorSel_funsig f: Fundef_sig (Fundef_common F_CminorSel) f = CminorSel.funsig f.
-Proof. unfold Fundef_sig, Fundef_dec. simpl. destruct f; auto. Qed.
-
 Definition transf_sigT := fun (sig:signature) => sig.
 Definition transf_efT := fun (ef:external_function) => Errors.OK ef.
 Definition transf_vT := fun (v:unit) => Errors.OK v.
@@ -1045,38 +1040,6 @@ Proof.
   induction v1; intros; constructor; intro H; inv H; constructor; auto.
   - apply IHv1. auto.
   - apply IHv1. auto.
-Qed.
-
-Lemma initial_state_Cminor_equiv p s:
-  Language.initial_state Language_ext_Cminor p s <-> Cminor.initial_state p s.
-Proof.
-  constructor; intro X.
-  - destruct X as [a [f [m0 [Hm0 [Ha [Hf [Hsig ?]]]]]]]. simpl in *. subst.
-    econstructor; eauto. rewrite <- Fundef_Cminor_funsig. auto.
-  - inv X. repeat eexists; eauto.
-    rewrite Fundef_Cminor_funsig. auto.
-Qed.
-
-Lemma initial_state_CminorSel_equiv p s:
-  Language.initial_state Language_ext_CminorSel p s <-> CminorSel.initial_state p s.
-Proof.
-  constructor; intro X.
-  - destruct X as [a [f [m0 [Hm0 [Ha [Hf [Hsig ?]]]]]]]. simpl in *. subst.
-    econstructor; eauto. rewrite <- Fundef_CminorSel_funsig. auto.
-  - inv X. repeat eexists; eauto.
-    rewrite Fundef_CminorSel_funsig. auto.
-Qed.
-
-Lemma final_state_Cminor_equiv p r:
-  Language.final_state Language_ext_Cminor p r <-> Cminor.final_state p r.
-Proof.
-  constructor; intro X; inv X; simpl in *; econstructor; simpl; eauto.
-Qed.
-
-Lemma final_state_CminorSel_equiv p r:
-  Language.final_state Language_ext_CminorSel p r <-> CminorSel.final_state p r.
-Proof.
-  constructor; intro X; inv X; simpl in *; econstructor; simpl; eauto.
 Qed.
 
 Program Definition mrelT_props:

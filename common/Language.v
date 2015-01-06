@@ -3,7 +3,7 @@ Require String.
 Require Import Coqlib Coqlib_linker.
 Require Import Maps Maps_linker.
 Require Import Integers Floats Values AST Globalenvs.
-Require Import Errors Behaviors Compiler Smallstep.
+Require Import Errors Behaviors Compiler Smallstep Smallstep_linker.
 Require Import Memory.
 
 Set Implicit Arguments.
@@ -109,21 +109,16 @@ Structure Language_ext: Type := mkLanguage_ext {
                         cont1 = cont2 /\ v1 = v2 /\ m1 = m2
 }.
 
-(* Inductive initial_state (lang:Language_ext) (p:lang.(progT)): lang.(stateT) -> Prop := *)
-(*   | initial_state_intro: forall b f m0, *)
-(*       let ge := Genv.globalenv p in *)
-(*       Genv.init_mem p = Some m0 -> *)
-(*       Genv.find_symbol ge p.(prog_main) = Some b -> *)
-(*       Genv.find_funct_ptr ge b = Some f -> *)
-(*       lang.(fundefT).(Fundef_sig) f = lang.(signature_main) -> *)
-(*       initial_state lang p (lang.(mkCallstate) lang.(empty_cont) f nil m0). *)
-
-(* Inductive final_state (lang:Language_ext): lang.(stateT) -> int -> Prop := *)
-(*   | final_state_intro: forall r m, *)
-(*       final_state lang (lang.(mkReturnstate) lang.(empty_cont) (Vint r) m) r. *)
-
-(* Definition semantics (lang:Language_ext) (p:lang.(progT)) := *)
-(*   Semantics lang.(step) (initial_state lang p) (final_state lang) (Genv.globalenv p). *)
+Lemma initial_state_unique lang p s1 s2
+      (H1: lang.(initial_state) p s1)
+      (H2: lang.(initial_state) p s2):
+  s1 = s2.
+Proof.
+  destruct H1 as [b [f [m0 [Hm0 [Hb [Hf [Hsig ?]]]]]]]. subst.
+  destruct H2 as [b' [f' [m0' [Hm0' [Hb' [Hf' [Hsig' ?]]]]]]]. subst.
+  rewrite Hm0 in Hm0'. inv Hm0'. rewrite Hb in Hb'. inv Hb'. rewrite Hf in Hf'. inv Hf'.
+  auto.
+Qed.
 
 (** Canonical Structures *)
 
@@ -186,6 +181,35 @@ Program Canonical Structure Language_ext_C: Language_ext :=
                   Cstrategy.step
                   (Ctypes.Tfunction Ctypes.Tnil Ctypes.type_int32s cc_default) _ _ _.
 Next Obligation. intros [ge [evt [state' Hstep]]]. inv Hstep. inv H. inv H. Qed.
+
+Lemma Fundef_C_type_of_fundef f: Fundef_sig Fundef_C f = Csyntax.type_of_fundef f.
+Proof. unfold Fundef_sig, Fundef_dec. simpl. destruct f; auto. Qed.
+
+Lemma initial_state_C_equiv p s:
+  Language_ext_C.(initial_state) p s <-> Csem.initial_state p s.
+Proof.
+  constructor; intro X.
+  - destruct X as [a [f [m0 [Hm0 [Ha [Hf [Hsig ?]]]]]]]. simpl in *. subst.
+    econstructor; eauto. rewrite <- Fundef_C_type_of_fundef. auto.
+  - inv X. repeat eexists; eauto.
+    rewrite Fundef_C_type_of_fundef. auto.
+Qed.
+
+Lemma final_state_C_equiv s r:
+  Language_ext_C.(final_state) s r <-> Csem.final_state s r.
+Proof.
+  constructor; intro X; inv X; simpl in *; econstructor; simpl; eauto.
+Qed.
+
+Lemma c_sem_implies2 c:
+  forward_simulation (Cstrategy.semantics c) (Language_ext_C.(semantics) c).
+Proof.
+  apply semantics_compat; auto.
+  - intros. rewrite initial_state_C_equiv. constructor; auto.
+  - intros. rewrite final_state_C_equiv. constructor; auto.
+Qed.
+
+
 Canonical Structure Language_Clight: Language := mkLanguage Fundef_Clight V_type.
 Program Canonical Structure Language_ext_Clight1: Language_ext :=
   @mkLanguage_ext Language_Clight _ _
@@ -195,6 +219,35 @@ Program Canonical Structure Language_ext_Clight1: Language_ext :=
                   Clight.step1
                   (Ctypes.Tfunction Ctypes.Tnil Ctypes.type_int32s cc_default) _ _ _.
 Next Obligation. intros [ge [evt [state' Hstep]]]. inv Hstep. Qed.
+
+Lemma Fundef_Clight_type_of_fundef f: Fundef_sig Fundef_Clight f = Clight.type_of_fundef f.
+Proof. unfold Fundef_sig, Fundef_dec. simpl. destruct f; auto. Qed.
+
+Lemma initial_state_Clight1_equiv p s:
+  Language_ext_Clight1.(initial_state) p s <-> Clight.initial_state p s.
+Proof.
+  constructor; intro X.
+  - destruct X as [a [f [m0 [Hm0 [Ha [Hf [Hsig ?]]]]]]]. simpl in *. subst.
+    econstructor; eauto. rewrite <- Fundef_Clight_type_of_fundef. auto.
+  - inv X. repeat eexists; eauto.
+    rewrite Fundef_Clight_type_of_fundef. auto.
+Qed.
+
+Lemma final_state_Clight1_equiv p r:
+  Language_ext_Clight1.(final_state) p r <-> Clight.final_state p r.
+Proof.
+  constructor; intro X; inv X; simpl in *; econstructor; simpl; eauto.
+Qed.
+
+Lemma clight1_sem_implies1 c:
+  forward_simulation (Language_ext_Clight1.(semantics) c) (Clight.semantics1 c).
+Proof.
+  apply semantics_compat; auto.
+  - intros. rewrite initial_state_Clight1_equiv. constructor; auto.
+  - intros. rewrite final_state_Clight1_equiv. constructor; auto.
+Qed.
+
+
 Program Canonical Structure Language_ext_Clight2: Language_ext :=
   @mkLanguage_ext Language_Clight _ _
                   (fun k fd args m => Clight.Callstate fd args k m)
@@ -203,6 +256,8 @@ Program Canonical Structure Language_ext_Clight2: Language_ext :=
                   Clight.step2
                   (Ctypes.Tfunction Ctypes.Tnil Ctypes.type_int32s cc_default) _ _ _.
 Next Obligation. intros [ge [evt [state' Hstep]]]. inv Hstep. Qed.
+
+
 Canonical Structure Language_Csharpminor: Language := mkLanguage (Fundef_common F_Csharpminor) V_unit.
 Program Canonical Structure Language_ext_Csharpminor: Language_ext :=
   @mkLanguage_ext Language_Csharpminor _ _
@@ -212,6 +267,8 @@ Program Canonical Structure Language_ext_Csharpminor: Language_ext :=
                   Csharpminor.step
                   AST.signature_main _ _ _.
 Next Obligation. intros [ge [evt [state' Hstep]]]. inv Hstep. Qed.
+
+
 Canonical Structure Language_Cminor: Language := mkLanguage (Fundef_common F_Cminor) V_unit.
 Program Canonical Structure Language_ext_Cminor: Language_ext :=
   @mkLanguage_ext Language_Cminor _ _
@@ -221,6 +278,35 @@ Program Canonical Structure Language_ext_Cminor: Language_ext :=
                   Cminor.step
                   AST.signature_main _ _ _.
 Next Obligation. intros [ge [evt [state' Hstep]]]. inv Hstep. Qed.
+
+Lemma Fundef_Cminor_funsig f: Fundef_sig (Fundef_common F_Cminor) f = Cminor.funsig f.
+Proof. unfold Fundef_sig, Fundef_dec. simpl. destruct f; auto. Qed.
+
+Lemma initial_state_Cminor_equiv p s:
+  Language_ext_Cminor.(initial_state) p s <-> Cminor.initial_state p s.
+Proof.
+  constructor; intro X.
+  - destruct X as [a [f [m0 [Hm0 [Ha [Hf [Hsig ?]]]]]]]. simpl in *. subst.
+    econstructor; eauto. rewrite <- Fundef_Cminor_funsig. auto.
+  - inv X. repeat eexists; eauto.
+    rewrite Fundef_Cminor_funsig. auto.
+Qed.
+
+Lemma final_state_Cminor_equiv p r:
+  Language_ext_Cminor.(final_state) p r <-> Cminor.final_state p r.
+Proof.
+  constructor; intro X; inv X; simpl in *; econstructor; simpl; eauto.
+Qed.
+
+Lemma cminor_sem_implies2 rtl:
+  forward_simulation (Cminor.semantics rtl) (Language_ext_Cminor.(semantics) rtl).
+Proof.
+  apply semantics_compat; auto.
+  - intros. rewrite initial_state_Cminor_equiv. constructor; auto.
+  - intros. rewrite final_state_Cminor_equiv. constructor; auto.
+Qed.
+
+
 Canonical Structure Language_CminorSel: Language := mkLanguage (Fundef_common F_CminorSel) V_unit.
 Program Canonical Structure Language_ext_CminorSel: Language_ext :=
   @mkLanguage_ext Language_CminorSel _ _
@@ -230,6 +316,35 @@ Program Canonical Structure Language_ext_CminorSel: Language_ext :=
                   CminorSel.step
                   AST.signature_main _ _ _.
 Next Obligation. intros [ge [evt [state' Hstep]]]. inv Hstep. Qed.
+
+Lemma Fundef_CminorSel_funsig f: Fundef_sig (Fundef_common F_CminorSel) f = CminorSel.funsig f.
+Proof. unfold Fundef_sig, Fundef_dec. simpl. destruct f; auto. Qed.
+
+Lemma initial_state_CminorSel_equiv p s:
+  Language_ext_CminorSel.(initial_state) p s <-> CminorSel.initial_state p s.
+Proof.
+  constructor; intro X.
+  - destruct X as [a [f [m0 [Hm0 [Ha [Hf [Hsig ?]]]]]]]. simpl in *. subst.
+    econstructor; eauto. rewrite <- Fundef_CminorSel_funsig. auto.
+  - inv X. repeat eexists; eauto.
+    rewrite Fundef_CminorSel_funsig. auto.
+Qed.
+
+Lemma final_state_CminorSel_equiv p r:
+  Language_ext_CminorSel.(final_state) p r <-> CminorSel.final_state p r.
+Proof.
+  constructor; intro X; inv X; simpl in *; econstructor; simpl; eauto.
+Qed.
+
+Lemma cminorsel_sem_implies1 rtl:
+  forward_simulation (Language_ext_CminorSel.(semantics) rtl) (CminorSel.semantics rtl).
+Proof.
+  apply semantics_compat; auto.
+  - intros. rewrite initial_state_CminorSel_equiv. constructor; auto.
+  - intros. rewrite final_state_CminorSel_equiv. constructor; auto.
+Qed.
+
+
 Canonical Structure Language_RTL: Language := mkLanguage (Fundef_common F_RTL) V_unit.
 Program Canonical Structure Language_ext_RTL: Language_ext :=
   @mkLanguage_ext Language_RTL _ _
@@ -239,6 +354,43 @@ Program Canonical Structure Language_ext_RTL: Language_ext :=
                   RTL.step
                   AST.signature_main _ _ _.
 Next Obligation. intros [ge [evt [state' Hstep]]]. inv Hstep. Qed.
+
+Lemma Fundef_RTL_funsig f: Fundef_sig (Fundef_common F_RTL) f = RTL.funsig f.
+Proof. unfold Fundef_sig, Fundef_dec. simpl. destruct f; auto. Qed.
+
+Lemma initial_state_RTL_equiv p s:
+  Language_ext_RTL.(initial_state) p s <-> RTL.initial_state p s.
+Proof.
+  constructor; intro X.
+  - destruct X as [a [f [m0 [Hm0 [Ha [Hf [Hsig ?]]]]]]]. subst.
+    econstructor; eauto. rewrite <- Fundef_RTL_funsig. auto.
+  - inv X. repeat eexists; eauto.
+    rewrite Fundef_RTL_funsig. auto.
+Qed.
+
+Lemma final_state_RTL_equiv p r:
+  Language_ext_RTL.(final_state) p r <-> RTL.final_state p r.
+Proof.
+  constructor; intro X; inv X; simpl in *; econstructor; eauto.
+Qed.
+
+Lemma rtl_sem_implies1 rtl:
+  forward_simulation (Language_ext_RTL.(semantics) rtl) (RTL.semantics rtl).
+Proof.
+  apply semantics_compat; auto.
+  - intros. rewrite initial_state_RTL_equiv. constructor; auto.
+  - intros. rewrite final_state_RTL_equiv. constructor; auto.
+Qed.
+
+Lemma rtl_sem_implies2 rtl:
+  forward_simulation (RTL.semantics rtl) (Language_ext_RTL.(semantics) rtl).
+Proof.
+  apply semantics_compat; auto.
+  - intros. rewrite initial_state_RTL_equiv. constructor; auto.
+  - intros. rewrite final_state_RTL_equiv. constructor; auto.
+Qed.
+
+
 Canonical Structure Language_LTL: Language := mkLanguage (Fundef_common F_LTL) V_unit.
 Canonical Structure Language_Linear: Language := mkLanguage (Fundef_common F_Linear) V_unit.
 Canonical Structure Language_Mach: Language := mkLanguage (Fundef_common F_Mach) V_unit.

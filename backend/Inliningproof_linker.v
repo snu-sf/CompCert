@@ -1032,7 +1032,7 @@ Next Obligation. repeat constructor. Qed.
 Next Obligation. repeat constructor. Qed.
 Next Obligation. inv H. auto. Qed.
 Next Obligation.
-  apply initial_state_equiv in H1. apply initial_state_equiv in H2.
+  apply initial_state_RTL_equiv in H1. apply initial_state_RTL_equiv in H2.
   exploit transf_initial_states; eauto. intros [F [st2 [Hst2 Hmatch]]].
   exists F. eexists. constructor; eauto.
   { apply sound_initial. auto. }
@@ -1091,11 +1091,11 @@ Proof.
   revert F s1 s1' MS. pcofix CIH. intros F s1 s1' MS. pfold.
   inv MS. destruct (classic (exists r, final_state s1 r)).
   { destruct H as [rval Hrval]. eapply _state_lsim_term; eauto.
-    - apply final_state_equiv. eauto.
-    - apply final_state_equiv. eapply transf_final_states; eauto.
+    - apply final_state_RTL_equiv. eauto.
+    - apply final_state_RTL_equiv. eapply transf_final_states; eauto.
   }
   constructor; auto.
-  { repeat intro. apply H. exists r0. apply final_state_equiv. auto. }
+  { repeat intro. apply H. exists r0. apply final_state_RTL_equiv. auto. }
   intros. exploit step_simulation; eauto. simpl.
   intros [[F' [s2' [Hs2' Hmatch']]]|[mrel2 [Hmrel2 [Hevt Hmatch']]]].
   - eexists. exists s2'. exists F'.
@@ -1144,7 +1144,7 @@ Proof.
   constructor. repeat intro. inv Hmrel_entry.
   destruct MS as [MS|MS]; inv MS.
   pfold. constructor; auto.
-  { intros ? Hfinal. apply final_state_equiv in Hfinal. inv Hfinal. }
+  { intros ? Hfinal. apply final_state_RTL_equiv in Hfinal. inv Hfinal. }
   intros. destruct fd_src; inv Hfd_src. destruct fd_tgt; inv Hfd_tgt. inversion Hst2_src. subst.
 
   (* internal function, not inlined *)

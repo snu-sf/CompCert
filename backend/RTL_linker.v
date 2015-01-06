@@ -10,6 +10,7 @@ Require Import Events.
 Require Import Memory.
 Require Import Globalenvs.
 Require Import Smallstep.
+Require Import Language.
 Require Import Op.
 Require Import Registers.
 Require Import Language Linker ProgramLSim.
@@ -34,35 +35,6 @@ Lemma transf_efT_linkable:
     (EF_linkable (efT Language_RTL) ef_src) = (EF_linkable (efT Language_RTL) ef_tgt).
 Proof. intros. inv H. auto. Qed.
 Hint Resolve transf_efT_sigT transf_efT_linkable.
-
-Lemma initial_state_unique p s1 s2
-      (H1: initial_state p s1)
-      (H2: initial_state p s2):
-  s1 = s2.
-Proof.
-  inv H1. inv H2. unfold ge, ge0 in *.
-  rewrite H in H1. inv H1. rewrite H0 in H5. inv H5. rewrite H3 in H6. inv H6.
-  auto.
-Qed.
-
-Lemma Fundef_funsig f: Fundef_sig (Fundef_common F_RTL) f = RTL.funsig f.
-Proof. unfold Fundef_sig, Fundef_dec. simpl. destruct f; auto. Qed.
-
-Lemma initial_state_equiv p s:
-  Language.initial_state Language_ext_RTL p s <-> RTL.initial_state p s.
-Proof.
-  constructor; intro X.
-  - destruct X as [a [f [m0 [Hm0 [Ha [Hf [Hsig ?]]]]]]]. subst.
-    econstructor; eauto. rewrite <- Fundef_funsig. auto.
-  - inv X. repeat eexists; eauto.
-    rewrite Fundef_funsig. auto.
-Qed.
-
-Lemma final_state_equiv p r:
-  Language.final_state Language_ext_RTL p r <-> RTL.final_state p r.
-Proof.
-  constructor; intro X; inv X; simpl in *; econstructor; eauto.
-Qed.
 
 Section FUTURE.
 
@@ -170,7 +142,7 @@ Lemma sig_preserved:
     funsig tf = funsig f.
 Proof.
   intros. exploit sig_preserved; try exact transf_efT_sigT; eauto.
-  unfold transf_sigT. rewrite ? Fundef_funsig. auto.
+  unfold transf_sigT. rewrite ? Fundef_RTL_funsig. auto.
 Qed.
 
 End FUTURE.

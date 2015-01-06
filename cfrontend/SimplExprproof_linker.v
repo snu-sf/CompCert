@@ -23,11 +23,6 @@ Require Import SimplExprproof.
 Require Import Linkeq.
 Require Import WFType paco.
 
-Lemma Fundef_C_type_of_fundef f: Fundef_sig Fundef_C f = Csyntax.type_of_fundef f.
-Proof. unfold Fundef_sig, Fundef_dec. simpl. destruct f; auto. Qed.
-Lemma Fundef_Clight_type_of_fundef f: Fundef_sig Fundef_Clight f = Clight.type_of_fundef f.
-Proof. unfold Fundef_sig, Fundef_dec. simpl. destruct f; auto. Qed.
-
 Definition transf_sigT := fun (sig:Ctypes.type) => sig.
 Definition transf_efT := fun (ef:external_function_ext) => Errors.OK ef.
 Definition transf_vT := fun (v:Ctypes.type) => Errors.OK v.
@@ -2016,9 +2011,7 @@ Lemma transl_initial_states:
   Csem.initial_state fprog S ->
   exists S', Clight.initial_state ftprog S' /\ match_call S S'.
 Proof.
-  intros. inv H. 
-  exploit transl_program_spec; eauto. intros MP.
-  unfold ge, tge, ge0 in *. exploit (@ProgramLSim.funct_ptr_translated Language_C Language_Clight); eauto. intros [tf [FIND TR]].
+  intros. inv H. exploit (@ProgramLSim.funct_ptr_translated Language_C Language_Clight); eauto. intros [tf [FIND TR]].
   econstructor; split.
   econstructor; eauto.
   eapply (@program_lsim_init_mem_match Language_C Language_Clight); try apply transf_efT_sigT; eauto.
@@ -2064,46 +2057,17 @@ Proof.
   - f_equal; auto. apply IHv1. auto.
 Qed.
 
-Lemma initial_state_C_equiv p s:
-  Language.initial_state Language_ext_C p s <-> Csem.initial_state p s.
-Proof.
-  constructor; intro X.
-  - destruct X as [a [f [m0 [Hm0 [Ha [Hf [Hsig ?]]]]]]]. simpl in *. subst.
-    econstructor; eauto. rewrite <- Fundef_C_type_of_fundef. auto.
-  - inv X. repeat eexists; eauto.
-    rewrite Fundef_C_type_of_fundef. auto.
-Qed.
-
-Lemma initial_state_Clight1_equiv p s:
-  Language.initial_state Language_ext_Clight1 p s <-> Clight.initial_state p s.
-Proof.
-  constructor; intro X.
-  - destruct X as [a [f [m0 [Hm0 [Ha [Hf [Hsig ?]]]]]]]. simpl in *. subst.
-    econstructor; eauto. rewrite <- Fundef_Clight_type_of_fundef. auto.
-  - inv X. repeat eexists; eauto.
-    rewrite Fundef_Clight_type_of_fundef. auto.
-Qed.
-
-Lemma final_state_C_equiv p r:
-  Language.final_state Language_ext_C p r <-> Csem.final_state p r.
-Proof.
-  constructor; intro X; inv X; simpl in *; econstructor; simpl; eauto.
-Qed.
-
-Lemma final_state_Clight1_equiv p r:
-  Language.final_state Language_ext_Clight1 p r <-> Clight.final_state p r.
-Proof.
-  constructor; intro X; inv X; simpl in *; econstructor; simpl; eauto.
-Qed.
-
+Local Obligation Tactic := idtac.
 Program Definition mrelT_props:
   @mrelT_propsT Language_ext_C Language_ext_Clight1
                 transf_sigT transf_efT transf_vT _ mrelT_ops :=
   mkmrelT_propsT _ _ _ _ _ _ _.
 Next Obligation. repeat constructor. Qed.
 Next Obligation. repeat constructor. Qed.
+Next Obligation. intros. auto. Qed.
+Next Obligation. intros. inv H. auto. Qed.
 Next Obligation.
-  apply initial_state_C_equiv in H1. apply initial_state_Clight1_equiv in H2.
+  intros. apply initial_state_C_equiv in H1. apply initial_state_Clight1_equiv in H2.
   exploit transl_initial_states; eauto. intros [s2' [Hs2' Hinit]].
   cut (s2 = s2').
   { intro. subst. exists tt. eexists. econstructor; eauto. }
@@ -2112,7 +2076,7 @@ Next Obligation.
   auto.
 Qed.
 Next Obligation.
-  apply (mrelT_ops_equal_list mrel args1 args2) in Hargs.
+  simpl. intros. inv Hef. apply (mrelT_ops_equal_list mrel args1 args2) in Hargs.
   destruct fd1; inv Hfd1. destruct fd2; inv Hfd2.
   inv Hs0; inv H. inv Hmrel. destruct MS as [MS|MS]; inv MS.
 

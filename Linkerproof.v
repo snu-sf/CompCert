@@ -22,18 +22,13 @@ Set Implicit Arguments.
 
 (** linker correctness statement *)
 
-Inductive FS sem1 sem2: Prop :=
-| FS_intro (H: forward_simulation sem1 sem2):
-    FS sem1 sem2
-.
-
 Definition linker_correctness :=
   forall ctree asmtree cprog
          (CLINK: Tree.reduce (link_program Language_C) ctree = Some cprog)
          (TRANSF: Tree.Forall2 (fun c a => transf_c_program c = OK a) ctree asmtree),
-  exists (asmprog:Asm.program),
-    Tree.reduce (link_program Language_Asm) asmtree = Some asmprog /\
-    FS (Cstrategy.semantics cprog) (Asm.semantics asmprog).
+  exists (asmprog:Asm.program)
+         (FS:forward_simulation (Cstrategy.semantics cprog) (Asm.semantics asmprog)),
+    Tree.reduce (link_program Language_Asm) asmtree = Some asmprog.
 
 Lemma apply_partial_inversion:
   forall A B (a:res A) (f:A -> res B) (b:B),
@@ -80,43 +75,13 @@ Lemma transform_partial_program2_link_program
     link_program lang_tgt q1 q2 = Some q /\
     transform_partial_program2 tf tv p = OK q.
 Proof.
-  unfold transform_partial_program2 in *.
-  admit.
-Qed.
-
-Lemma rtl_sem_implies1 rtl:
-  forward_simulation (Language_ext_RTL.(semantics) rtl) (RTL.semantics rtl).
-Proof.
-  unfold semantics, progT, RTL.semantics, RTL.fundef in *. simpl in *.
-Qed.
-
-Lemma rtl_sem_implies2 rtl:
-  forward_simulation (RTL.semantics rtl) (Language_ext_RTL.(semantics) rtl).
-Proof.
-  admit.
-Qed.
-
-Lemma cminorsel_sem_implies1 rtl:
-  forward_simulation (Language_ext_CminorSel.(semantics) rtl) (CminorSel.semantics rtl).
-Proof.
-  admit.
-Qed.
-
-Lemma cminor_sem_implies2 rtl:
-  forward_simulation (Cminor.semantics rtl) (Language_ext_Cminor.(semantics) rtl).
-Proof.
-  admit.
-Qed.
-
-Lemma clight1_sem_implies1 c:
-  forward_simulation (Language_ext_Clight1.(semantics) c) (Clight.semantics1 c).
-Proof.
-  admit.
-Qed.
-
-Lemma c_sem_implies2 c:
-  forward_simulation (Cstrategy.semantics c) (Language_ext_C.(semantics) c).
-Proof.
+  destruct p1 as [p1 mainp1], p2 as [p2 mainp2], q1 as [q1 mainq1], q2 as [q2 mainq2].
+  rewrite transform_partial_program2_augment in *. simpl in *.
+  apply transform_partial_augment_program_match in H1. destruct H1 as [[qdefs1 [Hqdefs1 ?]] Hmain1].
+  apply transform_partial_augment_program_match in H2. destruct H2 as [[qdefs2 [Hqdefs2 ?]] Hmain2].
+  simpl in *. rewrite app_nil_r in *. symmetry in H, H0. subst.
+  unfold link_program in *. simpl in *. destruct (Pos.eqb mainp1 mainp2) eqn:Hmainp; [|inv Hp].
+  apply Peqb_true_eq in Hmainp. subst.
   admit.
 Qed.
 
@@ -154,8 +119,8 @@ Proof.
   Unfocus.
   destruct T as [clight1prog [Hclight1prog Hclight1sim]].
   apply Adequacy.program_sim_forward_simulation in Hclight1sim; auto;
-    [|eapply SimplExprproof_linker.mrelT_props; eauto; exfalso; admit]. (* TODO *)
-  
+    [|eapply SimplExprproof_linker.mrelT_props; eauto].
+
   (* Clight *)
   unfold transf_clight_program in TRANSF. clarify.
 
@@ -273,7 +238,7 @@ Proof.
   eapply Asmgenproof.transf_program_correct in Hasmsim; eauto.
 
   (* epilogue *)
-  exists asmprog. split; auto. constructor.
+  exists asmprog. eexists; auto.
   repeat (eapply compose_forward_simulation; [|eauto; fail]).  
   eapply compose_forward_simulation; [|apply rtl_sem_implies1; fail].
   repeat (eapply compose_forward_simulation; [|eauto; fail]).
@@ -286,6 +251,4 @@ Proof.
   eapply compose_forward_simulation; [|apply clight1_sem_implies1; fail].
   repeat (eapply compose_forward_simulation; [|eauto; fail]).
   apply c_sem_implies2.
-Grab Existential Variables.
-  admit. admit.
 Qed.

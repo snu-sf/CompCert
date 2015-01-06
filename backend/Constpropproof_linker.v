@@ -460,13 +460,14 @@ Next Obligation. repeat constructor. Qed.
 Next Obligation. repeat constructor. Qed.
 Next Obligation. inv H. auto. Qed.
 Next Obligation.
-  apply initial_state_equiv in H1. apply initial_state_equiv in H2.
+  apply initial_state_RTL_equiv in H1.
   exploit transf_initial_states; eauto. intros [n2 [s2' [Hs2' Hinit]]].
+  apply initial_state_RTL_equiv in Hs2'.
   generalize (initial_state_unique Hs2' H2). intro. subst.
-  exists tt. eexists. econstructor; auto.
+  apply initial_state_RTL_equiv in Hs2'.
+  exists tt. eexists. econstructor; eauto.
   - apply sound_initial. auto.
   - apply sound_initial. auto.
-  - right. eauto.
 Qed.
 Next Obligation.
   apply (mrelT_ops_lessdef_list mrel args1 args2) in Hargs.
@@ -506,11 +507,11 @@ Proof.
   revert F i s1 s1' MS. pcofix CIH. intros F i s1 s1' MS. pfold.
   inversion MS. destruct (classic (exists r, final_state s1 r)).
   { destruct H as [rval Hrval]. eapply _state_lsim_term; eauto.
-    - apply final_state_equiv. eauto.
-    - apply final_state_equiv. eapply transf_final_states; eauto.
+    - apply final_state_RTL_equiv. eauto.
+    - apply final_state_RTL_equiv. eapply transf_final_states; eauto.
   }
   constructor; auto.
-  { repeat intro. apply H. exists r0. apply final_state_equiv. auto. }
+  { repeat intro. apply H. exists r0. apply final_state_RTL_equiv. auto. }
   intros. exploit transf_step_correct; eauto; simpl.
   { eapply sound_past_step; eauto. }
   intros [[n2 [s2' [Hs2' Hmatch2]]]|[n2 [Hmeasure [Hevt Hmatch2]]]].
@@ -555,7 +556,7 @@ Lemma transf_function_lsim f:
                  mrelT_ops fprog ftprog f (transf_function (romem_for_program prog) f).
 Proof.
   constructor. intros. pfold. constructor; subst; auto.
-  { intros ? Hfinal. apply final_state_equiv in Hfinal. inv Hfinal. }
+  { intros ? Hfinal. apply final_state_RTL_equiv in Hfinal. inv Hfinal. }
   intros. destruct fd_src; inv Hfd_src. destruct fd_tgt; inv Hfd_tgt. inversion Hst2_src. subst.
   inv Hmrel_entry. destruct MS as [MS|MS]; inversion MS; subst.
 
