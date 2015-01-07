@@ -32,7 +32,13 @@ Lemma transf_efT_sigT:
     id (EF_sig (efT Language_C) ef_src) =
     EF_sig (efT Language_Clight) ef_tgt.
 Proof. intros. inv H. auto. Qed.
-Hint Resolve transf_efT_sigT.
+Lemma transf_efT_linkable:
+  forall (ef_src : efT Language_C) (ef_tgt : efT Language_Clight),
+    transf_efT ef_src = OK ef_tgt ->
+    EF_linkable (efT Language_C) ef_src =
+    EF_linkable (efT Language_Clight) ef_tgt.
+Proof. intros. destruct ef_src as [[[? ?] ?] [? ?]]. simpl in *. inv H. auto. Qed.
+Hint Resolve transf_efT_sigT transf_efT_linkable.
 
 Section PRESERVATION.
 

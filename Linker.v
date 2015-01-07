@@ -1,7 +1,7 @@
 Require Import RelationClasses.
 Require String.
 Require Import Coqlib Coqlib_linker.
-Require Import Maps Maps_linker Tree.
+Require Import Maps Maps_linker.
 Require Import Integers Floats Values AST Globalenvs.
 Require Import Errors Behaviors Compiler Smallstep.
 Require Import Language.
@@ -175,14 +175,3 @@ Definition link_program (prog1 prog2:program fundefT vT): option (program fundef
     | _, _ => None
   end.
 End LINKER.
-
-
-(** linker correctness statement *)
-
-Definition linker_correctness :=
-  forall ctree asmtree cprog
-         (CLINK: Tree.reduce (link_program Language_C) ctree = Some cprog)
-         (TRANSF: Tree.Forall2 (fun c a => transf_c_program c = OK a) ctree asmtree),
-  exists (asmprog:Asm.program)
-         (FS:forward_simulation (Cstrategy.semantics cprog) (Asm.semantics asmprog)),
-    Tree.reduce (link_program Language_Asm) asmtree = Some asmprog.

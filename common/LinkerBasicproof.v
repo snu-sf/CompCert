@@ -272,6 +272,24 @@ Proof.
       apply IHl. auto.
 Qed.
 
+Lemma PTree_rel_PTree_elements A B V W
+      (tf:A->B->Prop) (vi:V->W->Prop) p q
+      (H: PTree_rel
+            (fun g1 g2 => match_globdef_aux tf vi g1 g2)
+            p q):
+  list_forall2 (match_globdef tf vi) (PTree.elements p) (PTree.elements q).
+Proof.
+  exploit (PTree.elements_canonical_order (match_globdef_aux tf vi) p q).
+  - intros. inv H. specialize (H1 i). rewrite H0 in H1.
+    destruct (q ! i); [|inv H1]. eexists. split; auto.
+  - intros. inv H. specialize (H1 i). rewrite H0 in H1.
+    destruct (p ! i); [|inv H1]. eexists. split; auto.
+  - generalize (PTree.elements p) (PTree.elements q). clear p q H.
+    induction l; intros l0 X; inv X; constructor; auto.
+    destruct a, b1, H1. simpl in *. subst.
+    inv H0; constructor; auto.
+Qed.
+
 Lemma list_forall2_match_globdef_find {A B V W}
       i p1 p2
       (ti:A -> B -> Prop) (tv:V -> W -> Prop)
@@ -327,7 +345,57 @@ Proof.
     revert defs0 defs1 Hdefs0 Hdefs1 Hqdefs1 Hqdefs2.
     generalize (PTree_unelements p1) (PTree_unelements p2) (PTree_unelements q1) (PTree_unelements q2).
     clear p1 p2 q1 q2. intros p1 p2 q1 q2 p q Hp Hq H1 H2.
-    admit.
+    assert (PTree_rel
+              (fun (g1 : globdef (fundefT lang_src) (vT lang_src))
+                   (g2 : globdef (fundefT lang_tgt) (vT lang_tgt)) =>
+                 match_globdef_aux
+                   (fun (fd : fundefT lang_src) (tfd : fundefT lang_tgt) =>
+                      tf fd = OK tfd)
+                   (fun (info : vT lang_src) (tinfo : vT lang_tgt) =>
+                      tv info = OK tinfo) g1 g2) p q).
+    { constructor. intro.
+      eapply gtlink_globdefs in Hp. instantiate (1 := i) in Hp.
+      eapply gtlink_globdefs in Hq. instantiate (1 := i) in Hq.
+      inv H1. specialize (H i). inv H2. specialize (H0 i).
+      revert H H0 Hp Hq.
+      destruct (p1 ! i), (p2 ! i), (p ! i), (q1 ! i), (q2 ! i), (q ! i);
+        simpl; intros; subst; auto;
+        try match goal with | [H: False |- _] => inv H end.
+      destruct Hp as [[]|[]], Hq as [[]|[]]; subst; auto.
+      - inv H; inv H0; inv H1; inv H3.
+        + eapply  Htf in Hv; eauto.
+          inv Hv; inv Hv0; simpl in *;
+          repeat match goal with
+                   | [Hl: ?a = inl _, Hr: ?a = inl _ |- _] => rewrite Hl in Hr; inv Hr
+                   | [Hl: ?a = inl _, Hr: ?a = inr _ |- _] => rewrite Hl in Hr; inv Hr
+                   | [Hl: ?a = inr _, Hr: ?a = inl _ |- _] => rewrite Hl in Hr; inv Hr
+                   | [Hl: ?a = inr _, Hr: ?a = inr _ |- _] => rewrite Hl in Hr; inv Hr
+                 end.
+          constructor. rewrite H. f_equal.
+          apply HFundef_dec_inj. congruence.
+        + inv Hv; inv Hv0; simpl in *. subst init0 init ro0 vo0. constructor.
+          subst. auto.
+      - inv H; inv H0; inv H1; inv H3.
+        + eapply  Htf in Hv; eauto.
+          inv Hv; inv Hv0; simpl in *;
+          repeat match goal with
+                   | [Hl: ?a = inl _, Hr: ?a = inl _ |- _] => rewrite Hl in Hr; inv Hr
+                   | [Hl: ?a = inl _, Hr: ?a = inr _ |- _] => rewrite Hl in Hr; inv Hr
+                   | [Hl: ?a = inr _, Hr: ?a = inl _ |- _] => rewrite Hl in Hr; inv Hr
+                   | [Hl: ?a = inr _, Hr: ?a = inr _ |- _] => rewrite Hl in Hr; inv Hr
+                 end.
+          constructor. rewrite H2. f_equal.
+          apply HFundef_dec_inj. congruence.
+        + inv Hv; inv Hv0; simpl in *. subst init0 init ro0 vo0. constructor.
+          subst. auto.
+    }
+    clear p1 p2 q1 q2 H1 H2 Hp Hq.
+    apply PTree_rel_PTree_elements in H. revert H.
+    generalize (PTree.elements p) (PTree.elements q). clear p q.
+    induction l; intros l0 X; inv X; simpl; auto.
+    destruct a. inv H1.
+    + rewrite H4. erewrite IHl; eauto. simpl. auto.
+    + unfold transf_globvar. simpl. rewrite H4. simpl. erewrite IHl; eauto. simpl. auto.
   - exfalso. unfold link_globdef_list in *. clarify.
     eapply gflink_globdefs in Hdefs1.
     destruct Hdefs1 as [i [tdef1 [tdef2 [Htdef1 [Htdef2 [Htdefs1 Htdefs2]]]]]].

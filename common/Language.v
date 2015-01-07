@@ -53,6 +53,7 @@ Structure EF (sigT:Sig): Type := mkEF {
 Structure Fundef (sigT:Sig) (fT:F sigT) (efT:EF sigT) := mkFundef {
   Fundef_carrier :> Type;
   Fundef_dec: forall (fd:Fundef_carrier), fT + efT;
+  HFundef_dec_inj: forall fd1 fd2 (Hfd: Fundef_dec fd1 = Fundef_dec fd2), fd1 = fd2;
   Fundef_sig :=
     fun fd =>
       match Fundef_dec fd with
@@ -147,27 +148,30 @@ Canonical Structure EF_external_function: EF Sig_signature :=
        (fun ef => match ef with EF_external _ _ => true | _ => false end)
        ef_sig.
 
-Canonical Structure Fundef_C: Fundef F_C EF_external_function_ext :=
+Program Canonical Structure Fundef_C: Fundef F_C EF_external_function_ext :=
   mkFundef F_C EF_external_function_ext
            (fun fd =>
               match fd with
                 | Csyntax.Internal f => inl f
                 | Csyntax.External ef targs tres cc => inr (ef, targs, tres, cc)
-              end).
-Canonical Structure Fundef_Clight: Fundef F_Clight EF_external_function_ext :=
+              end) _.
+Next Obligation. destruct fd1, fd2; inv Hfd; auto. Qed.
+Program Canonical Structure Fundef_Clight: Fundef F_Clight EF_external_function_ext :=
   mkFundef F_Clight EF_external_function_ext
            (fun fd =>
               match fd with
                 | Clight.Internal f => inl f
                 | Clight.External ef targs tres cc => inr (ef, targs, tres, cc)
-              end).
-Canonical Structure Fundef_common (fT:F Sig_signature): Fundef fT EF_external_function :=
+              end) _.
+Next Obligation. destruct fd1, fd2; inv Hfd; auto. Qed.
+Program Canonical Structure Fundef_common (fT:F Sig_signature): Fundef fT EF_external_function :=
   mkFundef fT EF_external_function
            (fun fd =>
               match fd with
                 | AST.Internal f => inl f
                 | AST.External ef => inr ef
-              end).
+              end) _.
+Next Obligation. destruct fd1, fd2; inv Hfd; auto. Qed.
 
 Canonical Structure V_type: V := mkV Ctypes.type_eq.
 Canonical Structure V_unit: V := mkV unit_eq.
