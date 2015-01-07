@@ -81,17 +81,17 @@ Proof.
   unfold transf_clight_program in TRANSF. clarify.
 
   eapply Tree.Forall2_reduce in T1; eauto;
-    [|eapply (transform_partial_program2_link_program Language_Clight Language_Clight)].
+    [|eapply (transform_partial_program2_link_program Language_Clight Language_Clight)]; [|admit].
   destruct T1 as [clight2prog [Hclight2prog Hclight2sim]].
   apply SimplLocalsproof.transf_program_correct in Hclight2sim.
 
   eapply Tree.Forall2_reduce in T0; eauto;
-    [|eapply (transform_partial_program2_link_program Language_Clight Language_Csharpminor)].
+    [|eapply (transform_partial_program2_link_program Language_Clight Language_Csharpminor)]; [|admit].
   destruct T0 as [csharpminorprog [Hsharpminorprog Hsharpminorsim]].
   apply Cshmgenproof.transl_program_correct in Hsharpminorsim.
 
   eapply Tree.Forall2_reduce in T; eauto;
-    [|eapply (transform_partial_program2_link_program Language_Csharpminor Language_Cminor)].
+    [|eapply (transform_partial_program2_link_program Language_Csharpminor Language_Cminor)]; [|admit].
   destruct T as [cminorprog [Hcminorprog Hcminorsim]].
   apply Cminorgenproof.transl_program_correct in Hcminorsim.
 
@@ -106,7 +106,7 @@ Proof.
     [|eapply Selectionproof_linker.mrelT_props; eauto].
 
   eapply Tree.Forall2_reduce in T; eauto;
-    [|eapply (transform_partial_program2_link_program Language_CminorSel Language_RTL)].
+    [|eapply (transform_partial_program2_link_program Language_CminorSel Language_RTL)]; [|admit].
   destruct T as [rtlprog0 [Hrtlprog0 Hrtlsim0]].
   apply RTLgenproof.transf_program_correct in Hrtlsim0.
 
@@ -163,7 +163,7 @@ Proof.
     [|eapply Deadcodeproof_linker.mrelT_props; eauto].
 
   eapply Tree.Forall2_reduce in T5; eauto;
-    [|eapply (transform_partial_program2_link_program Language_RTL Language_LTL)].
+    [|eapply (transform_partial_program2_link_program Language_RTL Language_LTL)]; [|admit].
   destruct T5 as [ltlprog0 [Hltlprog0 Hltlsim0]].
   apply Allocproof.transf_program_correct in Hltlsim0.
 
@@ -173,7 +173,7 @@ Proof.
   generalize (Tunnelingproof.transf_program_correct ltlprog0) as Hltlsim1. intro.
 
   eapply Tree.Forall2_reduce in T2; eauto;
-    [|eapply (transform_partial_program2_link_program Language_LTL Language_Linear)].
+    [|eapply (transform_partial_program2_link_program Language_LTL Language_Linear)]; [|admit].
   destruct T2 as [linearprog0 [Hlinearprog0 Hlinearsim0]].
   apply Linearizeproof.transf_program_correct in Hlinearsim0.
 
@@ -183,13 +183,13 @@ Proof.
   generalize (CleanupLabelsproof.transf_program_correct linearprog0) as Hlinearsim1. intro.
 
   eapply Tree.Forall2_reduce in T0; eauto;
-    [|eapply (transform_partial_program2_link_program Language_Linear Language_Mach)].
+    [|eapply (transform_partial_program2_link_program Language_Linear Language_Mach)]; [|admit].
   destruct T0 as [machprog [Hmachprog Hmachsim]].
   eapply Stackingproof.transf_program_correct in Hmachsim; eauto;
     [|eexact Asmgenproof.return_address_exists; eassumption].
 
   eapply Tree.Forall2_reduce in TRANSF; eauto;
-    [|eapply (transform_partial_program2_link_program Language_Mach Language_Asm)].
+    [|eapply (transform_partial_program2_link_program Language_Mach Language_Asm)]; [|admit].
   destruct TRANSF as [asmprog [Hasmprog Hasmsim]].
   eapply Asmgenproof.transf_program_correct in Hasmsim; eauto.
 

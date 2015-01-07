@@ -122,3 +122,47 @@ Proof. inv H. apply PTree.elements_extensional. auto. Qed.
 Lemma PTree_unelements_elements' A (m:PTree.t A):
   PTree_eq m (PTree_unelements (PTree.elements m)).
 Proof. constructor. intro. rewrite PTree_unelements_elements. auto. Qed.
+
+Lemma PTree_combine_morphism
+      A B C (f:option A -> option B -> option C)
+      (Hf: f None None = None)
+      m1 m2 m1' m2'
+      (H1: PTree_eq m1 m1') (H2: PTree_eq m2 m2'):
+  PTree_eq (PTree.combine f m1 m2) (PTree.combine f m1' m2').
+Proof.
+  constructor. intro. rewrite ? PTree.gcombine; auto.
+  inv H1. inv H2. rewrite H. rewrite H0. auto.
+Qed.
+
+Lemma PTree_Properties_for_all_morphism
+      A (f:PTree.elt -> A -> bool)
+      m1 m2 (Hm: PTree_eq m1 m2):
+  PTree_Properties.for_all m1 f = PTree_Properties.for_all m2 f.
+Proof.
+  inv Hm.
+  destruct (PTree_Properties.for_all m1 f) eqn:H1.
+  - symmetry. apply PTree_Properties.for_all_correct. intros.
+    rewrite <- H in H0. eapply PTree_Properties.for_all_correct in H1; eauto.
+  - apply PTree_Properties.for_all_false in H1. destruct H1 as [? [? [? ?]]].
+    symmetry. apply PTree_Properties.for_all_false. eexists. eexists. split; eauto.
+    rewrite <- H. auto.
+Qed.
+
+Lemma PTree_option_map_morphism
+      A B (f: positive -> A -> option B)
+      m1 m2 (Hm: PTree_eq m1 m2):
+  PTree_eq (PTree_option_map f m1) (PTree_option_map f m2).
+Proof.
+  constructor. intro. rewrite ? PTree_goption_map.
+  inv Hm. rewrite H. auto.
+Qed.
+
+Inductive PTree_rel {A B} (rel:A->B->Prop) (mA:PTree.t A) (mB:PTree.t B): Prop :=
+| PTree_rel_intro
+    (H: forall i : positive,
+          match mA ! i, mB ! i with
+            | Some bA, Some bB => rel bA bB
+            | None, None => True
+            | _, _ => False
+          end)
+.

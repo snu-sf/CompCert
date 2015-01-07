@@ -8,40 +8,6 @@ Require Import Language Linker LinkerProp.
 
 (** lemma on link_globdefs *)
 
-Lemma PTree_combine_morphism
-      A B C (f:option A -> option B -> option C)
-      (Hf: f None None = None)
-      m1 m2 m1' m2'
-      (H1: PTree_eq m1 m1') (H2: PTree_eq m2 m2'):
-  PTree_eq (PTree.combine f m1 m2) (PTree.combine f m1' m2').
-Proof.
-  constructor. intro. rewrite ? PTree.gcombine; auto.
-  inv H1. inv H2. rewrite H. rewrite H0. auto.
-Qed.
-
-Lemma PTree_Properties_for_all_morphism
-      A (f:PTree.elt -> A -> bool)
-      m1 m2 (Hm: PTree_eq m1 m2):
-  PTree_Properties.for_all m1 f = PTree_Properties.for_all m2 f.
-Proof.
-  inv Hm.
-  destruct (PTree_Properties.for_all m1 f) eqn:H1.
-  - symmetry. apply PTree_Properties.for_all_correct. intros.
-    rewrite <- H in H0. eapply PTree_Properties.for_all_correct in H1; eauto.
-  - apply PTree_Properties.for_all_false in H1. destruct H1 as [? [? [? ?]]].
-    symmetry. apply PTree_Properties.for_all_false. eexists. eexists. split; eauto.
-    rewrite <- H. auto.
-Qed.
-
-Lemma PTree_option_map_morphism
-      A B (f: positive -> A -> option B)
-      m1 m2 (Hm: PTree_eq m1 m2):
-  PTree_eq (PTree_option_map f m1) (PTree_option_map f m2).
-Proof.
-  constructor. intro. rewrite ? PTree_goption_map.
-  inv Hm. rewrite H. auto.
-Qed.
-
 Lemma link_globdefs_morphism
       lang p1 p2 p p1' p2'
       (H: link_globdefs lang p1 p2 = Some p)
@@ -254,9 +220,88 @@ Proof.
       * inv H0. inv H1. constructor. inv Hv. constructor; auto.
 Qed.
 
+(** lemma on transform_partial_program2 *)
+
+Inductive match_globdef_aux {A B V W : Type} (match_fundef : A -> B -> Prop)
+          (match_varinfo : V -> W -> Prop)
+            : globdef A V -> globdef B W -> Prop :=
+    match_glob_fun : forall (f1 : A) (f2 : B),
+                     match_fundef f1 f2 ->
+                     match_globdef_aux match_fundef match_varinfo 
+                       (Gfun f1) (Gfun f2)
+  | match_glob_var : forall (init : list init_data)
+                       (ro vo : bool) (info1 : V) (info2 : W),
+                     match_varinfo info1 info2 ->
+                     match_globdef_aux match_fundef match_varinfo
+                       (Gvar
+                          {|
+                            gvar_info := info1;
+                            gvar_init := init;
+                            gvar_readonly := ro;
+                            gvar_volatile := vo |})
+                       (Gvar
+                          {|
+                            gvar_info := info2;
+                            gvar_init := init;
+                            gvar_readonly := ro;
+                            gvar_volatile := vo |})
+.
+
+Lemma list_forall2_match_globdef_PTree_unelements A B V W
+      (tf:A->B->Prop) (vi:V->W->Prop) p q
+      (H: list_forall2 (match_globdef tf vi) p q):
+  PTree_rel
+    (fun g1 g2 => match_globdef_aux tf vi g1 g2)
+    (PTree_unelements p)
+    (PTree_unelements q).
+Proof.
+  constructor. intro. rewrite ? PTree_guespec.
+  apply list_forall2_rev in H. revert H.
+  unfold ident in *. simpl in *. generalize (rev p) (rev q).
+  induction l; intros l0 H; inv H; simpl; auto.
+  destruct a. simpl. destruct (peq i p0); subst; simpl.
+  - inv H2.
+    + simpl. destruct (peq p0 p0); subst; simpl; [|xomega].
+      constructor. auto.
+    + simpl. destruct (peq p0 p0); subst; simpl; [|xomega].
+      constructor. auto.
+  - inv H2.
+    + simpl. destruct (peq i p0); subst; simpl; [xomega|].
+      apply IHl. auto.
+    + simpl. destruct (peq i p0); subst; simpl; [xomega|].
+      apply IHl. auto.
+Qed.
+
+Lemma list_forall2_match_globdef_find {A B V W}
+      i p1 p2
+      (ti:A -> B -> Prop) (tv:V -> W -> Prop)
+      (Hp: list_forall2 (match_globdef ti tv) p1 p2):
+  match find (fun id : positive * globdef A V => peq i (fst id)) p1,
+        find (fun id : positive * globdef B W => peq i (fst id)) p2
+  with
+    | Some g1, Some g2 => match_globdef ti tv g1 g2
+    | None, None => True
+    | _, _ => False
+  end.
+Proof.
+  revert p2 Hp. induction p1; intros p2 Hv; inv Hv; simpl; auto.
+  inv H1.
+  - simpl. destruct (peq i id); subst; simpl.
+    + constructor. auto.
+    + apply IHp1. auto.
+  - simpl. destruct (peq i id); subst; simpl.
+    + constructor. auto.
+    + apply IHp1. auto.
+Qed.
+
 Lemma transform_partial_program2_link_program
       (lang_src lang_tgt:Language)
       (tf:lang_src.(fundefT)->res lang_tgt.(fundefT))
+      (Htf: forall f1 f2 f1' f2'
+                   (Hf: globfun_linkable lang_src f1 f2)
+                   (H1: tf f1 = OK f1')
+                   (H2: tf f2 = OK f2'),
+              globfun_linkable lang_tgt f1' f2')
       (tv:lang_src.(vT)->res lang_tgt.(vT))
       p1 p2 p q1 q2
       (Hp: link_program lang_src p1 p2 = Some p)
@@ -267,11 +312,43 @@ Lemma transform_partial_program2_link_program
     transform_partial_program2 tf tv p = OK q.
 Proof.
   destruct p1 as [p1 mainp1], p2 as [p2 mainp2], q1 as [q1 mainq1], q2 as [q2 mainq2].
-  rewrite transform_partial_program2_augment in *. simpl in *.
+  rewrite transform_partial_program2_augment in H1, H2. simpl in *.
   apply transform_partial_augment_program_match in H1. destruct H1 as [[qdefs1 [Hqdefs1 ?]] Hmain1].
   apply transform_partial_augment_program_match in H2. destruct H2 as [[qdefs2 [Hqdefs2 ?]] Hmain2].
   simpl in *. rewrite app_nil_r in *. symmetry in H, H0. subst.
   unfold link_program in *. simpl in *. destruct (Pos.eqb mainp1 mainp2) eqn:Hmainp; [|inv Hp].
-  apply Peqb_true_eq in Hmainp. subst.
-  admit.
+  apply Peqb_true_eq in Hmainp. subst. clarify.
+  - unfold link_globdef_list in *. clarify.
+    eexists. split; eauto. unfold transform_partial_program2. simpl.
+    cut (transf_globdefs tf tv (PTree.elements defs0) = OK (PTree.elements defs1)).
+    { intro X. rewrite X. auto. }
+    apply list_forall2_match_globdef_PTree_unelements in Hqdefs1.
+    apply list_forall2_match_globdef_PTree_unelements in Hqdefs2.
+    revert defs0 defs1 Hdefs0 Hdefs1 Hqdefs1 Hqdefs2.
+    generalize (PTree_unelements p1) (PTree_unelements p2) (PTree_unelements q1) (PTree_unelements q2).
+    clear p1 p2 q1 q2. intros p1 p2 q1 q2 p q Hp Hq H1 H2.
+    admit.
+  - exfalso. unfold link_globdef_list in *. clarify.
+    eapply gflink_globdefs in Hdefs1.
+    destruct Hdefs1 as [i [tdef1 [tdef2 [Htdef1 [Htdef2 [Htdefs1 Htdefs2]]]]]].
+    eapply gtlink_globdefs in Hdefs0. instantiate (1 := i) in Hdefs0.
+    rewrite PTree_guespec in Htdef1. rewrite PTree_guespec in Htdef2.
+    rewrite ? PTree_guespec in Hdefs0.
+    apply list_forall2_rev in Hqdefs1. apply list_forall2_rev in Hqdefs2.
+    exploit (list_forall2_match_globdef_find i (rev p1) (rev q1)); eauto. intro H1.
+    exploit (list_forall2_match_globdef_find i (rev p2) (rev q2)); eauto. intro H2.
+    unfold option_map in *. clarify.
+    unfold ident in *. simpl in *. rewrite Hdefs,Hdefs1 in *. clarify.
+    + destruct H1 as [H1 ?]. subst. contradict Htdefs1. inv H1. constructor. eapply Htf; eauto.
+    + destruct H1 as [H1 ?]. subst. contradict Htdefs2. inv H1. constructor. eapply Htf; eauto.
+    + destruct H1 as [H1 ?]. subst. inv H1.
+    + destruct H1 as [H1 ?]. subst. inv H1.
+    + destruct H1 as [H1 ?]. subst. inv H1.
+    + destruct H1 as [H1 ?]. subst. inv H1.
+    + destruct H1 as [H1 ?]. subst. contradict Htdefs1.
+      inv H1. inv Hv. simpl in *. subst. constructor. constructor; simpl; auto.
+      rewrite H in H0. inv H0. auto.
+    + destruct H1 as [H1 ?]. subst. contradict Htdefs2.
+      inv H1. inv Hv. simpl in *. subst. constructor. constructor; simpl; auto.
+      rewrite H in H0. inv H0. auto.
 Qed.
