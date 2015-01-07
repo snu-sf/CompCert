@@ -1,7 +1,7 @@
 Require Import RelationClasses.
 Require String.
 Require Import Coqlib Coqlib_linker.
-Require Import Maps Maps_linker.
+Require Import Maps Maps_linker Tree.
 Require Import Integers Floats Values AST Globalenvs.
 Require Import Errors Behaviors Compiler Smallstep.
 Require Import Language.
@@ -179,21 +179,10 @@ End LINKER.
 
 (** linker correctness statement *)
 
-Inductive separately_compiled: forall (cprog: Csyntax.program) (asmprog: Asm.program), Prop :=
-| separately_compiled_base cprog asmprog (Htransf: transf_c_program cprog = OK asmprog):
-    separately_compiled cprog asmprog
-| separately_compiled_link cprog1 cprog2 asmprog1 asmprog2
-          (H1: separately_compiled cprog1 asmprog1)
-          (H2: separately_compiled cprog2 asmprog2)
-          cprog (Hcprog: Some cprog = link_program Language_C cprog1 cprog2)
-          asmprog (Hasmprog: Some asmprog = link_program Language_Asm asmprog1 asmprog2):
-    separately_compiled cprog asmprog
-.
-
-Definition separate_compilation_correctness :=
-  forall
-    cprog asmprog asmbeh
-    (Hsepcomp: separately_compiled cprog asmprog)
-    (Hbeh: program_behaves (Asm.semantics asmprog) asmbeh),
-  exists cbeh,
-    program_behaves (Csem.semantics cprog) cbeh /\ behavior_improves cbeh asmbeh.
+Definition linker_correctness :=
+  forall ctree asmtree cprog
+         (CLINK: Tree.reduce (link_program Language_C) ctree = Some cprog)
+         (TRANSF: Tree.Forall2 (fun c a => transf_c_program c = OK a) ctree asmtree),
+  exists (asmprog:Asm.program)
+         (FS:forward_simulation (Cstrategy.semantics cprog) (Asm.semantics asmprog)),
+    Tree.reduce (link_program Language_Asm) asmtree = Some asmprog.

@@ -103,4 +103,22 @@ Next Obligation.
   repeat intro. inv H. inv H0. constructor. intros.
   exploit H1; eauto.
 Qed.
-          
+
+Inductive PTree_eq A (m1 m2:PTree.t A): Prop :=
+| PTree_eq_intro
+    (H: forall i : positive, m1 ! i = m2 ! i)
+.
+
+Program Instance PTree_eq_Equivalence A: Equivalence (@PTree_eq A).
+Next Obligation. constructor. intros. auto. Qed.
+Next Obligation. constructor. inv H. symmetry. auto. Qed.
+Next Obligation. constructor. inv H. inv H0. intros. rewrite H1. auto. Qed.
+
+Lemma PTree_elements_extensional' A (m1 m2:PTree.t A)
+      (H: PTree_eq m1 m2):
+  PTree.elements m1 = PTree.elements m2.
+Proof. inv H. apply PTree.elements_extensional. auto. Qed.
+
+Lemma PTree_unelements_elements' A (m:PTree.t A):
+  PTree_eq m (PTree_unelements (PTree.elements m)).
+Proof. constructor. intro. rewrite PTree_unelements_elements. auto. Qed.
