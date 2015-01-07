@@ -168,7 +168,7 @@ Proof.
   apply Allocproof.transf_program_correct in Hltlsim0.
 
   eapply Tree.Forall2_reduce in T3; eauto;
-    [|eapply (transform_program_link_program)].
+    [|eapply (transform_program_link_program); auto].
   destruct T3 as [ltlprog1 [Hltlprog1 Hltlsim1]]. subst.
   generalize (Tunnelingproof.transf_program_correct ltlprog0) as Hltlsim1. intro.
 
@@ -178,7 +178,7 @@ Proof.
   apply Linearizeproof.transf_program_correct in Hlinearsim0.
 
   eapply Tree.Forall2_reduce in T1; eauto;
-    [|eapply (transform_program_link_program)].
+    [|eapply (transform_program_link_program); auto].
   destruct T1 as [linearprog1 [Hlinearprog1 Hlinearsim1]]. subst.
   generalize (CleanupLabelsproof.transf_program_correct linearprog0) as Hlinearsim1. intro.
 

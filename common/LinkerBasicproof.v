@@ -8,6 +8,40 @@ Require Import Language Linker LinkerProp.
 
 (** lemma on link_globdefs *)
 
+Lemma PTree_combine_morphism
+      A B C (f:option A -> option B -> option C)
+      (Hf: f None None = None)
+      m1 m2 m1' m2'
+      (H1: PTree_eq m1 m1') (H2: PTree_eq m2 m2'):
+  PTree_eq (PTree.combine f m1 m2) (PTree.combine f m1' m2').
+Proof.
+  constructor. intro. rewrite ? PTree.gcombine; auto.
+  inv H1. inv H2. rewrite H. rewrite H0. auto.
+Qed.
+
+Lemma PTree_Properties_for_all_morphism
+      A (f:PTree.elt -> A -> bool)
+      m1 m2 (Hm: PTree_eq m1 m2):
+  PTree_Properties.for_all m1 f = PTree_Properties.for_all m2 f.
+Proof.
+  inv Hm.
+  destruct (PTree_Properties.for_all m1 f) eqn:H1.
+  - symmetry. apply PTree_Properties.for_all_correct. intros.
+    rewrite <- H in H0. eapply PTree_Properties.for_all_correct in H1; eauto.
+  - apply PTree_Properties.for_all_false in H1. destruct H1 as [? [? [? ?]]].
+    symmetry. apply PTree_Properties.for_all_false. eexists. eexists. split; eauto.
+    rewrite <- H. auto.
+Qed.
+
+Lemma PTree_option_map_morphism
+      A B (f: positive -> A -> option B)
+      m1 m2 (Hm: PTree_eq m1 m2):
+  PTree_eq (PTree_option_map f m1) (PTree_option_map f m2).
+Proof.
+  constructor. intro. rewrite ? PTree_goption_map.
+  inv Hm. rewrite H. auto.
+Qed.
+
 Lemma link_globdefs_morphism
       lang p1 p2 p p1' p2'
       (H: link_globdefs lang p1 p2 = Some p)
@@ -16,7 +50,15 @@ Lemma link_globdefs_morphism
     link_globdefs lang p1' p2' = Some p' /\
     PTree_eq p p'.
 Proof.
-  admit.
+  unfold link_globdefs in *.
+  erewrite PTree_Properties_for_all_morphism in H;
+    [|apply PTree_combine_morphism; eauto].
+  match goal with
+    | [H: context[if ?b then _ else _] |- _] => destruct b; inv H
+  end.
+  eexists. split; auto.
+  apply PTree_option_map_morphism.
+  apply PTree_combine_morphism; auto.
 Qed.
 
 (** Lemma on transform_program_globdef *)
@@ -108,7 +150,7 @@ Qed.
 
 Lemma transform_program_link_program
       (fT1 fT2:F Sig_signature) vT
-      (tf:fT1 -> fT2)
+      (tf:fT1 -> fT2) (Htf: forall (f:fT1), fT1.(F_sig) f = fT2.(F_sig) (tf f))
       (p1 p2 p:(mkLanguage (Fundef_common fT1) vT).(progT))
       (q1 q2:(mkLanguage (Fundef_common fT2) vT).(progT))
       (Hp: link_program (mkLanguage (Fundef_common fT1) vT) p1 p2 = Some p)
@@ -152,8 +194,28 @@ Proof.
           | [H: False |- _] => inv H
         end.
     destruct Hdefs0 as [[? ?]|[? ?]], Hdefs1' as [[? ?]|[? ?]]; subst; auto.
-    + admit.
-    + admit.
+    + inv H; inv H1; simpl in *.
+      * destruct f1, f2; inv Hv; inv Hv0; simpl in *;
+        repeat match goal with
+                 | [H: inl _ = inl _ |- _] => inv H
+                 | [H: inl _ = inr _ |- _] => inv H
+                 | [H: inr _ = inl _ |- _] => inv H
+                 | [H: inr _ = inr _ |- _] => inv H
+               end;
+        auto.
+      * inv Hv. inv Hv0. destruct v1, v2. simpl in *. repeat f_equal; auto.
+        rewrite Hinit, Hinit0. auto.
+    + inv H; inv H1; simpl in *.
+      * destruct f1, f2; inv Hv; inv Hv0; simpl in *;
+        repeat match goal with
+                 | [H: inl _ = inl _ |- _] => inv H
+                 | [H: inl _ = inr _ |- _] => inv H
+                 | [H: inr _ = inl _ |- _] => inv H
+                 | [H: inr _ = inr _ |- _] => inv H
+               end;
+        auto.
+      * inv Hv. inv Hv0. destruct v1, v2. simpl in *. repeat f_equal; auto.
+        rewrite Hinit, Hinit0. auto.
   - exfalso. unfold link_globdef_list in *. clarify.
     eapply (gflink_globdefs (mkLanguage (Fundef_common fT2) vT)) in Hdefs1. simpl in *.
     destruct Hdefs1 as [i [tdef1 [tdef2 [Htdef1 [Htdef2 [Htdefs1 Htdefs2]]]]]].
@@ -166,11 +228,29 @@ Proof.
     unfold ident in *. rewrite Hdefs, Hdefs1 in Hdefs0. clarify.
     + destruct H as [H ?]. subst.
       contradict Htdefs1. inv H.
-      * inv H0. inv H1. constructor. admit.
+      * inv H0. inv H1. constructor.
+        destruct f1, f2; inv Hv; simpl in *;
+        repeat match goal with
+                 | [H: inl _ = inl _ |- _] => inv H
+                 | [H: inl _ = inr _ |- _] => inv H
+                 | [H: inr _ = inl _ |- _] => inv H
+                 | [H: inr _ = inr _ |- _] => inv H
+               end.
+        eapply globfun_linkable_ei; simpl; eauto. rewrite <- Htf. auto.
+        eapply globfun_linkable_ee; simpl; eauto.
       * inv H0. inv H1. constructor. inv Hv. constructor; auto.
     + destruct H as [H ?]. subst.
       contradict Htdefs2. inv H.
-      * inv H0. inv H1. constructor. admit.
+      * inv H0. inv H1. constructor.
+        destruct f1, f2; inv Hv; simpl in *;
+        repeat match goal with
+                 | [H: inl _ = inl _ |- _] => inv H
+                 | [H: inl _ = inr _ |- _] => inv H
+                 | [H: inr _ = inl _ |- _] => inv H
+                 | [H: inr _ = inr _ |- _] => inv H
+               end.
+        eapply globfun_linkable_ei; simpl; eauto. rewrite <- Htf. auto.
+        eapply globfun_linkable_ee; simpl; eauto.
       * inv H0. inv H1. constructor. inv Hv. constructor; auto.
 Qed.
 
