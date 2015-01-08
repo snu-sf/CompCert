@@ -1,4 +1,5 @@
 *.s
 
 __i64_dtos
+extern_pointer_const
 
