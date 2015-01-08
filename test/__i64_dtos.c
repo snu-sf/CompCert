@@ -1,3 +1,5 @@
+#include <stdio.h>
+
 long long __i64_dtos(float t) {
   return 3;
 }
