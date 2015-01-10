@@ -65,7 +65,7 @@ Theorem linker_correct
         (CLINK: Tree.reduce (link_program Language_C) ctree = Some cprog)
         (TRANSF: Tree.Forall2 (fun c a => transf_c_program c = OK a) ctree asmtree):
   exists (asmprog:Asm.program)
-         (FS:forward_simulation (Cstrategy.semantics cprog) (Asm.semantics asmprog)),
+    (_:forward_simulation (Cstrategy.semantics cprog) (Asm.semantics asmprog)),
     Tree.reduce (link_program Language_Asm) asmtree = Some asmprog.
 Proof.
   repeat intro.
