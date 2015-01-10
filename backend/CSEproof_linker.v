@@ -307,27 +307,6 @@ Proof.
   left. econstructor; eauto.
   destruct or; simpl; auto. 
 
-(* - (* internal function *) *)
-(*   monadInv H6. unfold transf_function in EQ.  *)
-(*   destruct (analyze f (vanalyze rm f)) as [approx|] eqn:?; inv EQ.  *)
-(*   exploit Mem.alloc_extends; eauto. apply Zle_refl. apply Zle_refl.  *)
-(*   intros (m'' & A & B). *)
-(*   econstructor; split. *)
-(*   eapply exec_function_internal; simpl; eauto.  *)
-(*   simpl. econstructor; eauto. *)
-(*   eapply analysis_correct_entry; eauto. *)
-(*   apply init_regs_lessdef; auto. *)
-
-(* - (* external function *) *)
-(*   monadInv H6.  *)
-(*   exploit external_call_mem_extends; eauto. *)
-(*   intros (v' & m1' & P & Q & R & S). *)
-(*   econstructor; split. *)
-(*   eapply exec_function_external; eauto. *)
-(*   eapply external_call_symbols_preserved; eauto. *)
-(*   exact symbols_preserved. exact varinfo_preserved. *)
-(*   econstructor; eauto. *)
-
 - (* return *)
   inv H2.
   econstructor; split.

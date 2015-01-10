@@ -501,27 +501,6 @@ Ltac UseTransfer :=
   destruct or; simpl; eauto 2 with na.
   eapply magree_extends; eauto. apply nlive_all.
 
-(* - (* internal function *) *)
-(*   monadInv FUN. generalize EQ. unfold transf_function. intros EQ'. *)
-(*   destruct (analyze (vanalyze rm f) f) as [an|] eqn:AN; inv EQ'. *)
-(*   exploit Mem.alloc_extends; eauto. apply Zle_refl. apply Zle_refl. *)
-(*   intros (tm' & A & B).  *)
-(*   econstructor; split. *)
-(*   econstructor; simpl; eauto.  *)
-(*   simpl. econstructor; eauto.  *)
-(*   apply eagree_init_regs; auto.  *)
-(*   apply mextends_agree; auto.  *)
-
-(* - (* external function *) *)
-(*   exploit external_call_mem_extends; eauto. *)
-(*   intros (res' & tm' & A & B & C & D & E).  *)
-(*   simpl in FUN. inv FUN. *)
-(*   econstructor; split. *)
-(*   econstructor; eauto. *)
-(*   eapply external_call_symbols_preserved; eauto.  *)
-(*   exact symbols_preserved. exact varinfo_preserved. *)
-(*   econstructor; eauto.  *)
-
 - (* return *)
   inv STACKS. inv H1. 
   econstructor; split.

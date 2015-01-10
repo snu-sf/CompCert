@@ -122,16 +122,6 @@ Proof.
   econstructor; split.
   eapply exec_Ireturn; eauto. 
   left. constructor; auto.
-(* (* internal function *) *)
-(*   simpl. econstructor; split. *)
-(*   eapply exec_function_internal; eauto.  *)
-(*   constructor; auto. unfold reach. constructor.  *)
-(* (* external function *) *)
-(*   econstructor; split. *)
-(*   eapply exec_function_external; eauto. *)
-(*     eapply external_call_symbols_preserved; eauto. *)
-(*     apply symbols_preserved. auto. apply varinfo_preserved. auto. *)
-(*   constructor; auto. *)
 (* return *)
   inv STACKS. inv H1.
   econstructor; split. 

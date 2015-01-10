@@ -361,28 +361,6 @@ Opaque builtin_strength_reduction.
   left. constructor; auto.
   destruct or; simpl; auto. 
 
-  (* (* internal function *) *)
-  (* exploit Mem.alloc_extends. eauto. eauto. apply Zle_refl. apply Zle_refl. *)
-  (* intros [m2' [A B]]. *)
-  (* assert (X: exists bc ae, ematch bc (init_regs args (fn_params f)) ae). *)
-  (* { inv SS2. exists bc0; exists ae; auto. } *)
-  (* destruct X as (bc1 & ae1 & MATCH). *)
-  (* simpl. unfold transf_function. *)
-  (* left; exists O; econstructor; split. *)
-  (* eapply exec_function_internal; simpl; eauto. *)
-  (* simpl. econstructor; eauto. *)
-  (* constructor.  *)
-  (* apply init_regs_lessdef; auto. *)
-
-  (* (* external function *) *)
-  (* exploit external_call_mem_extends; eauto.  *)
-  (* intros [v' [m2' [A [B [C D]]]]]. *)
-  (* simpl. left; econstructor; econstructor; split. *)
-  (* eapply exec_function_external; eauto. *)
-  (* eapply external_call_symbols_preserved; eauto. *)
-  (* exact symbols_preserved. exact varinfo_preserved. *)
-  (* constructor; auto. *)
-
   (* return *)
   assert (X: exists bc ae, ematch bc (rs#res <- vres) ae).
   { inv SS2. exploit Hsound; [reflexivity|]. intro X. inv X. exists bc; exists ae; auto. }

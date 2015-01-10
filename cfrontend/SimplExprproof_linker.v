@@ -1972,24 +1972,6 @@ Proof.
   left. apply plus_one. econstructor; eauto.
   left. econstructor; eauto. 
 
-(* (* internal function *) *)
-(*   inv H7. inversion H3; subst. *)
-(*   econstructor; split. *)
-(*   left; apply plus_one. eapply step_internal_function. econstructor. *)
-(*   rewrite H6; rewrite H7; auto. *)
-(*   rewrite H6; rewrite H7. eapply alloc_variables_preserved; eauto. *)
-(*   rewrite H6. eapply bind_parameters_preserved; eauto. *)
-(*   eauto.  *)
-(*   constructor; auto.  *)
-
-(* (* external function *) *)
-(*   inv H5. *)
-(*   econstructor; split. *)
-(*   left; apply plus_one. econstructor; eauto. *)
-(*   eapply external_call_symbols_preserved; eauto.  *)
-(*   apply symbols_preserved. auto. apply varinfo_preserved. auto. *)
-(*   constructor; auto. *)
-
 (* return *)
   inv H3.
   econstructor; split.

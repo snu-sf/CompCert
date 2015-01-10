@@ -823,41 +823,6 @@ Proof.
   eapply Mem.free_left_inject; eauto.
   inv FB. rewrite H4 in PRIV. eapply range_private_free_left; eauto. 
 
-(* (* internal function, not inlined *) *)
-(*   assert (A: exists f', tr_function fenv f f' /\ fd' = Internal f').  *)
-(*     Errors.monadInv FD. exists x. split; auto. eapply transf_function_spec; eauto.  *)
-(*   destruct A as [f' [TR EQ]]. inversion TR; subst. *)
-(*   exploit Mem.alloc_parallel_inject. eauto. eauto. apply Zle_refl.  *)
-(*     instantiate (1 := fn_stacksize f'). inv H0. xomega.  *)
-(*   intros [F' [m1' [sp' [A [B [C [D E]]]]]]]. *)
-(*   left; econstructor; split. *)
-(*   eapply plus_one. eapply exec_function_internal; eauto. *)
-(*   rewrite H5. econstructor. *)
-(*   instantiate (1 := F'). apply match_stacks_inside_base. *)
-(*   assert (SP: sp' = Mem.nextblock m'0) by (eapply Mem.alloc_result; eauto). *)
-(*   rewrite <- SP in MS0.  *)
-(*   eapply match_stacks_invariant; eauto. *)
-(*     intros. destruct (eq_block b1 stk).  *)
-(*     subst b1. rewrite D in H7; inv H7. subst b2. eelim Plt_strict; eauto.   *)
-(*     rewrite E in H7; auto.  *)
-(*     intros. exploit Mem.perm_alloc_inv. eexact H. eauto.  *)
-(*     destruct (eq_block b1 stk); intros; auto.  *)
-(*     subst b1. rewrite D in H7; inv H7. subst b2. eelim Plt_strict; eauto.   *)
-(*     intros. eapply Mem.perm_alloc_1; eauto.  *)
-(*     intros. exploit Mem.perm_alloc_inv. eexact A. eauto.  *)
-(*     rewrite dec_eq_false; auto. *)
-(*   auto. auto. auto.  *)
-(*   rewrite H4. apply agree_regs_init_regs. eauto. auto. inv H0; auto. congruence. auto. *)
-(*   eapply Mem.valid_new_block; eauto. *)
-(*   red; intros. split. *)
-(*   eapply Mem.perm_alloc_2; eauto. inv H0; xomega. *)
-(*   intros; red; intros. exploit Mem.perm_alloc_inv. eexact H. eauto. *)
-(*   destruct (eq_block b stk); intros.  *)
-(*   subst. rewrite D in H8; inv H8. inv H0; xomega. *)
-(*   rewrite E in H8; auto. eelim Mem.fresh_block_alloc. eexact A. eapply Mem.mi_mappedblocks; eauto. *)
-(*   auto. *)
-(*   intros. exploit Mem.perm_alloc_inv; eauto. rewrite dec_eq_true. omega.  *)
-
 (* internal function, inlined *)
   inversion FB; subst.
   exploit Mem.alloc_left_mapped_inject. 
@@ -893,25 +858,6 @@ Proof.
   auto. auto. auto.
   rewrite H2. eapply range_private_alloc_left; eauto.
   auto. auto.
-
-(* (* external function *) *)
-(*   exploit match_stacks_globalenvs; eauto. intros [bound MG]. *)
-(*   exploit external_call_mem_inject; eauto.  *)
-(*     eapply match_globalenvs_preserves_globals; eauto. *)
-(*   intros [F1 [v1 [m1' [A [B [C [D [E [J K]]]]]]]]]. *)
-(*   simpl in FD. inv FD.  *)
-(*   left; econstructor; split. *)
-(*   eapply plus_one. eapply exec_function_external; eauto.  *)
-(*     eapply external_call_symbols_preserved; eauto.  *)
-(*     exact symbols_preserved. exact varinfo_preserved. *)
-(*   econstructor. *)
-(*     eapply match_stacks_bound with (Mem.nextblock m'0). *)
-(*     eapply match_stacks_extcall with (F1 := F) (F2 := F1) (m1 := m) (m1' := m'0); eauto. *)
-(*     intros; eapply external_call_max_perm; eauto.  *)
-(*     intros; eapply external_call_max_perm; eauto. *)
-(*     xomega. *)
-(*     eapply external_call_nextblock; eauto.  *)
-(*     auto. auto. *)
 
 (* return fron noninlined function *)
   inv MS0.

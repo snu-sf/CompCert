@@ -239,30 +239,6 @@ Proof.
   simpl. auto.
   eapply Mem.free_left_extends; eauto.
 
-(* (* internal call *) *)
-(*   exploit Mem.alloc_extends; eauto. *)
-(*     instantiate (1 := 0). omega. *)
-(*     instantiate (1 := fn_stacksize f). omega. *)
-(*   intros [m'1 [ALLOC EXT]]. *)
-(*   assert (fn_stacksize (transf_function f) = fn_stacksize f /\ *)
-(*           fn_entrypoint (transf_function f) = fn_entrypoint f /\ *)
-(*           fn_params (transf_function f) = fn_params f). *)
-(*     unfold transf_function. destruct (zeq (fn_stacksize f) 0 && eliminate_tailcalls tt); auto.  *)
-(*   destruct H0 as [EQ1 [EQ2 EQ3]].  *)
-(*   left. econstructor; split. *)
-(*   simpl. eapply exec_function_internal; eauto. rewrite EQ1; eauto. *)
-(*   rewrite EQ2. rewrite EQ3. constructor; auto. *)
-(*   apply regset_init_regs. auto.  *)
-
-(* (* external call *) *)
-(*   exploit external_call_mem_extends; eauto. *)
-(*   intros [res' [m2' [A [B [C D]]]]]. *)
-(*   left. exists (Returnstate s' res' m2'); split. *)
-(*   simpl. econstructor; eauto. *)
-(*   eapply external_call_symbols_preserved; eauto. *)
-(*   exact symbols_preserved. exact varinfo_preserved. *)
-(*   constructor; auto.  *)
-
 (* returnstate *)
   inv H2. 
 (* synchronous return in both programs *)

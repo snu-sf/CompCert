@@ -973,21 +973,6 @@ Proof.
   left; econstructor; split.
   econstructor; eauto. 
   left. econstructor; try apply TF; try apply H1; eauto.
-(* - (* internal function *) *)
-(*   monadInv TF. generalize EQ; intros TF; monadInv TF. *)
-(*   exploit Mem.alloc_extends. eauto. eauto. apply Zle_refl. apply Zle_refl.  *)
-(*   intros [m2' [A B]]. *)
-(*   left; econstructor; split. *)
-(*   econstructor; simpl; eauto. *)
-(*   constructor; simpl; auto. apply set_locals_lessdef. apply set_params_lessdef; auto. *)
-(* - (* external call *) *)
-(*   monadInv TF. *)
-(*   exploit external_call_mem_extends; eauto.  *)
-(*   intros [vres' [m2 [A [B [C D]]]]]. *)
-(*   left; econstructor; split. *)
-(*   econstructor. eapply external_call_symbols_preserved; eauto. *)
-(*   exact symbols_preserved. exact varinfo_preserved. *)
-(*   constructor; auto. *)
 - (* external call turned into a Sbuiltin *)
   exploit external_call_mem_extends; eauto. 
   intros [vres' [m2 [A [B [C D]]]]].
