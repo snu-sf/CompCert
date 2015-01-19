@@ -1,7 +1,7 @@
 Require Import RelationClasses.
 Require String.
-Require Import Coqlib Coqlib_linker.
-Require Import Maps Maps_linker.
+Require Import Coqlib Coqlib_sepcomp.
+Require Import Maps Maps_sepcomp.
 Require Import Integers Floats Values AST Globalenvs.
 Require Import Language Linker LinkerProp Linkeq.
 Require Import Errors.
@@ -21,8 +21,8 @@ Section DEF.
 Variable (prog_src:lang_src.(progT)).
 Variable (prog_tgt:lang_tgt.(progT)).
 
-Inductive program_rel: Prop :=
-| program_rel_intro
+Inductive sepcomp_rel: Prop :=
+| sepcomp_rel_intro
     (Hmain: prog_src.(prog_main) = prog_tgt.(prog_main))
     (Hdefs:
        list_forall2
@@ -38,15 +38,15 @@ End DEF.
 
 (** properties of linking on separate compilation relation *)
 
-Lemma link_program_rel
+Lemma link_program_sepcomp_rel
       (prog1_src prog2_src prog_src:lang_src.(progT))
       (prog1_tgt prog2_tgt:lang_tgt.(progT))
       (Hprog_src: link_program lang_src prog1_src prog2_src = Some prog_src)
-      (Hprog1: program_rel prog1_src prog1_tgt)
-      (Hprog2: program_rel prog2_src prog2_tgt):
+      (Hprog1: sepcomp_rel prog1_src prog1_tgt)
+      (Hprog2: sepcomp_rel prog2_src prog2_tgt):
   exists prog_tgt,
     link_program lang_tgt prog1_tgt prog2_tgt = Some prog_tgt /\
-    program_rel prog_src prog_tgt.
+    sepcomp_rel prog_src prog_tgt.
 Proof.
   destruct prog1_src as [def1_src ?],
            prog2_src as [def2_src ?],
@@ -97,7 +97,45 @@ Inductive match_globdef_transf_partial2 (prog_src:lang_src.(progT)):
     match_globdef_transf_partial2 prog_src (Gvar var_src) (Gvar var_tgt)
 .
 
-Hypothesis Hprogram_rel: program_rel match_globdef_transf_partial2 p p'.
+Section TRANSF.
+
+Hypothesis TRANSF: transform_partial_program2 (transf_fun p) transf_var p = OK p'.
+
+Lemma transf_partial2_sepcomp_rel:
+  sepcomp_rel
+    match_globdef_transf_partial2
+    p p'.
+Proof.
+  destruct p as [defs ?], p' as [tdefs ?].
+  unfold transform_partial_program2 in TRANSF. monadInv TRANSF.
+  constructor; auto.
+  revert tdefs EQ. generalize defs at 1 3 as fdefs.
+  induction defs; simpl; intros fdefs tdefs Hdefs.
+  { inv Hdefs. constructor. }
+  destruct a. destruct g.
+  - match goal with
+      | [H: match ?x with OK _ => _ | Error _ => _ end = OK _ |- _] =>
+        destruct x as [tf|] eqn:Hf; [|inv H]
+    end.
+    monadInv Hdefs. constructor; simpl.
+    + split; auto. eexists. split; [reflexivity|].
+      constructor. auto.
+    + apply IHdefs. auto.
+  - match goal with
+      | [H: match ?x with OK _ => _ | Error _ => _ end = OK _ |- _] =>
+        destruct x as [tf|] eqn:Hf; [|inv H]
+    end.
+    monadInv Hdefs. constructor; simpl.
+    + split; auto. eexists. split; [reflexivity|].
+      constructor. auto.
+    + apply IHdefs. auto.
+Qed.
+
+End TRANSF.
+
+Section INITIAL.
+
+Hypothesis Hsepcomp_rel: sepcomp_rel match_globdef_transf_partial2 p p'.
 
 Lemma prog_match:
   match_program
@@ -111,7 +149,7 @@ Lemma prog_match:
     p p'.
 Proof.
   destruct p as [defs ?], p' as [defs' ?].
-  inv Hprogram_rel. simpl in *. subst.
+  inv Hsepcomp_rel. simpl in *. subst.
   revert defs' Hdefs. generalize defs at 1 3 as fdefs.
   induction defs; intros fdefs defs' Hdefs.
   { inv Hdefs. constructor; auto. exists nil. split; auto. constructor. }
@@ -222,7 +260,138 @@ Proof.
   eexact prog_match. auto.
 Qed.
 
+End INITIAL.
+
 End TRANSF_PARTIAL2.
+
+Section TRANSF_PARTIAL.
+
+Variable (sigT_src:Sig).
+Variable (sigT_tgt:Sig).
+Variable (fT_src:F sigT_src).
+Variable (fT_tgt:F sigT_tgt).
+Variable (efT_src:EF sigT_src).
+Variable (efT_tgt:EF sigT_tgt).
+Variable (fundefT_src:Fundef fT_src efT_src).
+Variable (fundefT_tgt:Fundef fT_tgt efT_tgt).
+Variable (vT:V).
+
+Let lang_src := mkLanguage fundefT_src vT.
+Let lang_tgt := mkLanguage fundefT_tgt vT.
+
+Variable transf: lang_src.(progT) -> fundefT_src -> res fundefT_tgt.
+Variable p: lang_src.(progT).
+Variable p': lang_tgt.(progT).
+
+Inductive match_globdef_transf_partial (prog_src:lang_src.(progT)):
+  forall (def_src:lang_src.(globdefT))
+         (def_tgt:lang_tgt.(globdefT)), Prop :=
+| match_globdef_transf_partial_fun
+    fun_src fun_tgt
+    (Hfun: transf prog_src fun_src = OK fun_tgt):
+    match_globdef_transf_partial prog_src (Gfun fun_src) (Gfun fun_tgt)
+| match_globdef_transf_partial_var var:
+    match_globdef_transf_partial prog_src (Gvar var) (Gvar var)
+.
+
+Section TRANSF.
+
+Hypothesis TRANSF: transform_partial_program (transf p) p = OK p'.
+
+Lemma transf_partial_sepcomp_rel:
+  sepcomp_rel
+    match_globdef_transf_partial
+    p p'.
+Proof.
+  exploit transf_partial2_sepcomp_rel; eauto. intro X.
+  inv X. constructor; auto.
+  eapply list_forall2_imply; eauto. simpl. intros.
+  destruct v1, v2, H1 as [? [sp [Hsp Hmatch]]]. simpl in *. subst.
+  split; auto. eexists. split; eauto.
+  inv Hmatch.
+  - constructor. auto.
+  - monadInv Hvar. inv EQ. destruct var_src. constructor.
+Qed.
+
+End TRANSF.
+
+Section INITIAL.
+
+Hypothesis Hsepcomp_rel: sepcomp_rel match_globdef_transf_partial p p'.
+
+Let transf_OK:
+  sepcomp_rel (match_globdef_transf_partial2 transf (fun v => OK v)) p p'.
+Proof.
+  inv Hsepcomp_rel. constructor; auto.
+  eapply list_forall2_imply; eauto. simpl. intros.
+  destruct v1, v2, H1 as [? [prog_src [Hprog_src X]]]. simpl in *. subst.
+  split; auto. eexists. split; eauto.
+  inv X; constructor; auto. destruct var. auto.
+Qed.
+
+Theorem find_funct_ptr_transf_partial:
+  forall (b: block) (f: fundefT_src),
+  Genv.find_funct_ptr (Genv.globalenv p) b = Some f ->
+  exists f',
+  Genv.find_funct_ptr (Genv.globalenv p') b = Some f' /\ 
+  exists prog_src,
+    program_linkeq lang_src prog_src p /\
+    transf prog_src f = OK f'.
+Proof (find_funct_ptr_transf_partial2 transf_OK).
+
+Theorem find_funct_ptr_rev_transf_partial:
+  forall (b: block) (tf: fundefT_tgt),
+  Genv.find_funct_ptr (Genv.globalenv p') b = Some tf ->
+  exists f, Genv.find_funct_ptr (Genv.globalenv p) b = Some f /\ 
+  exists prog_src,
+    program_linkeq lang_src prog_src p /\
+    transf prog_src f = OK tf.
+Proof (find_funct_ptr_rev_transf_partial2 transf_OK).
+
+Theorem find_funct_transf_partial:
+  forall (v: val) (f: fundefT_src),
+  Genv.find_funct (Genv.globalenv p) v = Some f ->
+  exists f',
+  Genv.find_funct (Genv.globalenv p') v = Some f' /\ 
+  exists prog_src,
+    program_linkeq lang_src prog_src p /\
+    transf prog_src f = OK f'.
+Proof (find_funct_transf_partial2 transf_OK).
+
+Theorem find_funct_rev_transf_partial:
+  forall (v: val) (tf: fundefT_tgt),
+  Genv.find_funct (Genv.globalenv p') v = Some tf ->
+  exists f, Genv.find_funct (Genv.globalenv p) v = Some f /\ 
+  exists prog_src,
+    program_linkeq lang_src prog_src p /\
+    transf prog_src f = OK tf.
+Proof (find_funct_rev_transf_partial2 transf_OK).
+
+Theorem find_var_info_transf_partial:
+  forall (b: block),
+  Genv.find_var_info (Genv.globalenv p') b = Genv.find_var_info (Genv.globalenv p) b.
+Proof.
+  intros. destruct (Genv.find_var_info (Genv.globalenv p) b) as [v|] eqn:Hg.
+  - exploit find_var_info_transf_partial2; try apply transf_OK; eauto.
+    simpl. intros [v'' [Hv'' X]]. destruct v. inv X. auto.
+  - destruct (Genv.find_var_info (Genv.globalenv p') b) as [v|] eqn:Hg'; [|auto].
+    exploit find_var_info_rev_transf_partial2; try apply transf_OK; eauto.
+    simpl. intros [v'' [Hv'' X]].
+    simpl in *. rewrite Hg in Hv''. inv Hv''.
+Qed.
+
+Theorem find_symbol_transf_partial:
+  forall (s: ident),
+  Genv.find_symbol (Genv.globalenv p') s = Genv.find_symbol (Genv.globalenv p) s.
+Proof (find_symbol_transf_partial2 transf_OK).
+
+Theorem init_mem_transf_partial:
+  forall m, Genv.init_mem p = Some m -> Genv.init_mem p' = Some m.
+Proof (init_mem_transf_partial2 transf_OK).
+
+End INITIAL.
+
+End TRANSF_PARTIAL.
 
 Section TRANSF_PROGRAM.
 
@@ -254,12 +423,38 @@ Inductive match_globdef_transf_program (prog_src:lang_src.(progT)):
     match_globdef_transf_program prog_src (Gvar var) (Gvar var)
 .
 
-Hypothesis Hprogram_rel: program_rel match_globdef_transf_program p tp.
+Section TRANSF.
 
-Remark transf_OK:
-  program_rel (match_globdef_transf_partial2 (fun p x => OK (transf p x)) (fun v => OK v)) p tp.
+Hypothesis TRANSF: transform_program (transf p) p = tp.
+
+Lemma transf_program_sepcomp_rel:
+  sepcomp_rel
+    match_globdef_transf_program
+    p tp.
 Proof.
-  inv Hprogram_rel. constructor; auto.
+  destruct p as [defs ?], tp as [tdefs ?]. inv TRANSF.
+  constructor; auto. simpl.
+  generalize defs at 1 3 as fdefs.
+  induction defs; simpl; intros fdefs; constructor.
+  - split.
+    + destruct a. destruct g; auto.
+    + eexists. split; [reflexivity|].
+      destruct a. simpl. destruct g.
+      * constructor. auto.
+      * constructor.
+  - apply IHdefs.
+Qed.
+
+End TRANSF.
+
+Section INITIAL.
+
+Hypothesis Hsepcomp_rel: sepcomp_rel match_globdef_transf_program p tp.
+
+Let transf_OK:
+  sepcomp_rel (match_globdef_transf_partial2 (fun p x => OK (transf p x)) (fun v => OK v)) p tp.
+Proof.
+  inv Hsepcomp_rel. constructor; auto.
   eapply list_forall2_imply; eauto.
   simpl. intros. destruct v1, v2, H1 as [? X]. simpl in *. subst.
   destruct X as [prog_src [Hprog_src Hg]].
@@ -346,5 +541,7 @@ Theorem init_mem_transf:
 Proof.
   exact (@init_mem_transf_partial2 _ _ _ _ _ _ _ _ _ _ _ _ _ _ transf_OK).
 Qed.
+
+End INITIAL.
 
 End TRANSF_PROGRAM.

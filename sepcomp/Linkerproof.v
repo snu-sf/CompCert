@@ -1,23 +1,21 @@
 Require Import RelationClasses.
 Require String.
-Require Import Coqlib Coqlib_linker.
-Require Import Maps Maps_linker.
+Require Import Coqlib Coqlib_sepcomp.
+Require Import Maps Maps_sepcomp.
 Require Import Integers Floats Values AST Globalenvs.
 Require Import Errors Behaviors Compiler Smallstep.
 Require Import Language Linker.
 Require Import Tree.
 Require Import LinkerBasicproof Sig.
 
-Require ProgramLSim Adequacy.
-
-Require SimplExprproof_linker.
-Require Selectionproof_linker.
-Require Tailcallproof_linker.
-Require Inliningproof_linker.
-Require Renumberproof_linker.
-Require Constpropproof_linker.
-Require CSEproof_linker.
-Require Deadcodeproof_linker.
+Require SimplExprproof_sepcomp.
+Require Selectionproof_sepcomp.
+Require Tailcallproof_sepcomp.
+Require Inliningproof_sepcomp.
+Require Renumberproof_sepcomp.
+Require Constpropproof_sepcomp.
+Require CSEproof_sepcomp.
+Require Deadcodeproof_sepcomp.
 
 Set Implicit Arguments.
 
@@ -39,6 +37,53 @@ Proof.
   constructor; intros.
   - destruct H as [? [? ?]]. subst. auto.
   - destruct a; inv H. eexists. split; eauto.
+Qed.
+
+Lemma SimplExpr_sepcomp_rel
+      cprog clightprog
+      (Htrans: SimplExpr.transl_program cprog = OK clightprog):
+  @SepcompRel.sepcomp_rel
+    Language_C Language_Clight
+    (fun _ g tg => SimplExprproof_sepcomp.tr_glob g tg)
+    cprog clightprog.
+Proof.
+  destruct cprog as [defs ?], clightprog as [tdefs ?].
+  exploit SimplExprspec.transl_program_spec; eauto. clear Htrans.
+  intros [[tglob [Hmatch Htglob]] Hmain]. constructor; auto.
+  rewrite app_nil_r in *. simpl in *. subst.
+  eapply list_forall2_imply; eauto. intros. inv H1; simpl; split; auto.
+  - eexists. split; [reflexivity|]. constructor. auto.
+  - eexists. split; [reflexivity|]. constructor.
+Qed.
+
+Lemma Selection_sepcomp_rel
+      cminorprog cminorselprog
+      (Htrans: Selection.sel_program cminorprog = OK cminorselprog):
+  @SepcompRel.sepcomp_rel
+    Language_Cminor Language_CminorSel
+    (fun p g tg => Selectionproof_sepcomp.tr_glob p g tg)
+    cminorprog cminorselprog.
+Proof.
+  monadInv Htrans.
+  destruct cminorprog as [defs ?], cminorselprog as [tdefs ?].
+  unfold transform_partial_program, transform_partial_program2 in EQ0. monadInv EQ0.
+  constructor; auto. simpl in *.
+  revert tdefs EQ EQ1. generalize defs at 1 2 4 as fdefs.
+  induction defs; simpl; intros fdefs tdefs Hhelpers Hdefs.
+  { inv Hdefs. constructor. }
+  destruct a. destruct g.
+  - match goal with
+      | [H: match ?x with OK _ => _ | Error _ => _ end = OK _ |- _] =>
+        destruct x as [tf|] eqn:Hf; [|inv H]
+    end.
+    monadInv Hdefs. constructor; simpl.
+    + split; auto. eexists. split; [reflexivity|].
+      econstructor; eauto. apply Selectionproof.get_helpers_correct. auto.
+    + apply IHdefs; auto.
+  - monadInv Hdefs. constructor; simpl.
+    + split; auto. eexists. split; [reflexivity|].
+      destruct v. constructor.
+    + apply IHdefs; auto.
 Qed.
 
 Ltac clarify :=
@@ -73,12 +118,10 @@ Proof.
   (* C *)
   unfold transf_c_program in TRANSF. clarify.
 
-  eapply Tree.Forall2_implies in T; [|apply SimplExprproof_linker.SimplExpr_program_lsim].
-  eapply Tree.Forall2_reduce in T; eauto;
-    [|intros; eapply (@ProgramLSim.link_program_lsim Language_C Language_Clight); eauto].
-  destruct T as [clight1prog [Hclight1prog Hclight1sim]].
-  apply Adequacy.program_sim_forward_simulation in Hclight1sim; auto;
-    [|eapply SimplExprproof_linker.mrelT_props; eauto].
+  eapply Tree.Forall2_implies in T; [|apply SimplExpr_sepcomp_rel].
+  eapply Tree.Forall2_reduce in T; eauto; [|eapply (@SepcompRel.link_program_sepcomp_rel Language_C Language_Clight)].
+  destruct T as [clightprog [Hclightprog Hclightsim]].
+  apply SimplExprproof_sepcomp.transl_program_correct in Hclightsim.
 
   (* Clight *)
   unfold transf_clight_program in TRANSF. clarify.
@@ -105,12 +148,10 @@ Proof.
   (* Cminor *)
   unfold transf_cminor_program in TRANSF. clarify.
 
-  eapply Tree.Forall2_implies in T0; [|apply Selectionproof_linker.Selection_program_lsim].
-  eapply Tree.Forall2_reduce in T0; eauto;
-    [|intros; eapply (@ProgramLSim.link_program_lsim Language_Cminor Language_CminorSel); eauto].
+  eapply Tree.Forall2_implies in T0; [|apply Selection_sepcomp_rel].
+  eapply Tree.Forall2_reduce in T0; eauto; [|eapply (@SepcompRel.link_program_sepcomp_rel Language_Cminor Language_CminorSel)].
   destruct T0 as [cminorselprog [Hcminorselprog Hcminorselsim]].
-  apply Adequacy.program_sim_forward_simulation in Hcminorselsim; auto;
-    [|eapply Selectionproof_linker.mrelT_props; eauto].
+  apply Selectionproof_sepcomp.transl_program_correct in Hcminorselsim.
 
   eapply Tree.Forall2_reduce in T; eauto;
     [|eapply (transform_partial_program2_link_program Language_CminorSel Language_RTL)];
@@ -122,54 +163,40 @@ Proof.
   (* RTL *)
   unfold transf_rtl_program in TRANSF. clarify.
 
-  eapply Tree.Forall2_implies in T19; [|apply Tailcallproof_linker.Tailcall_program_lsim].
-  eapply Tree.Forall2_reduce in T19; eauto;
-    [|intros; eapply (@ProgramLSim.link_program_lsim Language_RTL Language_RTL); eauto].
+  eapply Tree.Forall2_implies in T19; [|apply transf_program_sepcomp_rel].
+  eapply Tree.Forall2_reduce in T19; eauto; [|eapply (@SepcompRel.link_program_sepcomp_rel Language_RTL Language_RTL)].
   destruct T19 as [rtlprog1 [Hrtlprog1 Hrtlsim1]].
-  apply Adequacy.program_sim_forward_simulation in Hrtlsim1; auto;
-    [|eapply Tailcallproof_linker.mrelT_props; eauto].
-  
-  eapply Tree.Forall2_implies in T17; [|apply Inliningproof_linker.Inlining_program_lsim].
-  eapply Tree.Forall2_reduce in T17; eauto;
-    [|intros; eapply (@ProgramLSim.link_program_lsim Language_RTL Language_RTL); eauto].
+  apply Tailcallproof_sepcomp.transf_program_correct in Hrtlsim1.
+
+  eapply Tree.Forall2_implies in T17; [|apply transf_partial_sepcomp_rel].
+  eapply Tree.Forall2_reduce in T17; eauto; [|eapply (@SepcompRel.link_program_sepcomp_rel Language_RTL Language_RTL)].
   destruct T17 as [rtlprog2 [Hrtlprog2 Hrtlsim2]].
-  apply Adequacy.program_sim_forward_simulation in Hrtlsim2; auto;
-    [|eapply Inliningproof_linker.mrelT_props; eauto].
+  apply Inliningproof_sepcomp.transf_program_correct in Hrtlsim2.
 
-  eapply Tree.Forall2_implies in T15; [|apply Renumberproof_linker.Renumber_program_lsim].
-  eapply Tree.Forall2_reduce in T15; eauto;
-    [|intros; eapply (@ProgramLSim.link_program_lsim Language_RTL Language_RTL); eauto].
+  eapply Tree.Forall2_implies in T15; [|apply transf_program_sepcomp_rel].
+  eapply Tree.Forall2_reduce in T15; eauto; [|eapply (@SepcompRel.link_program_sepcomp_rel Language_RTL Language_RTL)].
   destruct T15 as [rtlprog3 [Hrtlprog3 Hrtlsim3]].
-  apply Adequacy.program_sim_forward_simulation in Hrtlsim3; auto;
-    [|eapply Renumberproof_linker.mrelT_props; eauto].
+  apply Renumberproof_sepcomp.transf_program_correct in Hrtlsim3.
 
-  eapply Tree.Forall2_implies in T13; [|apply Constpropproof_linker.Constprop_program_lsim].
-  eapply Tree.Forall2_reduce in T13; eauto;
-    [|intros; eapply (@ProgramLSim.link_program_lsim Language_RTL Language_RTL); eauto].
+  eapply Tree.Forall2_implies in T13; [|apply transf_program_sepcomp_rel].
+  eapply Tree.Forall2_reduce in T13; eauto; [|eapply (@SepcompRel.link_program_sepcomp_rel Language_RTL Language_RTL)].
   destruct T13 as [rtlprog4 [Hrtlprog4 Hrtlsim4]].
-  apply Adequacy.program_sim_forward_simulation in Hrtlsim4; auto;
-    [|eapply Constpropproof_linker.mrelT_props; eauto].
+  apply Constpropproof_sepcomp.transf_program_correct in Hrtlsim4.
 
-  eapply Tree.Forall2_implies in T11; [|apply Renumberproof_linker.Renumber_program_lsim].
-  eapply Tree.Forall2_reduce in T11; eauto;
-    [|intros; eapply (@ProgramLSim.link_program_lsim Language_RTL Language_RTL); eauto].
+  eapply Tree.Forall2_implies in T11; [|apply transf_program_sepcomp_rel].
+  eapply Tree.Forall2_reduce in T11; eauto; [|eapply (@SepcompRel.link_program_sepcomp_rel Language_RTL Language_RTL)].
   destruct T11 as [rtlprog5 [Hrtlprog5 Hrtlsim5]].
-  apply Adequacy.program_sim_forward_simulation in Hrtlsim5; auto;
-    [|eapply Renumberproof_linker.mrelT_props; eauto].
+  apply Renumberproof_sepcomp.transf_program_correct in Hrtlsim5.
 
-  eapply Tree.Forall2_implies in T9; [|apply CSEproof_linker.CSE_program_lsim].
-  eapply Tree.Forall2_reduce in T9; eauto;
-    [|intros; eapply (@ProgramLSim.link_program_lsim Language_RTL Language_RTL); eauto].
+  eapply Tree.Forall2_implies in T9; [|apply transf_partial_sepcomp_rel].
+  eapply Tree.Forall2_reduce in T9; eauto; [|eapply (@SepcompRel.link_program_sepcomp_rel Language_RTL Language_RTL)].
   destruct T9 as [rtlprog6 [Hrtlprog6 Hrtlsim6]].
-  apply Adequacy.program_sim_forward_simulation in Hrtlsim6; auto;
-    [|eapply CSEproof_linker.mrelT_props; eauto].
+  apply CSEproof_sepcomp.transf_program_correct in Hrtlsim6.
 
-  eapply Tree.Forall2_implies in T7; [|apply Deadcodeproof_linker.Deadcode_program_lsim].
-  eapply Tree.Forall2_reduce in T7; eauto;
-    [|intros; eapply (@ProgramLSim.link_program_lsim Language_RTL Language_RTL); eauto].
+  eapply Tree.Forall2_implies in T7; [|apply transf_partial_sepcomp_rel].
+  eapply Tree.Forall2_reduce in T7; eauto; [|eapply (@SepcompRel.link_program_sepcomp_rel Language_RTL Language_RTL)].
   destruct T7 as [rtlprog7 [Hrtlprog7 Hrtlsim7]].
-  apply Adequacy.program_sim_forward_simulation in Hrtlsim7; auto;
-    [|eapply Deadcodeproof_linker.mrelT_props; eauto].
+  apply Deadcodeproof_sepcomp.transf_program_correct in Hrtlsim7.
 
   eapply Tree.Forall2_reduce in T5; eauto;
     [|eapply (transform_partial_program2_link_program Language_RTL Language_LTL)];
@@ -212,16 +239,5 @@ Proof.
 
   (* epilogue *)
   exists asmprog. eexists; auto.
-  repeat (eapply compose_forward_simulation; [|eauto; fail]).  
-  eapply compose_forward_simulation; [|apply rtl_sem_implies1; fail].
-  repeat (eapply compose_forward_simulation; [|eauto; fail]).
-  eapply compose_forward_simulation; [|apply rtl_sem_implies2; fail].
-  repeat (eapply compose_forward_simulation; [|eauto; fail]).
-  eapply compose_forward_simulation; [|apply cminorsel_sem_implies1; fail].
-  repeat (eapply compose_forward_simulation; [|eauto; fail]).
-  eapply compose_forward_simulation; [|apply cminor_sem_implies2; fail].
-  repeat (eapply compose_forward_simulation; [|eauto; fail]).
-  eapply compose_forward_simulation; [|apply clight1_sem_implies1; fail].
-  repeat (eapply compose_forward_simulation; [|eauto; fail]).
-  apply c_sem_implies2.
+  repeat (auto; try (eapply compose_forward_simulation; [|eauto; fail])).
 Qed.

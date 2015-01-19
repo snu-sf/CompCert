@@ -1,6 +1,6 @@
 Require Import RelationClasses.
 Require Import Coqlib.
-Require Import Maps Maps_linker.
+Require Import Maps Maps_sepcomp.
 Require Import Compopts.
 Require Import AST.
 Require Import Integers.

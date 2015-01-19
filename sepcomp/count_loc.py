@@ -19,23 +19,20 @@ if __name__ == "__main__":
     otherfiles = \
     ["Linker",
      "Linkerproof",
-     "backend/RTL_linker",
-     "common/Adequacy",
-     "common/FunctionLSim",
      "common/Language",
      "common/Linkeq",
      "common/LinkerBasicproof",
      "common/LinkerProp",
-     "common/ProgramLSim",
+     "common/SepcompRel",
      "common/Sig",
-     "common/Smallstep_linker",
-     "lib/Coqlib_linker",
-     "lib/Maps_linker",
+     "common/Smallstep_sepcomp",
+     "lib/Coqlib_sepcomp",
+     "lib/Maps_sepcomp",
      "lib/Tree",
      "lib/WFType"]
 
     for filename in difffiles:
-        num = int(subprocess.check_output("diff ../%s.v %s_linker.v | grep \"^>\" | wc -l" % (filename, filename), shell=True))
+        num = int(subprocess.check_output("diff ../%s.v %s_sepcomp.v | grep \"^>\" | wc -l" % (filename, filename), shell=True))
         print("%s:\t%d (*)" % (filename, num))
         sum += num
     print("")
