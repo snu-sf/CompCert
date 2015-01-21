@@ -33,13 +33,8 @@ Variable tprog: program.
 Hypothesis TRANSF:
   @sepcomp_rel
     Language_RTL Language_RTL
-    (@match_globdef_transf_program
-       Sig_signature Sig_signature
-       F_RTL F_RTL
-       EF_external_function EF_external_function
-       (Fundef_common F_RTL) (Fundef_common F_RTL)
-       V_unit
-       (fun p f => transf_fundef f))
+    (fun p f tf => transf_function f = tf)
+    (@Errors.OK _) (@Errors.OK _)
     prog tprog.
 Let ge := Genv.globalenv prog.
 Let tge := Genv.globalenv tprog.
@@ -49,13 +44,14 @@ Lemma functions_translated:
   Genv.find_funct ge v = Some f ->
   Genv.find_funct tge v = Some (transf_fundef f).
 Proof.
-  generalize (find_funct_transf TRANSF).
+  generalize (find_funct_transf _ _ TRANSF).
   intros H1 v f. specialize (H1 v f).
   revert H1. unfold ge, fundef. simpl.
   match goal with
     | [|- _ -> ?a = _ -> _] => destruct a
   end; intros H1 H2; inv H2.
-  specialize (H1 eq_refl). destruct H1 as [? [? H1]]. auto.
+  specialize (H1 eq_refl). destruct H1 as [? [? H1]].
+  destruct f; auto.
 Qed.
 
 Lemma function_ptr_translated:
@@ -63,23 +59,24 @@ Lemma function_ptr_translated:
   Genv.find_funct_ptr ge v = Some f ->
   Genv.find_funct_ptr tge v = Some (transf_fundef f).
 Proof.
-  generalize (find_funct_ptr_transf TRANSF).
+  generalize (find_funct_ptr_transf _ _ TRANSF).
   intros H1 v f. specialize (H1 v f).
   revert H1. unfold ge, fundef. simpl.
   match goal with
     | [|- _ -> ?a = _ -> _] => destruct a
   end; intros H1 H2; inv H2.
-  specialize (H1 eq_refl). destruct H1 as [? [? H1]]. auto.
+  specialize (H1 eq_refl). destruct H1 as [? [? H1]].
+  destruct f; auto.
 Qed.
 
 Lemma symbols_preserved:
   forall id,
   Genv.find_symbol tge id = Genv.find_symbol ge id.
-Proof (find_symbol_transf TRANSF).
+Proof (find_symbol_transf _ _ TRANSF).
 
 Lemma varinfo_preserved:
   forall b, Genv.find_var_info tge b = Genv.find_var_info ge b.
-Proof (find_var_info_transf TRANSF).
+Proof (find_var_info_transf _ _ TRANSF).
 
 Lemma sig_preserved:
   forall f, funsig (transf_fundef f) = funsig f.
@@ -264,7 +261,7 @@ Lemma transf_initial_states:
 Proof.
   intros. inv H. econstructor; split.
   econstructor. 
-    eapply (init_mem_transf TRANSF); eauto. 
+    eapply (init_mem_transf _ _ TRANSF); eauto. 
     replace (AST.prog_main tprog) with (AST.prog_main prog).
     rewrite symbols_preserved. eauto.
     inv TRANSF. auto.

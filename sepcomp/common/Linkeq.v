@@ -22,13 +22,13 @@ Let vT := lang.(vT).
 Let f_sig := fT.(F_sig).
 Let ef_sig := efT.(EF_sig).
 Let ef_dec := efT.(EF_dec).
-Let fundef_dec := fundefT.(Fundef_dec).
+Let fundef_dec := fundefT.(Fundef_equiv).(AtoB).
 Let v_dec := vT.(V_dec).
 
 Ltac clarify :=
   repeat
     (try match goal with
-           | [H1: fundef_dec ?f = _, H2: fundef_dec ?f = _ |- _] =>
+           | [H1: ?x = _, H2: ?x = _ |- _] =>
              rewrite H1 in H2; inv H2
          end;
      auto).

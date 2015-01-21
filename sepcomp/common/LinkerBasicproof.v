@@ -128,6 +128,16 @@ Lemma transform_program_link_program
 Proof.
   Ltac clarify :=
     repeat match goal with
+             | [H: False |- _] => inv H
+             | [H: inl _ = inl _ |- _] => inv H
+             | [H: inl _ = inr _ |- _] => inv H
+             | [H: inr _ = inl _ |- _] => inv H
+             | [H: inr _ = inr _ |- _] => inv H
+             | [Hl: ?a = inl _, Hr: ?a = inl _ |- _] => rewrite Hl in Hr; inv Hr
+             | [Hl: ?a = inl _, Hr: ?a = inr _ |- _] => rewrite Hl in Hr; inv Hr
+             | [Hl: ?a = inr _, Hr: ?a = inl _ |- _] => rewrite Hl in Hr; inv Hr
+             | [Hl: ?a = inr _, Hr: ?a = inr _ |- _] => rewrite Hl in Hr; inv Hr
+
              | [H: context[match ?d with | Some _ => _ | None => _ end] |- _] =>
                let defs := fresh "defs" in
                let Hdefs := fresh "Hdefs" in
@@ -136,7 +146,8 @@ Proof.
                let defs := fresh "defs" in
                let Hdefs := fresh "Hdefs" in
                destruct d as [defs|] eqn:Hdefs; simpl in *
-           end.
+           end;
+    auto.
   unfold progT in *. simpl in *. subst.
   unfold link_program, transform_program in *. simpl in *.
   destruct p1 as [p1 mainp1], p2 as [p2 mainp2]. simpl in *.
@@ -155,31 +166,14 @@ Proof.
     eapply (gtlink_globdefs (mkLanguage (Fundef_common fT2) vT)) in Hdefs1'. instantiate (1 := i) in Hdefs1'.
     rewrite PTree.gmap in *. unfold ident in *. simpl in *.
     destruct (p1 ! i); simpl in *; rewrite PTree.gmap in *;
-    destruct (p2 ! i), (defs0 ! i), (defs1' ! i); simpl in *; subst; auto;
-    try match goal with
-          | [H: False |- _] => inv H
-        end.
+    destruct (p2 ! i), (defs0 ! i), (defs1' ! i); simpl in *; subst; auto; clarify.
     destruct Hdefs0 as [[? ?]|[? ?]], Hdefs1' as [[? ?]|[? ?]]; subst; auto.
     + inv H; inv H1; simpl in *.
-      * destruct f1, f2; inv Hv; inv Hv0; simpl in *;
-        repeat match goal with
-                 | [H: inl _ = inl _ |- _] => inv H
-                 | [H: inl _ = inr _ |- _] => inv H
-                 | [H: inr _ = inl _ |- _] => inv H
-                 | [H: inr _ = inr _ |- _] => inv H
-               end;
-        auto.
+      * destruct f1, f2; inv Hv; inv Hv0; simpl in *; clarify.
       * inv Hv. inv Hv0. destruct v1, v2. simpl in *. repeat f_equal; auto.
         rewrite Hinit, Hinit0. auto.
     + inv H; inv H1; simpl in *.
-      * destruct f1, f2; inv Hv; inv Hv0; simpl in *;
-        repeat match goal with
-                 | [H: inl _ = inl _ |- _] => inv H
-                 | [H: inl _ = inr _ |- _] => inv H
-                 | [H: inr _ = inl _ |- _] => inv H
-                 | [H: inr _ = inr _ |- _] => inv H
-               end;
-        auto.
+      * destruct f1, f2; inv Hv; inv Hv0; simpl in *; clarify.
       * inv Hv. inv Hv0. destruct v1, v2. simpl in *. repeat f_equal; auto.
         rewrite Hinit, Hinit0. auto.
   - exfalso. unfold link_globdef_list in *. clarify.
@@ -195,26 +189,14 @@ Proof.
     + destruct H as [H ?]. subst.
       contradict Htdefs1. inv H.
       * inv H0. inv H1. constructor.
-        destruct f1, f2; inv Hv; simpl in *;
-        repeat match goal with
-                 | [H: inl _ = inl _ |- _] => inv H
-                 | [H: inl _ = inr _ |- _] => inv H
-                 | [H: inr _ = inl _ |- _] => inv H
-                 | [H: inr _ = inr _ |- _] => inv H
-               end.
+        destruct f1, f2; inv Hv; simpl in *; clarify.
         eapply globfun_linkable_ei; simpl; eauto. rewrite <- Htf. auto.
         eapply globfun_linkable_ee; simpl; eauto.
       * inv H0. inv H1. constructor. inv Hv. constructor; auto.
     + destruct H as [H ?]. subst.
       contradict Htdefs2. inv H.
       * inv H0. inv H1. constructor.
-        destruct f1, f2; inv Hv; simpl in *;
-        repeat match goal with
-                 | [H: inl _ = inl _ |- _] => inv H
-                 | [H: inl _ = inr _ |- _] => inv H
-                 | [H: inr _ = inl _ |- _] => inv H
-                 | [H: inr _ = inr _ |- _] => inv H
-               end.
+        destruct f1, f2; inv Hv; simpl in *; clarify.
         eapply globfun_linkable_ei; simpl; eauto. rewrite <- Htf. auto.
         eapply globfun_linkable_ee; simpl; eauto.
       * inv H0. inv H1. constructor. inv Hv. constructor; auto.
@@ -364,28 +346,18 @@ Proof.
       destruct Hp as [[]|[]], Hq as [[]|[]]; subst; auto.
       - inv H; inv H0; inv H1; inv H3.
         + eapply  Htf in Hv; eauto.
-          inv Hv; inv Hv0; simpl in *;
-          repeat match goal with
-                   | [Hl: ?a = inl _, Hr: ?a = inl _ |- _] => rewrite Hl in Hr; inv Hr
-                   | [Hl: ?a = inl _, Hr: ?a = inr _ |- _] => rewrite Hl in Hr; inv Hr
-                   | [Hl: ?a = inr _, Hr: ?a = inl _ |- _] => rewrite Hl in Hr; inv Hr
-                   | [Hl: ?a = inr _, Hr: ?a = inr _ |- _] => rewrite Hl in Hr; inv Hr
-                 end.
+          inv Hv; inv Hv0; simpl in *; clarify.
+          rewrite <- H1 in H3. inv H3.
           constructor. rewrite H. f_equal.
-          apply HFundef_dec_inj. congruence.
+          eapply EquivalentType_AtoB_inj; eauto.
         + inv Hv; inv Hv0; simpl in *. subst init0 init ro0 vo0. constructor.
           subst. auto.
       - inv H; inv H0; inv H1; inv H3.
         + eapply  Htf in Hv; eauto.
-          inv Hv; inv Hv0; simpl in *;
-          repeat match goal with
-                   | [Hl: ?a = inl _, Hr: ?a = inl _ |- _] => rewrite Hl in Hr; inv Hr
-                   | [Hl: ?a = inl _, Hr: ?a = inr _ |- _] => rewrite Hl in Hr; inv Hr
-                   | [Hl: ?a = inr _, Hr: ?a = inl _ |- _] => rewrite Hl in Hr; inv Hr
-                   | [Hl: ?a = inr _, Hr: ?a = inr _ |- _] => rewrite Hl in Hr; inv Hr
-                 end.
+          inv Hv; inv Hv0; simpl in *; clarify.
+          rewrite <- H1 in H3. inv H3.
           constructor. rewrite H2. f_equal.
-          apply HFundef_dec_inj. congruence.
+          eapply EquivalentType_AtoB_inj; eauto.
         + inv Hv; inv Hv0; simpl in *. subst init0 init ro0 vo0. constructor.
           subst. auto.
     }

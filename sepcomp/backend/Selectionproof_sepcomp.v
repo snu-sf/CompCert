@@ -57,18 +57,14 @@ Section PRESERVATION.
 Variable prog: Cminor.program.
 Variable tprog: CminorSel.program.
 
-Inductive tr_glob: Cminor.program -> globdef Cminor.fundef unit -> globdef CminorSel.fundef unit -> Prop :=
-  | tr_fun: forall sprog f tf hf,
-    i64_helpers_correct (Genv.globalenv sprog) hf ->
-    sel_fundef hf (Genv.globalenv sprog) f = OK tf ->
-    tr_glob sprog (Gfun f) (Gfun tf)
-  | tr_var: forall sprog v,
-    tr_glob sprog (Gvar v) (Gvar v).
-
 Hypothesis TRANSF:
   @sepcomp_rel
     Language_Cminor Language_CminorSel
-    (fun p g tg => tr_glob p g tg)
+    (fun p f tf =>
+       exists hf,
+         i64_helpers_correct (Genv.globalenv p) hf /\
+         sel_function hf (Genv.globalenv p) f = OK tf)
+    (@OK _) (@OK _)
     prog tprog.
 
 Let ge := Genv.globalenv prog.
@@ -96,8 +92,21 @@ Proof.
   eexists. rewrite app_nil_r. split; auto.
   constructor; auto.
   destruct H1 as [prog_src [Hprog_src H1]]. inv H1.
-  - apply match_glob_fun. eexists. split; eauto.
-  - destruct v. apply match_glob_var. auto.
+  - destruct Hf as [hf [Hhf Hf]].
+    apply match_glob_fun. eexists. split; eauto.
+    eexists. split; eauto.
+    simpl in *. destruct fd_src; inv Hf_src. destruct fd_tgt; inv Hf_tgt.
+    unfold sel_fundef, transf_partial_fundef. rewrite Hf. auto.
+  - inv Hef.
+    apply match_glob_fun. eexists. split; eauto.
+    eexists. split; eauto.
+    exfalso. admit.
+    simpl in *. destruct fd_src; inv Hef_src. destruct fd_tgt; inv Hef_tgt.
+    unfold sel_fundef, transf_partial_fundef. auto.
+  - unfold transf_globvar in Hv. monadInv Hv. inv EQ.
+    destruct gv_src. constructor. auto.
+Grab Existential Variables.
+  admit.
 Qed.
 Hint Resolve prog_match.
 

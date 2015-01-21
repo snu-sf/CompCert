@@ -49,7 +49,8 @@ Inductive tr_glob: globdef Csyntax.fundef type -> globdef Clight.fundef type -> 
 Hypothesis TRANSF:
   @sepcomp_rel
     Language_C Language_Clight
-    (fun _ g tg => tr_glob g tg)
+    (fun _ f tf => tr_function f tf)
+    (@OK _) (@OK _)
     prog tprog.
 
 Let ge := Genv.globalenv prog.
@@ -77,7 +78,14 @@ Proof.
   constructor; auto.
   destruct H1 as [prog_src [Hprog_src H1]]. inv H1.
   - apply match_glob_fun. auto.
-  - destruct v. apply match_glob_var. auto.
+    destruct fd_src; inv Hf_src. destruct fd_tgt; inv Hf_tgt.
+    constructor. auto.
+  - inv Hef.
+    apply match_glob_fun.
+    destruct fd_src; inv Hef_src. destruct fd_tgt; inv Hef_tgt.
+    constructor.
+  - unfold transf_globvar in Hv. monadInv Hv. inv EQ.
+    destruct gv_src. constructor. auto.
 Qed.
 Hint Resolve prog_match.
 

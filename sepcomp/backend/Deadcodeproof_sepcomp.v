@@ -375,13 +375,8 @@ Variable tprog: program.
 Hypothesis TRANSF:
   @sepcomp_rel
     Language_RTL Language_RTL
-    (@match_globdef_transf_partial
-       Sig_signature Sig_signature
-       F_RTL F_RTL
-       EF_external_function EF_external_function
-       (Fundef_common F_RTL) (Fundef_common F_RTL)
-       V_unit
-       (fun p f => transf_fundef (romem_for_program p) f))
+    (fun p f tf => transf_function (romem_for_program p) f = OK tf)
+    (@OK _) (@OK _)
     prog tprog.
 Let ge := Genv.globalenv prog.
 Let tge := Genv.globalenv tprog.
@@ -389,11 +384,11 @@ Let rm := romem_for_program prog.
 
 Lemma symbols_preserved:
   forall (s: ident), Genv.find_symbol tge s = Genv.find_symbol ge s.
-Proof (find_symbol_transf_partial TRANSF).
+Proof (find_symbol_transf_partial _ TRANSF).
 
 Lemma varinfo_preserved:
   forall b, Genv.find_var_info tge b = Genv.find_var_info ge b.
-Proof (find_var_info_transf_partial TRANSF).
+Proof (find_var_info_transf_partial _ TRANSF).
 
 Lemma functions_translated:
   forall (v: val) (f: RTL.fundef),
@@ -401,7 +396,14 @@ Lemma functions_translated:
   exists tf, Genv.find_funct tge v = Some tf /\ 
              exists sprog, program_linkeq Language_RTL sprog prog /\
                            transf_fundef (romem_for_program sprog) f = OK tf.
-Proof (find_funct_transf_partial TRANSF).
+Proof.
+  intros. exploit (find_funct_transf_partial _ TRANSF); eauto. simpl in *.
+  intros [tf [Htf [sprog [Hsprog Hf]]]].
+  eexists. split; eauto. eexists. split; eauto.
+  destruct f; monadInv Hf; auto.
+  unfold transf_fundef. unfold transf_partial_fundef.
+  rewrite EQ. auto.
+Qed.
 
 Lemma function_ptr_translated:
   forall (b: block) (f: RTL.fundef),
@@ -409,7 +411,14 @@ Lemma function_ptr_translated:
   exists tf, Genv.find_funct_ptr tge b = Some tf /\ 
              exists sprog, program_linkeq Language_RTL sprog prog /\
                            transf_fundef (romem_for_program sprog) f = OK tf.
-Proof (find_funct_ptr_transf_partial TRANSF).
+Proof.
+  intros. exploit (find_funct_ptr_transf_partial _ TRANSF); eauto. simpl in *.
+  intros [tf [Htf [sprog [Hsprog Hf]]]].
+  eexists. split; eauto. eexists. split; eauto.
+  destruct f; monadInv Hf; auto.
+  unfold transf_fundef. unfold transf_partial_fundef.
+  rewrite EQ. auto.
+Qed.
 
 Lemma sig_function_translated:
   forall sprog f tf, transf_fundef (romem_for_program sprog) f = OK tf -> funsig tf = funsig f.
@@ -999,7 +1008,7 @@ Proof.
   exploit function_ptr_translated; eauto. intros (tf & A & sprog & Hsprog & B).
   exists (Callstate nil tf nil m0); split.
   econstructor; eauto.
-  exploit (init_mem_transf_partial TRANSF); eauto.
+  exploit (init_mem_transf_partial _ TRANSF); eauto.
   replace (prog_main tprog) with (prog_main prog).
   rewrite symbols_preserved. eauto.
   inv TRANSF. auto.
