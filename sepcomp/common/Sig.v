@@ -69,6 +69,40 @@ Proof.
   unfold Allocation.check_entrypoints_aux in X. clarify. auto.
 Qed.
 
+Lemma Deadcode_sig:
+  forall rm (f1 : F_RTL) (f2 : F_RTL),
+    Deadcode.transf_function rm f1 = OK f2 -> F_sig F_RTL f1 = F_sig F_RTL f2.
+Proof.
+  intros. unfold Deadcode.transf_function in H.
+  destruct (Deadcode.analyze (Deadcode.vanalyze rm f1) f1); inv H. auto.
+Qed.
+
+Lemma CSE_sig:
+  forall rm (f1 : F_RTL) (f2 : F_RTL),
+    CSE.transf_function rm f1 = OK f2 -> F_sig F_RTL f1 = F_sig F_RTL f2.
+Proof.
+  intros. unfold CSE.transf_function in H.
+  destruct (CSE.analyze f1 (CSE.vanalyze rm f1)); inv H. auto.
+Qed.
+
+Lemma Inlining_sig:
+  forall fenv (f1 : F_RTL) (f2 : F_RTL),
+    Inlining.transf_function fenv f1 = OK f2 -> F_sig F_RTL f1 = F_sig F_RTL f2.
+Proof.
+  intros. unfold Inlining.transf_function in H.
+  destruct (Inlining.expand_function fenv f1 Inlining.initstate).
+  destruct (zlt (Inlining.st_stksize s') Int.max_unsigned); inv H.
+  auto.
+Qed.
+
+Lemma Tailcall_sig:
+  forall (f : F_RTL),
+    F_sig F_RTL f = F_sig F_RTL (Tailcall.transf_function f).
+Proof.
+  intros. unfold Tailcall.transf_function.
+  destruct (zeq (RTL.fn_stacksize f) 0 && Compopts.eliminate_tailcalls tt); auto.
+Qed.
+
 Lemma RTLgen_sig:
   forall (f1 : F_CminorSel) (f2 : F_RTL),
     RTLgen.transl_function f1 = OK f2 -> F_sig F_CminorSel f1 = F_sig F_RTL f2.
@@ -77,6 +111,13 @@ Proof.
   destruct (RTLgen.reserve_labels (CminorSel.fn_body f1) (PTree.empty RTL.node, RTLgen.init_state)).
   destruct (RTLgen.transl_fun f1 l s); inv H.
   destruct p. inv H1. auto.
+Qed.
+
+Lemma Selection_sig:
+  forall hf ge (f1 : F_Cminor) (f2 : F_CminorSel),
+    Selection.sel_function hf ge f1 = OK f2 -> F_sig F_Cminor f1 = F_sig F_CminorSel f2.
+Proof.
+  intros. unfold Selection.sel_function in H. monadInv H. auto.
 Qed.
 
 Lemma Cminorgen_sig:
@@ -120,6 +161,13 @@ Proof.
     unfold SimplLocals.transf_function in EQ. clarify; auto.
     inv EQ.
   - eapply globfun_linkable_ee; simpl; auto.
+Qed.
+
+Lemma SimplExpr_sig:
+  forall (f1 : F_C) (f2 : F_Clight),
+    SimplExprspec.tr_function f1 f2 -> F_sig F_C f1 = F_sig F_Clight f2.
+Proof.
+  intros. destruct f1, f2. inv H. simpl in *. subst. auto.
 Qed.
 
 Lemma globfun_linkable_transf_partial_fundef

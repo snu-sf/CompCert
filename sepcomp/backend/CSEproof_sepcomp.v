@@ -811,13 +811,16 @@ Qed.
 
 Section PRESERVATION.
 
+Let transf_efT (p:program) (ef:external_function) := OK ef.
+
 Variable prog: program.
 Variable tprog : program.
 Hypothesis TRANSF:
   @sepcomp_rel
     Language_RTL Language_RTL
     (fun p f tf => transf_function (romem_for_program p) f = OK tf)
-    (@OK _) (@OK _)
+    (fun p ef tef => transf_efT p ef = OK tef)
+    (@OK _)
     prog tprog.
 Let ge := Genv.globalenv prog.
 Let tge := Genv.globalenv tprog.
@@ -825,11 +828,11 @@ Let rm := romem_for_program prog.
 
 Lemma symbols_preserved:
   forall (s: ident), Genv.find_symbol tge s = Genv.find_symbol ge s.
-Proof (find_symbol_transf_partial _ TRANSF).
+Proof (find_symbol_transf_partial _ _ TRANSF).
 
 Lemma varinfo_preserved:
   forall b, Genv.find_var_info tge b = Genv.find_var_info ge b.
-Proof (find_var_info_transf_partial _ TRANSF).
+Proof (find_var_info_transf_partial _ _ TRANSF).
 
 Lemma functions_translated:
   forall (v: val) (f: RTL.fundef),
@@ -838,7 +841,7 @@ Lemma functions_translated:
              exists sprog, program_linkeq Language_RTL sprog prog /\
                            transf_fundef (romem_for_program sprog) f = OK tf.
 Proof.
-  intros. exploit (find_funct_transf_partial _ TRANSF); eauto. simpl in *.
+  intros. exploit (find_funct_transf_partial _ _ TRANSF); eauto. simpl in *.
   intros [tf [Htf [sprog [Hsprog Hf]]]].
   eexists. split; eauto. eexists. split; eauto.
   destruct f; monadInv Hf; auto.
@@ -853,7 +856,7 @@ Lemma funct_ptr_translated:
              exists sprog, program_linkeq Language_RTL sprog prog /\
                            transf_fundef (romem_for_program sprog) f = OK tf.
 Proof.
-  intros. exploit (find_funct_ptr_transf_partial _ TRANSF); eauto. simpl in *.
+  intros. exploit (find_funct_ptr_transf_partial _ _ TRANSF); eauto. simpl in *.
   intros [tf [Htf [sprog [Hsprog Hf]]]].
   eexists. split; eauto. eexists. split; eauto.
   destruct f; monadInv Hf; auto.
@@ -1239,7 +1242,7 @@ Proof.
   exploit funct_ptr_translated; eauto. intros [tf [A [sprog [Hsprog B]]]].
   exists (Callstate nil tf nil m0); split.
   econstructor; eauto.
-  exploit (init_mem_transf_partial _ TRANSF); eauto.
+  exploit (init_mem_transf_partial _ _ TRANSF); eauto.
   replace (prog_main tprog) with (prog_main prog).
   rewrite symbols_preserved. eauto.
   inv TRANSF. auto.

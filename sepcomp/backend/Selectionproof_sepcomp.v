@@ -64,13 +64,17 @@ Hypothesis TRANSF:
        exists hf,
          i64_helpers_correct (Genv.globalenv p) hf /\
          sel_function hf (Genv.globalenv p) f = OK tf)
-    (@OK _) (@OK _)
+    (fun p ef tef =>
+       exists hf,
+         i64_helpers_correct (Genv.globalenv p) hf /\
+         ef = tef)
+    (@OK _)
     prog tprog.
 
 Let ge := Genv.globalenv prog.
 Let tge := Genv.globalenv tprog.
 
-Lemma prog_match:
+Let prog_match:
   match_program
     (fun fd tfd =>
        exists sprog, program_linkeq Language_Cminor sprog prog /\
@@ -97,18 +101,14 @@ Proof.
     eexists. split; eauto.
     simpl in *. destruct fd_src; inv Hf_src. destruct fd_tgt; inv Hf_tgt.
     unfold sel_fundef, transf_partial_fundef. rewrite Hf. auto.
-  - inv Hef.
+  - destruct Hef as [hf [Hhf ?]]. subst.
     apply match_glob_fun. eexists. split; eauto.
     eexists. split; eauto.
-    exfalso. admit.
     simpl in *. destruct fd_src; inv Hef_src. destruct fd_tgt; inv Hef_tgt.
     unfold sel_fundef, transf_partial_fundef. auto.
   - unfold transf_globvar in Hv. monadInv Hv. inv EQ.
     destruct gv_src. constructor. auto.
-Grab Existential Variables.
-  admit.
 Qed.
-Hint Resolve prog_match.
 
 Lemma symbols_preserved:
   forall (s: ident), Genv.find_symbol tge s = Genv.find_symbol ge s.

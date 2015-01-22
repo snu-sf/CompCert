@@ -39,18 +39,12 @@ Section PRESERVATION.
 Variable prog: Csyntax.program.
 Variable tprog: Clight.program.
 
-Inductive tr_glob: globdef Csyntax.fundef type -> globdef Clight.fundef type -> Prop :=
-  | tr_fun: forall f tf,
-    tr_fundef f tf ->
-    tr_glob (Gfun f) (Gfun tf)
-  | tr_var: forall v,
-    tr_glob (Gvar v) (Gvar v).
-
 Hypothesis TRANSF:
   @sepcomp_rel
     Language_C Language_Clight
     (fun _ f tf => tr_function f tf)
-    (@OK _) (@OK _)
+    (fun _ ef tef => ef = tef)
+    (@OK _)
     prog tprog.
 
 Let ge := Genv.globalenv prog.
@@ -58,7 +52,7 @@ Let tge := Genv.globalenv tprog.
 
 (** Invariance properties. *)
 
-Lemma prog_match:
+Let prog_match:
   match_program
     (fun fd tfd => tr_fundef fd tfd)
     (fun info tinfo => info = tinfo)
@@ -80,14 +74,12 @@ Proof.
   - apply match_glob_fun. auto.
     destruct fd_src; inv Hf_src. destruct fd_tgt; inv Hf_tgt.
     constructor. auto.
-  - inv Hef.
-    apply match_glob_fun.
+  - apply match_glob_fun.
     destruct fd_src; inv Hef_src. destruct fd_tgt; inv Hef_tgt.
     constructor.
   - unfold transf_globvar in Hv. monadInv Hv. inv EQ.
     destruct gv_src. constructor. auto.
 Qed.
-Hint Resolve prog_match.
 
 Lemma symbols_preserved:
   forall (s: ident), Genv.find_symbol tge s = Genv.find_symbol ge s.

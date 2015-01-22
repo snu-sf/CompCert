@@ -24,17 +24,30 @@ Variable frel:
   forall (prog_src:lang_src.(progT))
          (f_src:lang_src.(fT))
          (f_tgt:lang_tgt.(fT)), Prop.
-Variable transf_efT: forall (ef_src:lang_src.(efT)), res lang_tgt.(efT).
+Variable efrel:
+  forall (prog_src:lang_src.(progT))
+         (ef_src:lang_src.(efT))
+         (ef_tgt:lang_tgt.(efT)), Prop.
 Variable transf_vT: forall (v_src:lang_src.(vT)), res lang_tgt.(vT).
 
 Hypothesis frel_sigT:
   forall p_src f_src f_tgt (H: frel p_src f_src f_tgt),
     transf_sigT (lang_src.(fT).(F_sig) f_src) = lang_tgt.(fT).(F_sig) f_tgt.
+Hypothesis efrel_mon:
+  forall p1 p2 ef tef
+         (Hp: program_linkeq lang_src p1 p2)
+         (Hef1: efrel p1 ef tef),
+    efrel p2 ef tef.
+Hypothesis efrel_fun:
+  forall p ef tef1 tef2
+         (Hef1: efrel p ef tef1)
+         (Hef2: efrel p ef tef2),
+    tef1 = tef2.
 Hypothesis transf_efT_sigT:
-  forall ef_src ef_tgt (H: transf_efT ef_src = OK ef_tgt),
+  forall p_src ef_src ef_tgt (H: efrel p_src ef_src ef_tgt),
     transf_sigT (lang_src.(efT).(EF_sig) ef_src) = lang_tgt.(efT).(EF_sig) ef_tgt.
 Hypothesis transf_efT_linkable:
-  forall ef_src ef_tgt (H: transf_efT ef_src = OK ef_tgt),
+  forall p_src ef_src ef_tgt (H: efrel p_src ef_src ef_tgt),
     lang_src.(efT).(EF_linkable) ef_src = lang_tgt.(efT).(EF_linkable) ef_tgt.
 
 Inductive grel (prog_src:lang_src.(progT)):
@@ -50,7 +63,7 @@ Inductive grel (prog_src:lang_src.(progT)):
     fd_src fd_tgt ef_src ef_tgt
     (Hef_src: lang_src.(fundefT).(Fundef_equiv).(AtoB) fd_src = inr ef_src)
     (Hef_tgt: lang_tgt.(fundefT).(Fundef_equiv).(AtoB) fd_tgt = inr ef_tgt)
-    (Hef: transf_efT ef_src = OK ef_tgt):
+    (Hef: efrel prog_src ef_src ef_tgt):
     grel prog_src (Gfun fd_src) (Gfun fd_tgt)
 | grel_gv
     gv_src gv_tgt
@@ -59,10 +72,12 @@ Inductive grel (prog_src:lang_src.(progT)):
 .
 
 Lemma linkable_grel_linkable
-      p1 g1 tg1 p2 g2 tg2
+      p1 g1 tg1 p2 g2 tg2 p
       (Hg: globdef_linkable lang_src g1 g2)
       (H1: grel p1 g1 tg1)
-      (H2: grel p2 g2 tg2):
+      (H2: grel p2 g2 tg2)
+      (Hp1: program_linkeq lang_src p1 p)
+      (Hp2: program_linkeq lang_src p2 p):
   globdef_linkable lang_tgt tg1 tg2.
 Proof.
   inv H1; inv H2; inv Hg; inv Hv; clarify.
@@ -72,6 +87,7 @@ Proof.
       erewrite <- frel_sigT; eauto.
       rewrite Hsig. auto.
   - constructor. eapply globfun_linkable_ee; eauto.
+    rewrite Hef_tgt0. f_equal. eauto.
   - inv Hv0. inv Hv1. monadInv H0. monadInv H1.
     destruct gv_src, gv_src0. simpl in *. subst.
     rewrite EQ in EQ0. inv EQ0.
@@ -198,7 +214,7 @@ Proof.
         etransitivity; eauto.
       * destruct H1 as [p1 [Hp1 H1]].
         destruct H2 as [p2 [Hp2 H2]].
-        exploit linkable_grel_linkable; eauto. intro X.
+        exploit linkable_grel_linkable; try etransitivity; eauto. intro X.
         inv H4; inv X.
         { inv Hv; inv Hv0; clarify.
           inv H1; inv H2; clarify.
@@ -215,7 +231,7 @@ Proof.
         }
       * destruct H1 as [p1 [Hp1 H1]].
         destruct H2 as [p2 [Hp2 H2]].
-        exploit linkable_grel_linkable; eauto. intro X.
+        exploit linkable_grel_linkable; try etransitivity; eauto. intro X.
         inv H4; inv X.
         { inv Hv; inv Hv0; clarify.
           inv H1; inv H2; clarify.
@@ -248,11 +264,11 @@ Proof.
     + contradict Hnl1.
       destruct H as [p1 [Hp1 H]].
       destruct H0 as [p2 [Hp2 H0]].
-      eapply linkable_grel_linkable; eauto.
+      eapply linkable_grel_linkable; try etransitivity; eauto.
     + contradict Hnl2.
       destruct H as [p1 [Hp1 H]].
       destruct H0 as [p2 [Hp2 H0]].
-      eapply linkable_grel_linkable; eauto.
+      eapply linkable_grel_linkable; try etransitivity; eauto.
 Qed.
 
 End SEPCOMP_RELATION.
@@ -274,7 +290,7 @@ Let lang_src := mkLanguage fundefT_src vT_src.
 Let lang_tgt := mkLanguage fundefT_tgt vT_tgt.
 
 Variable transf_fT: lang_src.(progT) -> fT_src -> res fT_tgt.
-Variable transf_efT: efT_src -> res efT_tgt.
+Variable transf_efT: lang_src.(progT) -> efT_src -> res efT_tgt.
 Variable transf_vT: vT_src -> res vT_tgt.
 
 Let transf_fundefT (prog_src:lang_src.(progT)) (fd_src:fundefT_src): res fundefT_tgt :=
@@ -285,7 +301,7 @@ Let transf_fundefT (prog_src:lang_src.(progT)) (fd_src:fundefT_src): res fundefT
         (fun f => OK (fundefT_tgt.(Fundef_equiv).(BtoA) (inl f)))
     | inr ef =>
       bind
-        (transf_efT ef)
+        (transf_efT prog_src ef)
         (fun ef => OK (fundefT_tgt.(Fundef_equiv).(BtoA) (inr ef)))
   end.
 
@@ -300,7 +316,8 @@ Lemma transf_partial2_sepcomp_rel:
   @sepcomp_rel
     lang_src lang_tgt
     (fun p f tf => transf_fT p f = OK tf)
-    transf_efT transf_vT
+    (fun p ef tef => transf_efT p ef = OK tef)
+    transf_vT
     p p'.
 Proof.
   destruct p as [defs ?], p' as [tdefs ?].
@@ -338,7 +355,8 @@ Hypothesis Hsepcomp_rel:
   @sepcomp_rel
     lang_src lang_tgt
     (fun p f tf => transf_fT p f = OK tf)
-    transf_efT transf_vT
+    (fun p ef tef => transf_efT p ef = OK tef)
+    transf_vT
     p p'.
 
 Let prog_match:
@@ -486,7 +504,7 @@ Let lang_src := mkLanguage fundefT_src vT.
 Let lang_tgt := mkLanguage fundefT_tgt vT.
 
 Variable transf_fT: lang_src.(progT) -> fT_src -> res fT_tgt.
-Variable transf_efT: efT_src -> res efT_tgt.
+Variable transf_efT: lang_src.(progT) -> efT_src -> res efT_tgt.
 
 Let transf_fundefT (prog_src:lang_src.(progT)) (fd_src:fundefT_src): res fundefT_tgt :=
   match fundefT_src.(Fundef_equiv).(AtoB) fd_src with
@@ -496,7 +514,7 @@ Let transf_fundefT (prog_src:lang_src.(progT)) (fd_src:fundefT_src): res fundefT
         (fun f => OK (fundefT_tgt.(Fundef_equiv).(BtoA) (inl f)))
     | inr ef =>
       bind
-        (transf_efT ef)
+        (transf_efT prog_src ef)
         (fun ef => OK (fundefT_tgt.(Fundef_equiv).(BtoA) (inr ef)))
   end.
 
@@ -511,7 +529,8 @@ Lemma transf_partial_sepcomp_rel:
   @sepcomp_rel
     lang_src lang_tgt
     (fun p f tf => transf_fT p f = OK tf)
-    transf_efT (@OK _)
+    (fun p ef tef => transf_efT p ef = OK tef)
+    (@OK _)
     p p'.
 Proof.
   exploit transf_partial2_sepcomp_rel; eauto.
@@ -525,7 +544,8 @@ Hypothesis Hsepcomp_rel:
   @sepcomp_rel
     lang_src lang_tgt
     (fun p f tf => transf_fT p f = OK tf)
-    transf_efT (@OK _)
+    (fun p ef tef => transf_efT p ef = OK tef)
+    (@OK _)
     p p'.
 
 Theorem find_funct_ptr_transf_partial:
@@ -536,7 +556,7 @@ Theorem find_funct_ptr_transf_partial:
   exists prog_src,
     program_linkeq lang_src prog_src p /\
     transf_fundefT prog_src f = OK f'.
-Proof (find_funct_ptr_transf_partial2 _ Hsepcomp_rel).
+Proof (find_funct_ptr_transf_partial2 _ _ Hsepcomp_rel).
 
 Theorem find_funct_ptr_rev_transf_partial:
   forall (b: block) (tf: fundefT_tgt),
@@ -545,7 +565,7 @@ Theorem find_funct_ptr_rev_transf_partial:
   exists prog_src,
     program_linkeq lang_src prog_src p /\
     transf_fundefT prog_src f = OK tf.
-Proof (find_funct_ptr_rev_transf_partial2 _ Hsepcomp_rel).
+Proof (find_funct_ptr_rev_transf_partial2 _ _ Hsepcomp_rel).
 
 Theorem find_funct_transf_partial:
   forall (v: val) (f: fundefT_src),
@@ -555,7 +575,7 @@ Theorem find_funct_transf_partial:
   exists prog_src,
     program_linkeq lang_src prog_src p /\
     transf_fundefT prog_src f = OK f'.
-Proof (find_funct_transf_partial2 _ Hsepcomp_rel).
+Proof (find_funct_transf_partial2 _ _ Hsepcomp_rel).
 
 Theorem find_funct_rev_transf_partial:
   forall (v: val) (tf: fundefT_tgt),
@@ -564,7 +584,7 @@ Theorem find_funct_rev_transf_partial:
   exists prog_src,
     program_linkeq lang_src prog_src p /\
     transf_fundefT prog_src f = OK tf.
-Proof (find_funct_rev_transf_partial2 _ Hsepcomp_rel).
+Proof (find_funct_rev_transf_partial2 _ _ Hsepcomp_rel).
 
 Theorem find_var_info_transf_partial:
   forall (b: block),
@@ -582,11 +602,11 @@ Qed.
 Theorem find_symbol_transf_partial:
   forall (s: ident),
   Genv.find_symbol (Genv.globalenv p') s = Genv.find_symbol (Genv.globalenv p) s.
-Proof (find_symbol_transf_partial2 _ Hsepcomp_rel).
+Proof (find_symbol_transf_partial2 _ _ Hsepcomp_rel).
 
 Theorem init_mem_transf_partial:
   forall m, Genv.init_mem p = Some m -> Genv.init_mem p' = Some m.
-Proof (init_mem_transf_partial2 _ Hsepcomp_rel).
+Proof (init_mem_transf_partial2 _ _ Hsepcomp_rel).
 
 End INITIAL.
 
@@ -608,14 +628,14 @@ Let lang_src := mkLanguage fundefT_src vT.
 Let lang_tgt := mkLanguage fundefT_tgt vT.
 
 Variable transf_fT: lang_src.(progT) -> fT_src -> fT_tgt.
-Variable transf_efT: efT_src -> efT_tgt.
+Variable transf_efT: lang_src.(progT) -> efT_src -> efT_tgt.
 
 Let transf_fundefT (prog_src:lang_src.(progT)) (fd_src:fundefT_src): fundefT_tgt :=
   match fundefT_src.(Fundef_equiv).(AtoB) fd_src with
     | inl f =>
       fundefT_tgt.(Fundef_equiv).(BtoA) (inl (transf_fT prog_src f))
     | inr ef =>
-      fundefT_tgt.(Fundef_equiv).(BtoA) (inr (transf_efT ef))
+      fundefT_tgt.(Fundef_equiv).(BtoA) (inr (transf_efT prog_src ef))
   end.
 
 Variable p: lang_src.(progT).
@@ -629,7 +649,8 @@ Lemma transf_program_sepcomp_rel:
   @sepcomp_rel
     lang_src lang_tgt
     (fun p f tf => transf_fT p f = tf)
-    (fun ef => OK (transf_efT ef)) (@OK _)
+    (fun p ef tef => transf_efT p ef = tef)
+    (@OK _)
     p tp.
 Proof.
   destruct p as [defs ?], tp as [tdefs ?]. inv TRANSF.
@@ -655,7 +676,8 @@ Hypothesis Hsepcomp_rel:
   @sepcomp_rel
     lang_src lang_tgt
     (fun p f tf => transf_fT p f = tf)
-    (fun ef => OK (transf_efT ef)) (@OK _)
+    (fun p ef tef => transf_efT p ef = tef)
+    (@OK _)
     p tp.
 
 Let prog_match:
@@ -683,7 +705,7 @@ Proof.
   - apply match_glob_fun. eexists. split; eauto.
     unfold transf_fundefT. simpl in *.
     rewrite Hf_src, <- Hf_tgt. apply HABA.
-  - apply match_glob_fun. eexists. split; eauto. inv Hef.
+  - apply match_glob_fun. eexists. split; eauto.
     unfold transf_fundefT. simpl in *.
     rewrite Hef_src, <- Hef_tgt. apply HABA.
   - unfold transf_globvar in Hv. monadInv Hv. inv EQ.

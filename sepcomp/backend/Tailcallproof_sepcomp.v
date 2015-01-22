@@ -243,7 +243,8 @@ Hypothesis TRANSF:
   @sepcomp_rel
     Language_RTL Language_RTL
     (fun p f tf => transf_function f = tf)
-    (@Errors.OK _) (@Errors.OK _)
+    (fun p ef tef => ef = tef)
+    (@Errors.OK _)
     prog tprog.
 Let ge := Genv.globalenv prog.
 Let tge := Genv.globalenv tprog.

@@ -47,7 +47,7 @@ Lemma SimplExpr_sepcomp_rel
   @sepcomp_rel
     Language_C Language_Clight
     (fun _ f tf => SimplExprspec.tr_function f tf)
-    (@OK _) (@OK _)
+    (fun _ ef tef => ef = tef) (@OK _)
     cprog clightprog.
 Proof.
   destruct cprog as [defs ?], clightprog as [tdefs ?].
@@ -72,7 +72,11 @@ Lemma Selection_sepcomp_rel
        exists hf,
          SelectLongproof.i64_helpers_correct (Genv.globalenv p) hf /\
          Selection.sel_function hf (Genv.globalenv p) f = OK tf)
-    (@OK _) (@OK _)
+    (fun p ef tef =>
+       exists hf,
+         SelectLongproof.i64_helpers_correct (Genv.globalenv p) hf /\
+         ef = tef)
+    (@OK _)
     cminorprog cminorselprog.
 Proof.
   monadInv Htrans.
@@ -94,6 +98,7 @@ Proof.
         eapply (@grel_f Language_Cminor Language_CminorSel); simpl; auto.
         exists x. split; auto. apply Selectionproof.get_helpers_correct. auto.
       * eapply (@grel_ef Language_Cminor Language_CminorSel); simpl; auto.
+        exists x. split; auto. apply Selectionproof.get_helpers_correct. auto.
     + apply IHdefs; auto.
   - monadInv Hdefs. constructor; simpl.
     + split; auto. eexists. split; [reflexivity|].
@@ -107,7 +112,8 @@ Lemma Tailcall_sepcomp_rel
   @sepcomp_rel
     Language_RTL Language_RTL
     (fun p f tf => Tailcall.transf_function f = tf)
-    (@OK _) (@OK _)
+    (fun p ef tef => ef = tef)
+    (@OK _)
     rtlprog1 rtlprog2.
 Proof.
   apply transf_program_sepcomp_rel. rewrite <- Htrans.
@@ -122,7 +128,8 @@ Lemma Inlining_sepcomp_rel
   @sepcomp_rel
     Language_RTL Language_RTL
     (fun p f tf => Inlining.transf_function (Inlining.funenv_program p) f = OK tf)
-    (@OK _) (@OK _)
+    (fun p ef tef => (fun _ ef => OK ef) p ef = OK tef)
+    (@OK _)
     rtlprog1 rtlprog2.
 Proof.
   apply transf_partial_sepcomp_rel.
@@ -138,7 +145,8 @@ Lemma Renumber_sepcomp_rel
   @sepcomp_rel
     Language_RTL Language_RTL
     (fun p f tf => Renumber.transf_function f = tf)
-    (@OK _) (@OK _)
+    (fun p ef tef => ef = tef)
+    (@OK _)
     rtlprog1 rtlprog2.
 Proof.
   apply transf_program_sepcomp_rel. rewrite <- Htrans.
@@ -153,7 +161,8 @@ Lemma Constprop_sepcomp_rel
   @sepcomp_rel
     Language_RTL Language_RTL
     (fun p f tf => Constprop.transf_function (ValueAnalysis.romem_for_program p) f = tf)
-    (@OK _) (@OK _)
+    (fun p ef tef => ef = tef)
+    (@OK _)
     rtlprog1 rtlprog2.
 Proof.
   apply transf_program_sepcomp_rel. rewrite <- Htrans.
@@ -168,7 +177,8 @@ Lemma CSE_sepcomp_rel
   @sepcomp_rel
     Language_RTL Language_RTL
     (fun p f tf => CSE.transf_function (ValueAnalysis.romem_for_program p) f = OK tf)
-    (@OK _) (@OK _)
+    (fun p ef tef => (fun _ ef => OK ef) p ef = OK tef)
+    (@OK _)
     rtlprog1 rtlprog2.
 Proof.
   apply transf_partial_sepcomp_rel.
@@ -184,7 +194,8 @@ Lemma Deadcode_sepcomp_rel
   @sepcomp_rel
     Language_RTL Language_RTL
     (fun p f tf => Deadcode.transf_function (ValueAnalysis.romem_for_program p) f = OK tf)
-    (@OK _) (@OK _)
+    (fun p ef tef => (fun _ ef => OK ef) p ef = OK tef)
+    (@OK _)
     rtlprog1 rtlprog2.
 Proof.
   apply transf_partial_sepcomp_rel.
@@ -213,6 +224,16 @@ Ltac clarify :=
                   apply Tree.Forall2_eq in TRANSF; subst
               end).
 
+Ltac simplify :=
+  intros; subst;
+  repeat match goal with
+           | [H: OK _ = OK _ |- _] => inv H
+           | [H: bind _ _ = OK _ |- _] => monadInv H
+           | [H: exists (_:SelectLong.helper_functions), _ |- _] => destruct H
+           | [H: _ /\ _ |- _] => destruct H
+         end;
+  subst; auto.
+
 Theorem linker_correct
         ctree asmtree cprog
         (CLINK: Tree.reduce (link_program Language_C) ctree = Some cprog)
@@ -227,7 +248,9 @@ Proof.
   unfold transf_c_program in TRANSF. clarify.
 
   eapply Tree.Forall2_implies in T; [|apply SimplExpr_sepcomp_rel].
-  eapply Tree.Forall2_reduce in T; eauto; [|eapply (@link_program_sepcomp_rel Language_C Language_Clight)].
+  eapply Tree.Forall2_reduce in T; eauto;
+    [|eapply (@link_program_sepcomp_rel Language_C Language_Clight id)]; simplify;
+    [|apply SimplExpr_sig; auto].
   destruct T as [clightprog [Hclightprog Hclightsim]].
   apply SimplExprproof_sepcomp.transl_program_correct in Hclightsim.
 
@@ -257,7 +280,11 @@ Proof.
   unfold transf_cminor_program in TRANSF. clarify.
 
   eapply Tree.Forall2_implies in T0; [|apply Selection_sepcomp_rel].
-  eapply Tree.Forall2_reduce in T0; eauto; [|eapply (@link_program_sepcomp_rel Language_Cminor Language_CminorSel)].
+  eapply Tree.Forall2_reduce in T0; eauto;
+    [|eapply (@link_program_sepcomp_rel Language_Cminor Language_CminorSel id)]; simplify;
+    [|eapply Selection_sig; eauto
+     |eexists; split; auto; eapply Selectionproof_sepcomp.Hget_helpers_monotone; eauto].
+
   destruct T0 as [cminorselprog [Hcminorselprog Hcminorselsim]].
   apply Selectionproof_sepcomp.transl_program_correct in Hcminorselsim.
 
@@ -272,37 +299,41 @@ Proof.
   unfold transf_rtl_program in TRANSF. clarify.
 
   eapply Tree.Forall2_implies in T19; [|apply Tailcall_sepcomp_rel].
-  eapply Tree.Forall2_reduce in T19; eauto; [|eapply (@link_program_sepcomp_rel Language_RTL Language_RTL)].
+  eapply Tree.Forall2_reduce in T19; eauto; [|eapply (@link_program_sepcomp_rel Language_RTL Language_RTL id)]; simplify;
+    [|apply Tailcall_sig].
   destruct T19 as [rtlprog1 [Hrtlprog1 Hrtlsim1]].
   apply Tailcallproof_sepcomp.transf_program_correct in Hrtlsim1.
 
   eapply Tree.Forall2_implies in T17; [|apply Inlining_sepcomp_rel].
-  eapply Tree.Forall2_reduce in T17; eauto; [|eapply (@link_program_sepcomp_rel Language_RTL Language_RTL)].
+  eapply Tree.Forall2_reduce in T17; eauto; [|eapply (@link_program_sepcomp_rel Language_RTL Language_RTL id)]; simplify;
+    [|eapply Inlining_sig; eauto].
   destruct T17 as [rtlprog2 [Hrtlprog2 Hrtlsim2]].
   apply Inliningproof_sepcomp.transf_program_correct in Hrtlsim2.
 
   eapply Tree.Forall2_implies in T15; [|apply Renumber_sepcomp_rel].
-  eapply Tree.Forall2_reduce in T15; eauto; [|eapply (@link_program_sepcomp_rel Language_RTL Language_RTL)].
+  eapply Tree.Forall2_reduce in T15; eauto; [|eapply (@link_program_sepcomp_rel Language_RTL Language_RTL id)]; simplify.
   destruct T15 as [rtlprog3 [Hrtlprog3 Hrtlsim3]].
   apply Renumberproof_sepcomp.transf_program_correct in Hrtlsim3.
 
   eapply Tree.Forall2_implies in T13; [|apply Constprop_sepcomp_rel].
-  eapply Tree.Forall2_reduce in T13; eauto; [|eapply (@link_program_sepcomp_rel Language_RTL Language_RTL)].
+  eapply Tree.Forall2_reduce in T13; eauto; [|eapply (@link_program_sepcomp_rel Language_RTL Language_RTL id)]; simplify.
   destruct T13 as [rtlprog4 [Hrtlprog4 Hrtlsim4]].
   apply Constpropproof_sepcomp.transf_program_correct in Hrtlsim4.
 
   eapply Tree.Forall2_implies in T11; [|apply Renumber_sepcomp_rel].
-  eapply Tree.Forall2_reduce in T11; eauto; [|eapply (@link_program_sepcomp_rel Language_RTL Language_RTL)].
+  eapply Tree.Forall2_reduce in T11; eauto; [|eapply (@link_program_sepcomp_rel Language_RTL Language_RTL id)]; simplify.
   destruct T11 as [rtlprog5 [Hrtlprog5 Hrtlsim5]].
   apply Renumberproof_sepcomp.transf_program_correct in Hrtlsim5.
 
   eapply Tree.Forall2_implies in T9; [|apply CSE_sepcomp_rel].
-  eapply Tree.Forall2_reduce in T9; eauto; [|eapply (@link_program_sepcomp_rel Language_RTL Language_RTL)].
+  eapply Tree.Forall2_reduce in T9; eauto; [|eapply (@link_program_sepcomp_rel Language_RTL Language_RTL id)]; simplify;
+    [|eapply CSE_sig; eauto].
   destruct T9 as [rtlprog6 [Hrtlprog6 Hrtlsim6]].
   apply CSEproof_sepcomp.transf_program_correct in Hrtlsim6.
 
   eapply Tree.Forall2_implies in T7; [|apply Deadcode_sepcomp_rel].
-  eapply Tree.Forall2_reduce in T7; eauto; [|eapply (@link_program_sepcomp_rel Language_RTL Language_RTL)].
+  eapply Tree.Forall2_reduce in T7; eauto; [|eapply (@link_program_sepcomp_rel Language_RTL Language_RTL id)]; simplify;
+    [|eapply Deadcode_sig; eauto].
   destruct T7 as [rtlprog7 [Hrtlprog7 Hrtlsim7]].
   apply Deadcodeproof_sepcomp.transf_program_correct in Hrtlsim7.
 
