@@ -25,7 +25,6 @@ if __name__ == "__main__":
      "common/LinkerProp",
      "common/SepcompRel",
      "common/Sig",
-     "common/Smallstep_sepcomp",
      "lib/Coqlib_sepcomp",
      "lib/Maps_sepcomp",
      "lib/Tree",
