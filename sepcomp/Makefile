@@ -127,7 +127,7 @@ DRIVER=Compopts.v Compiler.v Complements.v
 
 # Separate Compilation
 
-SEPCOMP= $(shell find sepcomp -name \*.v)
+SEPCOMP= $(notdir $(shell find sepcomp -name \*.v))
 
 # All source files
 
@@ -247,6 +247,7 @@ cparser/Parser.v: cparser/Parser.vy
 depend: $(FILES) exportclight/Clightdefs.v
 	$(COQDEP) $^ \
         | sed -e 's|$(ARCH)/|$$(ARCH)/|g' \
+        | sed -e 's|\\|/|g' \
         > sepcomp/.depend
 
 install:
