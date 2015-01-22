@@ -16,11 +16,11 @@
 include Makefile.config
 
 DIRS=lib common $(ARCH) backend cfrontend driver \
-  flocq/Core flocq/Prop flocq/Calc flocq/Appli paco exportclight \
+  flocq/Core flocq/Prop flocq/Calc flocq/Appli exportclight \
   cparser cparser/validator \
 	sepcomp sepcomp/lib sepcomp/common sepcomp/backend sepcomp/cfrontend
 
-RECDIRS=lib common $(ARCH) backend cfrontend driver flocq paco exportclight cparser sepcomp
+RECDIRS=lib common $(ARCH) backend cfrontend driver flocq exportclight cparser sepcomp
 
 COQINCLUDES=$(foreach d, $(RECDIRS), -R $(d) -as compcert.$(d))
 
@@ -62,10 +62,6 @@ FLOCQ=\
   Fprop_div_sqrt_error.v Fprop_mult_error.v Fprop_plus_error.v              \
   Fprop_relative.v Fprop_Sterbenz.v                                         \
   Fappli_rnd_odd.v Fappli_IEEE.v Fappli_IEEE_bits.v
-
-# Paco
-
-PACO=$(notdir $(shell find paco -name \*.v))
 
 # General-purpose libraries (in lib/)
 
@@ -135,7 +131,7 @@ SEPCOMP= $(shell find sepcomp -name \*.v)
 
 # All source files
 
-FILES=$(LIB) $(COMMON) $(BACKEND) $(CFRONTEND) $(DRIVER) $(FLOCQ) $(PACO) \
+FILES=$(LIB) $(COMMON) $(BACKEND) $(CFRONTEND) $(DRIVER) $(FLOCQ) \
   $(PARSERVALIDATOR) $(PARSER) \
 	$(SEPCOMP)
 

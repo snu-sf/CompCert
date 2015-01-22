@@ -147,21 +147,6 @@ flocq/Prop/Fprop_Sterbenz.vo flocq/Prop/Fprop_Sterbenz.glob flocq/Prop/Fprop_Ste
 flocq/Appli/Fappli_rnd_odd.vo flocq/Appli/Fappli_rnd_odd.glob flocq/Appli/Fappli_rnd_odd.v.beautified: flocq/Appli/Fappli_rnd_odd.v flocq/Core/Fcore.vo flocq/Calc/Fcalc_ops.vo
 flocq/Appli/Fappli_IEEE.vo flocq/Appli/Fappli_IEEE.glob flocq/Appli/Fappli_IEEE.v.beautified: flocq/Appli/Fappli_IEEE.v flocq/Core/Fcore.vo flocq/Core/Fcore_digits.vo flocq/Calc/Fcalc_digits.vo flocq/Calc/Fcalc_round.vo flocq/Calc/Fcalc_bracket.vo flocq/Calc/Fcalc_ops.vo flocq/Calc/Fcalc_div.vo flocq/Calc/Fcalc_sqrt.vo flocq/Prop/Fprop_relative.vo
 flocq/Appli/Fappli_IEEE_bits.vo flocq/Appli/Fappli_IEEE_bits.glob flocq/Appli/Fappli_IEEE_bits.v.beautified: flocq/Appli/Fappli_IEEE_bits.v flocq/Core/Fcore.vo flocq/Core/Fcore_digits.vo flocq/Calc/Fcalc_digits.vo flocq/Appli/Fappli_IEEE.vo
-paco/hpattern.vo paco/hpattern.glob paco/hpattern.v.beautified: paco/hpattern.v
-paco/paco.vo paco/paco.glob paco/paco.v.beautified: paco/paco.v paco/paco0.vo paco/paco1.vo paco/paco2.vo paco/paco3.vo paco/paco4.vo paco/paco5.vo paco/paco6.vo paco/paco7.vo
-paco/paco0.vo paco/paco0.glob paco/paco0.v.beautified: paco/paco0.v paco/paconotation.vo paco/pacotac.vo paco/pacodef.vo paco/pacotacuser.vo
-paco/paco1.vo paco/paco1.glob paco/paco1.v.beautified: paco/paco1.v paco/paconotation.vo paco/pacotac.vo paco/pacodef.vo paco/pacotacuser.vo
-paco/paco2.vo paco/paco2.glob paco/paco2.v.beautified: paco/paco2.v paco/paconotation.vo paco/pacotac.vo paco/pacodef.vo paco/pacotacuser.vo
-paco/paco3.vo paco/paco3.glob paco/paco3.v.beautified: paco/paco3.v paco/paconotation.vo paco/pacotac.vo paco/pacodef.vo paco/pacotacuser.vo
-paco/paco4.vo paco/paco4.glob paco/paco4.v.beautified: paco/paco4.v paco/paconotation.vo paco/pacotac.vo paco/pacodef.vo paco/pacotacuser.vo
-paco/paco5.vo paco/paco5.glob paco/paco5.v.beautified: paco/paco5.v paco/paconotation.vo paco/pacotac.vo paco/pacodef.vo paco/pacotacuser.vo
-paco/paco6.vo paco/paco6.glob paco/paco6.v.beautified: paco/paco6.v paco/paconotation.vo paco/pacotac.vo paco/pacodef.vo paco/pacotacuser.vo
-paco/paco7.vo paco/paco7.glob paco/paco7.v.beautified: paco/paco7.v paco/paconotation.vo paco/pacotac.vo paco/pacodef.vo paco/pacotacuser.vo
-paco/pacodef.vo paco/pacodef.glob paco/pacodef.v.beautified: paco/pacodef.v paco/paconotation.vo
-paco/paconotation.vo paco/paconotation.glob paco/paconotation.v.beautified: paco/paconotation.v
-paco/pacotac.vo paco/pacotac.glob paco/pacotac.v.beautified: paco/pacotac.v paco/hpattern.vo paco/paconotation.vo
-paco/pacotacuser.vo paco/pacotacuser.glob paco/pacotacuser.v.beautified: paco/pacotacuser.v paco/paconotation.vo paco/pacotac.vo paco/pacodef.vo
-paco/tutorial.vo paco/tutorial.glob paco/tutorial.v.beautified: paco/tutorial.v paco/paco.vo
 cparser/validator/Alphabet.vo cparser/validator/Alphabet.glob cparser/validator/Alphabet.v.beautified: cparser/validator/Alphabet.v
 cparser/validator/Interpreter_complete.vo cparser/validator/Interpreter_complete.glob cparser/validator/Interpreter_complete.v.beautified: cparser/validator/Interpreter_complete.v cparser/validator/Alphabet.vo cparser/validator/Grammar.vo cparser/validator/Automaton.vo cparser/validator/Interpreter.vo cparser/validator/Validator_complete.vo
 cparser/validator/Interpreter.vo cparser/validator/Interpreter.glob cparser/validator/Interpreter.v.beautified: cparser/validator/Interpreter.v cparser/validator/Automaton.vo cparser/validator/Alphabet.vo
