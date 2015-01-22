@@ -3,7 +3,7 @@ Require String.
 Require Import Coqlib Coqlib_sepcomp.
 Require Import Maps Maps_sepcomp.
 Require Import Integers Floats Values AST Globalenvs.
-Require Import Errors Behaviors Compiler Smallstep Smallstep_sepcomp.
+Require Import Errors Behaviors Compiler Smallstep.
 Require Import Memory.
 
 Set Implicit Arguments.
