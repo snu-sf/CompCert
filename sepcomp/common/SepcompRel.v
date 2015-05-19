@@ -5,6 +5,7 @@ Require Import Maps Maps_sepcomp.
 Require Import Integers Floats Values AST Globalenvs.
 Require Import Language Linker LinkerProp Linkeq.
 Require Import Errors.
+Require Import sflib paconotation.
 
 Set Implicit Arguments.
 
@@ -94,12 +95,7 @@ Proof.
     constructor. constructor; auto.
 Qed.
 
-Section DEF.
-
-Variable (prog_src:lang_src.(progT)).
-Variable (prog_tgt:lang_tgt.(progT)).
-
-Inductive sepcomp_rel: Prop :=
+Inductive sepcomp_rel (prog_src:lang_src.(progT)) (prog_tgt:lang_tgt.(progT)): Prop :=
 | sepcomp_rel_intro
     (Hmain: prog_src.(prog_main) = prog_tgt.(prog_main))
     (Hdefs:
@@ -112,45 +108,7 @@ Inductive sepcomp_rel: Prop :=
          prog_src.(prog_defs) prog_tgt.(prog_defs))
 .
 
-End DEF.
-
 (** properties of linking on separate compilation relation *)
-
-Lemma list_forall2_PTree_unelements A B
-      (R:A->B->Prop) (p:list (ident*A)) (q:list (ident*B))
-      (H: list_forall2 (fun g1 g2 => fst g1 = fst g2 /\ R (snd g1) (snd g2)) p q):
-  PTree_rel
-    R
-    (PTree_unelements p)
-    (PTree_unelements q).
-Proof.
-  constructor. intro. rewrite ? PTree_guespec.
-  apply list_forall2_rev in H. revert H.
-  unfold ident in *. simpl in *. generalize (rev p) (rev q).
-  induction l; intros l0 H; inv H; simpl; auto.
-  destruct a. simpl. destruct (peq i p0); subst; simpl.
-  - destruct b1, H2 as [? ?]. simpl in *. subst.
-    destruct (peq p1 p1); simpl; [|xomega]. auto.
-  - destruct b1, H2 as [? ?]. simpl in *. subst.
-    destruct (peq i p1); simpl; [xomega|].
-    apply IHl. auto.
-Qed.
-
-Lemma PTree_rel_PTree_elements A B
-      (R:A->B->Prop) p q
-      (H: PTree_rel R p q):
-  list_forall2
-    (fun g1 g2 => fst g1 = fst g2 /\ R (snd g1) (snd g2))
-    (PTree.elements p) (PTree.elements q).
-Proof.
-  exploit (PTree.elements_canonical_order R p q).
-  - intros. inv H. specialize (H1 i). rewrite H0 in H1.
-    destruct (q ! i); [|inv H1]. eexists. split; auto.
-  - intros. inv H. specialize (H1 i). rewrite H0 in H1.
-    destruct (p ! i); [|inv H1]. eexists. split; auto.
-  - generalize (PTree.elements p) (PTree.elements q). clear p q H.
-    induction l; intros l0 X; inv X; constructor; auto.
-Qed.
 
 Lemma link_program_sepcomp_rel
       (prog1_src prog2_src prog_src:lang_src.(progT))
@@ -196,7 +154,7 @@ Proof.
       destruct l as [defs_src|] eqn:Hdefs_src; inv H
   end.
   destruct (link_globdefs lang_tgt def1'_tgt def2'_tgt) as [defs_tgt|] eqn:Hdefs_tgt.
-  - eexists. split; eauto. constructor; simpl; auto.
+  - eexists. split; constructor; simpl; auto.
     apply
       (@PTree_rel_PTree_elements _ _
          (fun g1 g2 =>
@@ -272,6 +230,22 @@ Proof.
 Qed.
 
 End SEPCOMP_RELATION.
+
+Lemma sepcomp_rel_mor lang_src lang_tgt
+      frel1 frel2 efrel1 efrel2 trans_v
+      (FREL: frel1 <3= frel2)
+      (EFREL: efrel1 <3= efrel2):
+  @sepcomp_rel lang_src lang_tgt frel1 efrel1 trans_v <2= @sepcomp_rel lang_src lang_tgt frel2 efrel2 trans_v.
+Proof.
+  intros. inv PR. constructor; auto.
+  eapply list_forall2_imply; eauto. simpl. intros. des.
+  split; auto. eexists. split; eauto.
+  destruct v1, v2. simpl in *. subst.
+  inv H3.
+  - eapply grel_f; eauto.
+  - eapply grel_ef; eauto.
+  - eapply grel_gv; eauto.
+Qed.
 
 Section TRANSF_PARTIAL2.
 
@@ -488,6 +462,182 @@ End INITIAL.
 
 End TRANSF_PARTIAL2.
 
+Section TRANSF_PARTIAL2'.
+
+Variable (sigT:Sig).
+Variable (fT:F sigT).
+Variable (efT:EF sigT).
+Variable (fundefT:Fundef fT efT).
+Variable (vT:V).
+
+Let lang := mkLanguage fundefT vT.
+
+Variable transf_fT: lang.(progT) -> fT -> res fT.
+Variable transf_efT: lang.(progT) -> efT -> res efT.
+Variable transf_vT: vT -> res vT.
+
+Let transf_fundefT (prog:lang.(progT)) (fd:fundefT): res fundefT :=
+  match fundefT.(Fundef_equiv).(AtoB) fd with
+    | inl f =>
+      bind
+        (transf_fT prog f)
+        (fun f => OK (fundefT.(Fundef_equiv).(BtoA) (inl f)))
+    | inr ef =>
+      bind
+        (transf_efT prog ef)
+        (fun ef => OK (fundefT.(Fundef_equiv).(BtoA) (inr ef)))
+  end.
+
+Variable p: lang.(progT).
+Variable p': lang.(progT).
+
+Section INITIAL.
+
+Hypothesis Hsepcomp_rel:
+  @sepcomp_rel
+    lang lang
+    (fun p f tf => transf_fT p f = OK tf \/ f = tf)
+    (fun p ef tef => transf_efT p ef = OK tef)
+    transf_vT
+    p p'.
+
+Let prog_match:
+  match_program
+    (fun fd tfd =>
+       (exists prog,
+          program_linkeq lang prog p /\
+          transf_fundefT prog fd = OK tfd) \/
+       fd = tfd)
+    (fun info tinfo => transf_vT info = OK tinfo)
+    nil p.(prog_main)
+    p p'.
+Proof.
+  destruct p as [defs ?], p' as [defs' ?].
+  inv Hsepcomp_rel. simpl in *. subst.
+  revert defs' Hdefs. generalize defs at 1 3 as fdefs.
+  induction defs; intros fdefs defs' Hdefs.
+  { inv Hdefs. constructor; auto. exists nil. split; auto. constructor. }
+  inv Hdefs. destruct a, b1, H1 as [? H1]. simpl in *. subst.
+  eapply IHdefs in H3. destruct H3 as [H3 ?]. split; [|auto].
+  destruct H3 as [? H3]. simpl in *. rewrite app_nil_r in *.
+  destruct H3 as [H3 ?]. subst.
+  eexists. rewrite app_nil_r. split; auto.
+  constructor; auto.
+  destruct H1 as [prog [Hprog H1]]. inv H1.
+  - apply match_glob_fun. destruct Hf as [Hf|Hf]; subst.
+    + left. eexists. split; eauto.
+      unfold transf_fundefT. simpl in *.
+      rewrite Hf_src, Hf. simpl. rewrite <- Hf_tgt, HABA. auto.
+    + right. rewrite <- Hf_tgt in Hf_src.
+      eapply EquivalentType_AtoB_inj. eauto.
+  - apply match_glob_fun. left. eexists. split; eauto.
+    unfold transf_fundefT. simpl in *.
+    rewrite Hef_src, Hef. simpl. rewrite <- Hef_tgt, HABA. auto.
+  - unfold transf_globvar in Hv. monadInv Hv. simpl in *. destruct gv_src.
+    apply match_glob_var. auto.
+Qed.
+
+Theorem find_funct_ptr_transf_partial2':
+  forall (b: block) (f: fundefT),
+  Genv.find_funct_ptr (Genv.globalenv p) b = Some f ->
+  exists f',
+  Genv.find_funct_ptr (Genv.globalenv p') b = Some f' /\ 
+  ((exists prog,
+      program_linkeq lang prog p /\
+      transf_fundefT prog f = OK f') \/
+   f = f').
+Proof.
+  intros. 
+  exploit Genv.find_funct_ptr_match. eexact prog_match. eauto. 
+  intros [tf [X Y]]. exists tf; auto.
+Qed.
+
+Theorem find_funct_ptr_rev_transf_partial2':
+  forall (b: block) (tf: fundefT),
+  Genv.find_funct_ptr (Genv.globalenv p') b = Some tf ->
+  exists f, Genv.find_funct_ptr (Genv.globalenv p) b = Some f /\ 
+  ((exists prog,
+      program_linkeq lang prog p /\
+      transf_fundefT prog f = OK tf) \/
+   f = tf).
+Proof.
+  intros. 
+  exploit Genv.find_funct_ptr_rev_match. eexact prog_match. eauto. 
+  destruct (plt b (Genv.genv_next (Genv.globalenv p))); [|intro X; inv X].
+  intros [f [X Y]]. exists f; auto.
+Qed.
+
+Theorem find_funct_transf_partial2':
+  forall (v: val) (f: fundefT),
+  Genv.find_funct (Genv.globalenv p) v = Some f ->
+  exists f',
+  Genv.find_funct (Genv.globalenv p') v = Some f' /\ 
+  ((exists prog,
+      program_linkeq lang prog p /\
+      transf_fundefT prog f = OK f') \/
+   f = f').
+Proof.
+  intros. 
+  exploit Genv.find_funct_match. eexact prog_match. eauto. 
+  intros [tf [X Y]]. exists tf; auto.
+Qed.
+
+Theorem find_funct_rev_transf_partial2':
+  forall (v: val) (tf: fundefT),
+  Genv.find_funct (Genv.globalenv p') v = Some tf ->
+  exists f, Genv.find_funct (Genv.globalenv p) v = Some f /\ 
+  ((exists prog,
+      program_linkeq lang prog p /\
+      transf_fundefT prog f = OK tf) \/
+   f = tf).
+Proof.
+  intros. 
+  exploit Genv.find_funct_rev_match. eexact prog_match. eauto. 
+  intros [[f [X Y]]|X]; [|inv X]. exists f; auto.
+Qed.
+
+Theorem find_var_info_transf_partial2':
+  forall (b: block) (v: globvar vT),
+  Genv.find_var_info (Genv.globalenv p) b = Some v ->
+  exists v',
+  Genv.find_var_info (Genv.globalenv p') b = Some v' /\ transf_globvar transf_vT v = OK v'.
+Proof.
+  intros. 
+  exploit Genv.find_var_info_match. eexact prog_match. eauto. intros [tv [X Y]]. 
+  exists tv; split; auto. inv Y. unfold transf_globvar; simpl.
+  rewrite H0; simpl. auto.
+Qed.
+
+Theorem find_var_info_rev_transf_partial2':
+  forall (b: block) (v': globvar vT),
+  Genv.find_var_info (Genv.globalenv p') b = Some v' ->
+  exists v,
+  Genv.find_var_info (Genv.globalenv p) b = Some v /\ transf_globvar transf_vT v = OK v'.
+Proof.
+  intros. 
+  exploit Genv.find_var_info_rev_match. eexact prog_match. eauto.
+  destruct (plt b (Genv.genv_next (Genv.globalenv p))); [|intro X; inv X].
+  intros [v [X Y]]. exists v; split; auto. inv Y. unfold transf_globvar; simpl. 
+  rewrite H0; simpl. auto.
+Qed.
+
+Theorem find_symbol_transf_partial2':
+  forall (s: ident),
+  Genv.find_symbol (Genv.globalenv p') s = Genv.find_symbol (Genv.globalenv p) s.
+Proof.
+  intros. eapply Genv.find_symbol_match. eexact prog_match. auto.
+Qed.
+
+Theorem init_mem_transf_partial2':
+  forall m, Genv.init_mem p = Some m -> Genv.init_mem p' = Some m.
+Proof.
+  intros. erewrite Genv.init_mem_match; eauto. eauto.
+Qed.
+
+End INITIAL.
+
+End TRANSF_PARTIAL2'.
+
 Section TRANSF_PARTIAL.
 
 Variable (sigT_src:Sig).
@@ -611,6 +761,112 @@ Proof (init_mem_transf_partial2 _ _ Hsepcomp_rel).
 End INITIAL.
 
 End TRANSF_PARTIAL.
+
+Section TRANSF_PARTIAL'.
+
+Variable (sigT:Sig).
+Variable (fT:F sigT).
+Variable (efT:EF sigT).
+Variable (fundefT:Fundef fT efT).
+Variable (vT:V).
+
+Let lang := mkLanguage fundefT vT.
+
+Variable transf_fT: lang.(progT) -> fT -> res fT.
+Variable transf_efT: lang.(progT) -> efT -> res efT.
+
+Let transf_fundefT (prog:lang.(progT)) (fd:fundefT): res fundefT :=
+  match fundefT.(Fundef_equiv).(AtoB) fd with
+    | inl f =>
+      bind
+        (transf_fT prog f)
+        (fun f => OK (fundefT.(Fundef_equiv).(BtoA) (inl f)))
+    | inr ef =>
+      bind
+        (transf_efT prog ef)
+        (fun ef => OK (fundefT.(Fundef_equiv).(BtoA) (inr ef)))
+  end.
+
+Variable p: lang.(progT).
+Variable p': lang.(progT).
+
+Section INITIAL.
+
+Hypothesis Hsepcomp_rel:
+  @sepcomp_rel
+    lang lang
+    (fun p f tf => transf_fT p f = OK tf \/ f = tf)
+    (fun p ef tef => transf_efT p ef = OK tef)
+    (@OK _)
+    p p'.
+
+Theorem find_funct_ptr_transf_partial':
+  forall (b: block) (f: fundefT),
+  Genv.find_funct_ptr (Genv.globalenv p) b = Some f ->
+  exists f',
+  Genv.find_funct_ptr (Genv.globalenv p') b = Some f' /\ 
+  ((exists prog,
+      program_linkeq lang prog p /\
+      transf_fundefT prog f = OK f') \/
+   f = f').
+Proof (find_funct_ptr_transf_partial2' _ _ Hsepcomp_rel).
+
+Theorem find_funct_ptr_rev_transf_partial':
+  forall (b: block) (tf: fundefT),
+  Genv.find_funct_ptr (Genv.globalenv p') b = Some tf ->
+  exists f, Genv.find_funct_ptr (Genv.globalenv p) b = Some f /\ 
+  ((exists prog,
+      program_linkeq lang prog p /\
+      transf_fundefT prog f = OK tf) \/
+   f = tf).
+Proof (find_funct_ptr_rev_transf_partial2' _ _ Hsepcomp_rel).
+
+Theorem find_funct_transf_partial':
+  forall (v: val) (f: fundefT),
+  Genv.find_funct (Genv.globalenv p) v = Some f ->
+  exists f',
+  Genv.find_funct (Genv.globalenv p') v = Some f' /\ 
+  ((exists prog,
+      program_linkeq lang prog p /\
+      transf_fundefT prog f = OK f') \/
+   f = f').
+Proof (find_funct_transf_partial2' _ _ Hsepcomp_rel).
+
+Theorem find_funct_rev_transf_partial':
+  forall (v: val) (tf: fundefT),
+  Genv.find_funct (Genv.globalenv p') v = Some tf ->
+  exists f, Genv.find_funct (Genv.globalenv p) v = Some f /\ 
+  ((exists prog,
+      program_linkeq lang prog p /\
+      transf_fundefT prog f = OK tf) \/
+   f = tf).
+Proof (find_funct_rev_transf_partial2' _ _ Hsepcomp_rel).
+
+Theorem find_var_info_transf_partial':
+  forall (b: block),
+  Genv.find_var_info (Genv.globalenv p') b = Genv.find_var_info (Genv.globalenv p) b.
+Proof.
+  intros. destruct (Genv.find_var_info (Genv.globalenv p) b) as [v|] eqn:Hg.
+  - exploit find_var_info_transf_partial2'; try apply Hsepcomp_rel; eauto.
+    simpl. intros [v'' [Hv'' X]]. destruct v. inv X. auto.
+  - destruct (Genv.find_var_info (Genv.globalenv p') b) as [v|] eqn:Hg'; [|auto].
+    exploit find_var_info_rev_transf_partial2'; try apply Hsepcomp_rel; eauto.
+    simpl. intros [v'' [Hv'' X]].
+    simpl in *. rewrite Hg in Hv''. inv Hv''.
+Qed.
+
+Theorem find_symbol_transf_partial':
+  forall (s: ident),
+  Genv.find_symbol (Genv.globalenv p') s = Genv.find_symbol (Genv.globalenv p) s.
+Proof (find_symbol_transf_partial2' _ _ Hsepcomp_rel).
+
+Theorem init_mem_transf_partial':
+  forall m, Genv.init_mem p = Some m -> Genv.init_mem p' = Some m.
+Proof (init_mem_transf_partial2' _ _ Hsepcomp_rel).
+
+End INITIAL.
+
+End TRANSF_PARTIAL'.
 
 Section TRANSF_PROGRAM.
 

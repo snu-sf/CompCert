@@ -166,3 +166,39 @@ Inductive PTree_rel {A B} (rel:A->B->Prop) (mA:PTree.t A) (mB:PTree.t B): Prop :
             | _, _ => False
           end)
 .
+
+Lemma list_forall2_PTree_unelements A B
+      (R:A->B->Prop) (p:list (positive*A)) (q:list (positive*B))
+      (H: list_forall2 (fun g1 g2 => fst g1 = fst g2 /\ R (snd g1) (snd g2)) p q):
+  PTree_rel
+    R
+    (PTree_unelements p)
+    (PTree_unelements q).
+Proof.
+  constructor. intro. rewrite ? PTree_guespec.
+  apply list_forall2_rev in H. revert H.
+  simpl in *. generalize (rev p) (rev q).
+  induction l; intros l0 H; inv H; simpl; auto.
+  destruct a. simpl. destruct (peq i p0); subst; simpl.
+  - destruct b1, H2 as [? ?]. simpl in *. subst.
+    destruct (peq p1 p1); simpl; [|xomega]. auto.
+  - destruct b1, H2 as [? ?]. simpl in *. subst.
+    destruct (peq i p1); simpl; [xomega|].
+    apply IHl. auto.
+Qed.
+
+Lemma PTree_rel_PTree_elements A B
+      (R:A->B->Prop) p q
+      (H: PTree_rel R p q):
+  list_forall2
+    (fun g1 g2 => fst g1 = fst g2 /\ R (snd g1) (snd g2))
+    (PTree.elements p) (PTree.elements q).
+Proof.
+  exploit (PTree.elements_canonical_order R p q).
+  - intros. inv H. specialize (H1 i). rewrite H0 in H1.
+    destruct (q ! i); [|inv H1]. eexists. split; auto.
+  - intros. inv H. specialize (H1 i). rewrite H0 in H1.
+    destruct (p ! i); [|inv H1]. eexists. split; auto.
+  - generalize (PTree.elements p) (PTree.elements q). clear p q H.
+    induction l; intros l0 X; inv X; constructor; auto.
+Qed.
