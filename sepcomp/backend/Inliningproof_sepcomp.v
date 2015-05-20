@@ -31,6 +31,7 @@ Require Import RTL.
 Require Import Maps_sepcomp.
 Require Import Linkeq.
 Require Import SepcompRel.
+Require Import RTL_sepcomp.
 Require Import sflib.
 
 Lemma funenv_program_spec p i:
@@ -310,26 +311,6 @@ Proof.
   apply agree_regs_init.
   inv H. apply agree_regs_init.
   apply agree_set_reg; auto. 
-Qed.
-
-Lemma val_inject_set_reg:
-  forall F rs rs' r v v',
-  (forall r', val_inject F rs # r' rs' # r') ->
-  val_inject F v v' ->
-  forall r', val_inject F (rs#r <- v) # r' (rs'#r <- v') # r'.
-Proof.
-  intros. rewrite ? Regmap.gsspec. destruct (peq r' r); auto.
-Qed.
-
-Lemma val_inject_init_regs F args args' params
-      (ARGS: val_list_inject F args args'):
-  forall r, val_inject F (init_regs args params) # r (init_regs args' params) # r.
-Proof.
-  revert args args' ARGS. induction params; simpl; intros.
-  - rewrite ? Regmap.gi. auto.
-  - inv ARGS.
-    + rewrite ? Regmap.gi. auto.
-    + apply val_inject_set_reg; auto.
 Qed.
 
 (** ** Executing sequences of moves *)
@@ -1095,6 +1076,7 @@ Inductive match_identical_states: state -> state -> Prop :=
         (MSTK: match_stacks F m m' stk stk' sp')
         (REGSET: forall r, val_inject F rs#r rs'#r)
         (SP: F sp = Some(sp', 0))
+        (BELOW: Mem.valid_block m' sp')
         (MINJ: Mem.inject F m m'),
       match_identical_states (State stk f (Vptr sp Int.zero) pc rs m)
                              (State stk' f (Vptr sp' Int.zero) pc rs' m')
@@ -1450,6 +1432,7 @@ Proof.
     intros. exploit Mem.perm_alloc_inv. eexact A. eauto. 
     rewrite dec_eq_false; auto.
   apply val_inject_init_regs. eapply val_list_inject_incr; eauto.
+  eapply Mem.valid_new_block. eauto.
 
 (* internal function, inlined *)
   inversion FB; subst.
@@ -1549,6 +1532,7 @@ Proof.
   eapply plus_one. eapply exec_return.
   apply match_states_identical. econstructor; eauto. 
   apply val_inject_set_reg; auto.
+  unfold Mem.valid_block. xomega.
   
 (* return from inlined function *)
   inv MS0; try congruence. rewrite RET0 in RET; inv RET. 
@@ -1574,7 +1558,32 @@ Theorem step_simulation_identical:
   (exists S2', plus step tge S1' t S2' /\ match_states S2 S2')
   \/ (measure S2 < measure S1 /\ t = E0 /\ match_states S2 S1')%nat.
 Proof.
-  admit.
+  intros. destruct (is_normal S1) eqn:NORMAL1.
+  { destruct S1; try by inv NORMAL1.
+    exploit is_normal_step; eauto. intro. des. subst.
+    inv MS.
+    exploit is_normal_steps; eauto.
+    { eapply match_stacks_globals; eauto. }
+    intro. des.
+    exploit is_normal_step; try apply TSTEP; eauto.
+    intro. des. inv S2.
+    left. eexists. split.
+    { apply plus_one. eauto. }
+    apply match_states_identical. econs; eauto.
+    eapply match_stacks_extcall; eauto.
+    unfold Mem.valid_block in BELOW. xomega.
+  }
+  unfold is_normal in NORMAL1. destruct S1.
+  { destruct (fn_code f) ! pc as [[]|] eqn:OPCODE; try by inv NORMAL1.
+    - admit. (* Icall *)
+    - admit. (* Itailcall *)
+    - admit. (* Ireturn *)
+    - inv H; congruence.
+  }
+  { admit. (* callstate *)
+  }
+  { admit. (* returnstate *)
+  }
 Qed.
 
 Theorem step_simulation:
