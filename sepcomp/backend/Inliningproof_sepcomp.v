@@ -555,7 +555,7 @@ Inductive match_stacks (F: meminj) (m m': mem):
   | match_stacks_identical: forall bound stk1 stk1' res f sp pc rs sp' rs'
         (MS: match_stacks F m m' stk1 stk1' sp')
         (SP: F sp = Some (sp', 0))
-        (REGSET: forall r, val_inject F rs#r rs'#r)
+        (REGSET: regset_inject  F rs rs')
         (BELOW: Plt sp' bound),
       match_stacks F m m' ((Stackframe res f (Vptr sp Int.zero) pc rs) :: stk1) ((Stackframe res f (Vptr sp' Int.zero) pc rs') :: stk1') bound.
 
@@ -743,7 +743,7 @@ Proof.
   intros. eapply PERM1; eauto.
   intros. eapply PERM2; eauto.
   intros. eapply PERM3; eauto.
-  intros. eapply val_inject_incr; eauto.
+  eapply regset_inject_incr; eauto.
 Qed.
 
 Lemma match_transl_stacks_empty:
@@ -974,6 +974,7 @@ Proof.
     eapply match_transl_stacks_extcall; auto.
   eapply match_stacks_identical; eauto.
     apply IHmatch_stacks. xomega.
+    eapply regset_inject_incr; eauto.
 Qed.
 
 End EXTCALL.
@@ -1074,7 +1075,7 @@ Inductive match_transl_states: state -> state -> Prop :=
 Inductive match_identical_states: state -> state -> Prop :=
   | match_identical_regular_states: forall stk f sp pc rs m stk' sp' rs' m' F
         (MSTK: match_stacks F m m' stk stk' sp')
-        (REGSET: forall r, val_inject F rs#r rs'#r)
+        (REGSET: regset_inject F rs rs')
         (SP: F sp = Some(sp', 0))
         (BELOW: Mem.valid_block m' sp')
         (MINJ: Mem.inject F m m'),
@@ -1431,7 +1432,7 @@ Proof.
     intros. eapply Mem.perm_alloc_1; eauto. 
     intros. exploit Mem.perm_alloc_inv. eexact A. eauto. 
     rewrite dec_eq_false; auto.
-  apply val_inject_init_regs. eapply val_list_inject_incr; eauto.
+  apply regset_inject_init_regs. eapply val_list_inject_incr; eauto.
   eapply Mem.valid_new_block. eauto.
 
 (* internal function, inlined *)
@@ -1531,7 +1532,7 @@ Proof.
   left; econstructor; split.
   eapply plus_one. eapply exec_return.
   apply match_states_identical. econstructor; eauto. 
-  apply val_inject_set_reg; auto.
+  apply regset_inject_set_reg; auto.
   unfold Mem.valid_block. xomega.
   
 (* return from inlined function *)
@@ -1559,10 +1560,14 @@ Theorem step_simulation_identical:
   \/ (measure S2 < measure S1 /\ t = E0 /\ match_states S2 S1')%nat.
 Proof.
   intros. destruct (is_normal S1) eqn:NORMAL1.
-  { destruct S1; try by inv NORMAL1.
+  { (* is_normal *)
+    destruct S1; try by inv NORMAL1.
     exploit is_normal_step; eauto. intro. des. subst.
     inv MS.
-    exploit is_normal_steps; eauto.
+    exploit is_normal_steps;
+      try apply symbols_preserved;
+      try apply varinfo_preserved;
+      eauto.
     { eapply match_stacks_globals; eauto. }
     intro. des.
     exploit is_normal_step; try apply TSTEP; eauto.
@@ -1574,15 +1579,19 @@ Proof.
     unfold Mem.valid_block in BELOW. xomega.
   }
   unfold is_normal in NORMAL1. destruct S1.
-  { destruct (fn_code f) ! pc as [[]|] eqn:OPCODE; try by inv NORMAL1.
-    - admit. (* Icall *)
-    - admit. (* Itailcall *)
-    - admit. (* Ireturn *)
-    - inv H; congruence.
+  { destruct (fn_code f) ! pc as [[]|] eqn:OPCODE; try by inv NORMAL1; inv H; clarify.
+    - (* Icall *)
+      admit.
+    - (* Itailcall *)
+      admit. 
+    - (* Ireturn *)
+      admit. 
   }
-  { admit. (* callstate *)
+  { (* Callstate *)
+    admit.
   }
-  { admit. (* returnstate *)
+  { (* Returnstate *)
+    admit. 
   }
 Qed.
 
