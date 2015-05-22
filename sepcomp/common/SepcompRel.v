@@ -1051,3 +1051,195 @@ Qed.
 End INITIAL.
 
 End TRANSF_PROGRAM.
+
+(* test *)
+
+Section TRANSF_PROGRAM'.
+
+Variable (sigT:Sig).
+Variable (fT:F sigT).
+Variable (efT:EF sigT).
+Variable (fundefT:Fundef fT efT).
+Variable (vT:V).
+
+Let lang := mkLanguage fundefT vT.
+
+Variable transf_fT: lang.(progT) -> fT -> fT.
+Variable transf_efT: lang.(progT) -> efT -> efT.
+
+Let transf_fundefT (prog:lang.(progT)) (fd:fundefT): fundefT :=
+  match fundefT.(Fundef_equiv).(AtoB) fd with
+    | inl f =>
+      fundefT.(Fundef_equiv).(BtoA) (inl (transf_fT prog f))
+    | inr ef =>
+      fundefT.(Fundef_equiv).(BtoA) (inr (transf_efT prog ef))
+  end.
+
+Variable p: lang.(progT).
+Variable tp: lang.(progT).
+
+Section TRANSF.
+
+Hypothesis TRANSF: transform_program (transf_fundefT p) p = tp.
+
+Lemma transf_program_sepcomp_rel':
+  @sepcomp_rel
+    lang lang
+    (fun p f tf => transf_fT p f = tf)
+    (fun p ef tef => transf_efT p ef = tef)
+    (@OK _)
+    p tp.
+Proof.
+  destruct p as [defs ?], tp as [tdefs ?]. inv TRANSF.
+  constructor; auto. simpl.
+  generalize defs at 1 3 as fdefs.
+  induction defs; simpl; intros fdefs; constructor.
+  - split.
+    + destruct a. destruct g; auto.
+    + eexists. split; [reflexivity|].
+      destruct a. simpl. destruct g.
+      * unfold transf_fundefT. destruct (fundefT.(AtoB) f) as [func|efunc] eqn:Hf'.
+        { eapply grel_f; eauto. apply HBAB. }
+        { eapply grel_ef; eauto. apply HBAB. }
+      * constructor. destruct v. auto.
+  - apply IHdefs.
+Qed.
+
+End TRANSF.
+
+Section INITIAL.
+
+Hypothesis Hsepcomp_rel:
+  @sepcomp_rel
+    lang lang
+    (fun p f tf => transf_fT p f = tf \/ f = tf)
+    (fun p ef tef => transf_efT p ef = tef)
+    (@OK _)
+    p tp.
+
+Let prog_match:
+  match_program
+    (fun fd tfd =>
+       (exists prog,
+         program_linkeq lang prog p /\
+         transf_fundefT prog fd = tfd) \/
+       fd = tfd)
+    (fun info tinfo => info = tinfo)
+    nil p.(prog_main)
+    p tp.
+Proof.
+  destruct p as [defs ?], tp as [defs' ?].
+  inv Hsepcomp_rel. simpl in *. subst.
+  revert defs' Hdefs. generalize defs at 1 3 as fdefs.
+  induction defs; intros fdefs defs' Hdefs.
+  { inv Hdefs. constructor; auto. exists nil. split; auto. constructor. }
+  inv Hdefs. destruct a, b1, H1 as [? H1]. simpl in *. subst.
+  eapply IHdefs in H3. destruct H3 as [H3 ?]. split; [|auto].
+  destruct H3 as [? H3]. simpl in *. rewrite app_nil_r in *.
+  destruct H3 as [H3 ?]. subst.
+  eexists. rewrite app_nil_r. split; auto.
+  constructor; auto.
+  destruct H1 as [prog_src [Hprog_src H1]]. inv H1.
+  - apply match_glob_fun. destruct Hf as [Hf|Hf]; subst.
+    + left. eexists. split; eauto.
+      unfold transf_fundefT. simpl in *.
+      rewrite Hf_src, <- Hf_tgt. apply HABA.
+    + right. rewrite <- Hf_tgt in Hf_src.
+      eapply EquivalentType_AtoB_inj. eauto.
+  - apply match_glob_fun. left. eexists. split; eauto.
+    unfold transf_fundefT. simpl in *.
+    rewrite Hef_src, <- Hef_tgt. apply HABA.
+  - unfold transf_globvar in Hv. monadInv Hv. inv EQ.
+    simpl in *. destruct gv_src.
+    apply match_glob_var. auto.
+Qed.
+
+Theorem find_funct_ptr_transf':
+  forall (b: block) (f: fundefT),
+    Genv.find_funct_ptr (Genv.globalenv p) b = Some f ->
+    exists f',
+      Genv.find_funct_ptr (Genv.globalenv tp) b = Some f' /\
+      ((exists prog,
+         program_linkeq lang prog p /\
+         (transf_fundefT prog f) = f') \/
+      f = f').
+Proof.
+  intros. 
+  exploit Genv.find_funct_ptr_match. eexact prog_match. eauto.
+  intros [tf [X Y]]. exists tf; auto.
+Qed.
+
+Theorem find_funct_ptr_rev_transf':
+  forall (b: block) (tf: fundefT),
+    Genv.find_funct_ptr (Genv.globalenv tp) b = Some tf ->
+    exists f, Genv.find_funct_ptr (Genv.globalenv p) b = Some f /\
+              ((exists prog,
+                  program_linkeq lang prog p /\
+                  transf_fundefT prog f = tf)
+               \/ f = tf).
+Proof.
+  intros. 
+  exploit Genv.find_funct_ptr_rev_match. eexact prog_match. eauto. 
+  destruct (plt b (Genv.genv_next (Genv.globalenv p))); [|intro X; inv X].
+  intros [f [X Y]]. exists f; auto.
+Qed.
+
+Theorem find_funct_transf':
+  forall (v: val) (f: fundefT),
+  Genv.find_funct (Genv.globalenv p) v = Some f ->
+  exists tf,
+    Genv.find_funct (Genv.globalenv tp) v = Some tf /\
+    ((exists prog,
+        program_linkeq lang prog p /\
+        (transf_fundefT prog f = tf)) \/
+  f = tf).
+Proof.
+  intros. 
+  exploit Genv.find_funct_match. eexact prog_match. eauto.
+  intros [tf [X Y]]. subst.
+  eexists. split; eauto.
+Qed.
+
+Theorem find_funct_rev_transf':
+  forall (v: val) (tf: fundefT),
+  Genv.find_funct (Genv.globalenv tp) v = Some tf ->
+  exists f, Genv.find_funct (Genv.globalenv p) v = Some f /\ 
+            ((exists prog,
+              program_linkeq lang prog p /\
+              transf_fundefT prog f = tf) \/
+             f = tf).
+Proof.
+  intros. 
+  exploit Genv.find_funct_rev_match. eexact prog_match. eauto. 
+  intros [[f [X Y]]|X]; [|inv X]. exists f; auto.
+Qed.
+
+Theorem find_symbol_transf':
+  forall (s: ident),
+  Genv.find_symbol (Genv.globalenv tp) s = Genv.find_symbol (Genv.globalenv p) s.
+Proof.
+  intros. eapply Genv.find_symbol_match. eexact prog_match. auto.
+Qed.
+
+Theorem find_var_info_transf':
+  forall (b: block),
+  Genv.find_var_info (Genv.globalenv tp) b = Genv.find_var_info (Genv.globalenv p) b.
+Proof.
+  intros. destruct (Genv.find_var_info (Genv.globalenv p) b) as [v|] eqn:Hg.
+  - exploit Genv.find_var_info_match. eexact prog_match. eauto. intros [tv [X Y]].
+    inv Y. auto.
+  - destruct (Genv.find_var_info (Genv.globalenv tp) b) as [v|] eqn:Hg'; [|auto].
+    exploit Genv.find_var_info_rev_match. eexact prog_match. eauto.
+    destruct (plt b (Genv.genv_next (Genv.globalenv p))); [|intro X; inv X].
+    intros [v' [X Y]]. rewrite Hg in X. inv X.
+Qed.
+
+Theorem init_mem_transf':
+  forall m, Genv.init_mem p = Some m -> Genv.init_mem tp = Some m.
+Proof.
+  intros. erewrite Genv.init_mem_match; eauto. eauto.
+Qed.
+
+End INITIAL.
+
+End TRANSF_PROGRAM'.

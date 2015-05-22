@@ -26,6 +26,16 @@ Require Import Renumber.
 Require Import Linkeq.
 Require Import SepcompRel.
 
+Inductive match_fundef: forall (fd fd': fundef), Prop :=
+| match_fundef_transl
+    fd fd'
+    (FD: transf_fundef fd = fd'):
+    match_fundef fd fd'
+| match_fundef_identical
+    fd:
+    match_fundef fd fd
+.
+
 Section PRESERVATION.
 
 Variable prog: program.
@@ -33,7 +43,7 @@ Variable tprog: program.
 Hypothesis TRANSF:
   @sepcomp_rel
     Language_RTL Language_RTL
-    (fun p f tf => transf_function f = tf)
+    (fun p f tf => transf_function f = tf \/ f = tf)
     (fun p ef tef => ef = tef)
     (@Errors.OK _)
     prog tprog.
@@ -43,9 +53,10 @@ Let tge := Genv.globalenv tprog.
 Lemma functions_translated:
   forall v f,
   Genv.find_funct ge v = Some f ->
-  Genv.find_funct tge v = Some (transf_fundef f).
+  exists tf, Genv.find_funct tge v = Some tf /\ (match_fundef f tf).
+(*  Genv.find_funct tge v = Some (transf_fundef f).*)
 Proof.
-  generalize (find_funct_transf _ _ TRANSF).
+  generalize (find_funct_transf' _ _ TRANSF).
   intros H1 v f. specialize (H1 v f).
   revert H1. unfold ge, fundef. simpl.
   match goal with
@@ -164,6 +175,37 @@ Inductive match_frames: RTL.stackframe -> RTL.stackframe -> Prop :=
         (REACH: reach f pc),
       match_frames (Stackframe res f sp pc rs)
                    (Stackframe res (transf_function f) sp (renum_pc (pnum f) pc) rs).
+
+
+Inductive match_transl_states: RTL.state -> RTL.state -> Prop :=
+  | match_regular_states: forall stk f sp pc rs m stk'
+        (STACKS: list_forall2 match_frames stk stk')
+        (REACH: reach f pc),
+      match_states (State stk f sp pc rs m)
+                   (State stk' (transf_function f) sp (renum_pc (pnum f) pc) rs m)
+  | match_callstates: forall stk f args m stk'
+        (STACKS: list_forall2 match_frames stk stk'),
+      match_states (Callstate stk f args m)
+                   (Callstate stk' (transf_fundef f) args m)
+  | match_returnstates: forall stk v m stk'
+        (STACKS: list_forall2 match_frames stk stk'),
+      match_states (Returnstate stk v m)
+                   (Returnstate stk' v m).
+
+Inductive match_identical_states: RTL.state -> RTL.state -> Prop :=
+  | match_regular_states: forall stk f sp pc rs m stk'
+        (STACKS: list_forall2 match_frames stk stk')
+        (REACH: reach f pc),
+      match_states (State stk f sp pc rs m)
+                   (State stk' (transf_function f) sp (renum_pc (pnum f) pc) rs m)
+  | match_callstates: forall stk f args m stk'
+        (STACKS: list_forall2 match_frames stk stk'),
+      match_states (Callstate stk f args m)
+                   (Callstate stk' (transf_fundef f) args m)
+  | match_returnstates: forall stk v m stk'
+        (STACKS: list_forall2 match_frames stk stk'),
+      match_states (Returnstate stk v m)
+                   (Returnstate stk' v m).
 
 Inductive match_states: RTL.state -> RTL.state -> Prop :=
   | match_regular_states: forall stk f sp pc rs m stk'
