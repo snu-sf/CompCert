@@ -181,7 +181,9 @@ Proof.
   unfold reach; intros. econstructor; eauto. 
   unfold successors_map. rewrite PTree.gmap1. rewrite H. auto. 
 Qed.
-  
+
+
+(*
 Inductive match_transl_frames: RTL.stackframe -> RTL.stackframe -> Prop :=
   | match_transl_frames_intro: forall res f sp pc rs
         (REACH: reach f pc),
@@ -201,17 +203,18 @@ Inductive match_frames: RTL.stackframe -> RTL.stackframe -> Prop :=
                                  (MATCHID: match_identical_frames fr1 fr2),
                             match_frames fr1 fr2
 .
-(*
-Inductive match_frames': RTL.stackframe -> RTL.stackframe -> Prop :=
+*)
+
+Inductive match_frames: RTL.stackframe -> RTL.stackframe -> Prop :=
   | match_transl_frames_intro': forall res f sp pc rs
         (REACH: reach f pc),
-      match_frames' (Stackframe res f sp pc rs)
+      match_frames (Stackframe res f sp pc rs)
                    (Stackframe res (transf_function f) sp (renum_pc (pnum f) pc) rs)
   | match_identical_frames_intro' : forall res f sp pc rs,
-      match_frames' (Stackframe res f sp pc rs)
+      match_frames (Stackframe res f sp pc rs)
                    (Stackframe res f sp pc rs)
 .
-*)
+
 
 Inductive match_transl_states: RTL.state -> RTL.state -> Prop :=
   | match_transl_regular_states: forall stk f sp pc rs m stk'
@@ -298,7 +301,7 @@ Proof.
   eapply exec_Icall with (fd := tfd); eauto.
   inv matchtfd; auto.
     apply sig_preserved.
-  constructor. constructor; auto. constructor; auto. constructor. constructor. eapply reach_succ; eauto. simpl; auto.
+  constructor. constructor; auto. constructor; auto. constructor. eapply reach_succ; eauto. simpl; auto.
 (* tailcall *)
   exploit find_function_translated; eauto.
   intros Htfd. destruct Htfd as [tfd [findtfd matchtfd]].
@@ -355,13 +358,11 @@ Proof.
   constructor; auto.
 (* return *)
   inv STACKS. inv H1.
-  inv MATCHTR.
   econstructor; split. 
   eapply exec_return; eauto. 
   constructor; auto.
   constructor; auto.
 
-  inv MATCHID.
   econstructor; split. 
   eapply exec_return; eauto.
   apply match_states_identical.
@@ -405,8 +406,7 @@ Proof.
   eapply exec_Icall with (fd := tfd); eauto.
   inv matchtfd; auto.
     apply sig_preserved.
-  constructor. constructor; auto. constructor; auto.
-  apply match_frames_identical. constructor.
+  constructor. constructor; auto. constructor; auto. constructor.
 (* tailcall *)
   exploit find_function_translated; eauto.
   intros Htfd. destruct Htfd as [tfd [findtfd matchtfd]].
