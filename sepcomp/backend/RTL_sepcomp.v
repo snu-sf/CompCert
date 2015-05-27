@@ -68,14 +68,7 @@ Qed.
 Definition regset_lessdef rs trs :=
   forall r, Val.lessdef rs # r trs # r.
 
-Lemma regset_lessdef_refl:
-  forall r, regset_lessdef r r.
-Proof.
-  unfold regset_lessdef. intros.
-  apply Val.lessdef_refl.
-Qed.
-
-Lemma regset_lessdef_val_list_lessdef rs trs l
+Lemma regset_lessdef_val_lessdef_list rs trs l
       (INJ: regset_lessdef rs trs):
   Val.lessdef_list rs ## l trs ## l.
 Proof. induction l; constructor; auto. Qed.
@@ -259,14 +252,14 @@ Proof.
   - eexists. eexists. splits; eauto.
     apply exec_Inop; eauto.
   - exploit eval_operation_lessdef; try apply H10; eauto.
-    { apply regset_lessdef_val_list_lessdef. eauto. }
+    { apply regset_lessdef_val_lessdef_list. eauto. }
     intro. des.
     eexists. eexists. splits; eauto.
     + eapply exec_Iop; eauto.
       erewrite eval_operation_preserved; eauto.
     + apply regset_lessdef_set_reg; auto.
   - exploit eval_addressing_lessdef; try apply H10; eauto.
-    { apply regset_lessdef_val_list_lessdef. eauto. }
+    { apply regset_lessdef_val_lessdef_list. eauto. }
     intro. des.
     exploit Mem.loadv_extends; eauto.
     intro. des.
@@ -275,7 +268,7 @@ Proof.
       erewrite eval_addressing_preserved; eauto.
     + apply regset_lessdef_set_reg; auto.
   - exploit eval_addressing_lessdef; try apply H10; eauto.
-    { apply regset_lessdef_val_list_lessdef. eauto. }
+    { apply regset_lessdef_val_lessdef_list. eauto. }
     intro. des.
     exploit Mem.storev_extends; eauto.
     intro. des.
@@ -283,13 +276,13 @@ Proof.
     + eapply exec_Istore; eauto.
       erewrite eval_addressing_preserved; eauto.
   - exploit external_call_mem_extends; eauto.
-    { apply regset_lessdef_val_list_lessdef. eauto. }
+    { apply regset_lessdef_val_lessdef_list. eauto. }
     intro. des. eexists. eexists. splits; try apply H1; eauto.
     + econs; eauto.
       eapply external_call_symbols_preserved; eauto. 
     + apply regset_lessdef_set_reg; auto.
   - exploit eval_condition_lessdef; try apply H10; eauto.
-    { apply regset_lessdef_val_list_lessdef. eauto. }
+    { apply regset_lessdef_val_lessdef_list. eauto. }
     intro.
     eexists. eexists. splits; eauto.
     eapply exec_Icond; eauto.

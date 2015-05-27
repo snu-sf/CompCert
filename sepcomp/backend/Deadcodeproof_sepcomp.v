@@ -368,15 +368,6 @@ Proof.
   + apply eagree_update; auto with na.
 Qed.
 
-Lemma regset_lessdef_eagree:
-  forall r1 r2 ne,
-    regset_lessdef r1 r2 ->
-    eagree r1 r2 ne.
-Proof.
-  unfold eagree; intros.
-  apply vagree_lessdef; auto.
-Qed.
-
 (** * Basic properties of the translation *)
 
 Inductive match_fundef prog: forall (fd fd':fundef), Prop :=
@@ -511,7 +502,7 @@ Proof.
   apply function_ptr_translated; auto.
 Qed.
 
-Lemma find_function_translated_regset_lessdef:
+Lemma find_function_translated_identical:
   forall ros rs fd trs,
   find_function ge ros rs = Some fd ->
   regset_lessdef rs trs ->
@@ -1059,17 +1050,9 @@ Ltac UseTransfer :=
 
 - (* external function *)
   exploit external_call_mem_extends; eauto.
-  intros (res' & tm' & A & B & C & D & E). 
-  inv FUN.
-  (* transl *)
-  simpl in FD. inv FD.
-  econstructor; split.
-  econstructor; eauto.
-  eapply external_call_symbols_preserved; eauto. 
-  exact symbols_preserved. exact varinfo_preserved.
-  constructor.
-  econstructor; eauto. 
-  (* identical *)
+  intros (res' & tm' & A & B & C & D & E).
+  assert (tf = External ef); subst.
+    inv FUN; auto. inv FD. auto.
   econstructor; split.
   econstructor; eauto.
   eapply external_call_symbols_preserved; eauto. 
@@ -1119,7 +1102,7 @@ Proof.
   destruct (fn_code f) ! pc as [[]|] eqn:OPCODE; try by inv NORMAL1; inv H; clarify.
   - (* Icall *)
     inv H; clarify.
-    exploit find_function_translated_regset_lessdef; eauto.
+    exploit find_function_translated_identical; eauto.
     intro. des.
     eexists. split.
     { eapply exec_Icall; eauto.
@@ -1128,10 +1111,10 @@ Proof.
     econs. econs; eauto.
     + constructor; auto.
       eapply match_identical_stackframes_intro; eauto.
-    + apply regset_lessdef_val_list_lessdef. auto.
+    + apply regset_lessdef_val_lessdef_list. auto.
   - (* Itailcall *)
     inv H; clarify.
-    exploit find_function_translated_regset_lessdef; eauto.
+    exploit find_function_translated_identical; eauto.
     intro. des.
     assert (X: { m1' | Mem.free tm sp 0 (fn_stacksize f) = Some m1'}).
     apply Mem.range_perm_free. red; intros.
@@ -1147,7 +1130,7 @@ Proof.
       eapply match_fundef_sig. eauto.
     }
     econs. econs; eauto.
-    apply regset_lessdef_val_list_lessdef. auto.
+    apply regset_lessdef_val_lessdef_list. auto.
   - (* Ireturn *)
     inv H; clarify.
     exploit Mem.free_parallel_extends; eauto.

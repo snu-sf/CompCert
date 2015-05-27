@@ -64,10 +64,10 @@ Proof.
   exists x.
   split; auto.
   destruct H1 as [[prog1 [_ H1]] | H1].
-    + destruct f.
-      * constructor; auto.
-      * rewrite H1; apply match_fundef_identical.
-    + rewrite H1; apply match_fundef_identical.
+  + destruct f.
+    * constructor; auto.
+    * rewrite H1; apply match_fundef_identical.
+  + rewrite H1; apply match_fundef_identical.
 Qed.
 
 Lemma function_ptr_translated:
@@ -85,10 +85,10 @@ Proof.
   exists x.
   split; auto.
   destruct H1 as [[prog1 [_ H1]] | H1].
-    + destruct f.
-      * constructor; auto.
-      * rewrite H1; apply match_fundef_identical.
-    + rewrite H1; apply match_fundef_identical.
+  + destruct f.
+    * constructor; auto.
+    * rewrite H1; apply match_fundef_identical.
+  + rewrite H1; apply match_fundef_identical.
 Qed.
 
 Lemma symbols_preserved:
@@ -188,11 +188,11 @@ Proof.
 Qed.
   
 Inductive match_frames: RTL.stackframe -> RTL.stackframe -> Prop :=
-  | match_transl_frames_intro: forall res f sp pc rs
+  | match_frames_transl: forall res f sp pc rs
         (REACH: reach f pc),
       match_frames (Stackframe res f sp pc rs)
                    (Stackframe res (transf_function f) sp (renum_pc (pnum f) pc) rs)
-  | match_identical_frames_intro : forall res f sp pc rs,
+  | match_frames_identical : forall res f sp pc rs,
       match_frames (Stackframe res f sp pc rs)
                    (Stackframe res f sp pc rs).
 
@@ -285,7 +285,7 @@ Proof.
 (* jumptbl *)
   econstructor; split.
   eapply exec_Ijumptable; eauto. rewrite list_nth_z_map. rewrite H1. simpl; eauto. 
-  constructor; auto. constructor; auto. eapply reach_succ; eauto. simpl. eapply list_nth_z_in; eauto.
+  constructor; auto. constructor; auto. eapply reach_succ; eauto. simpl. eapply list_nth_z_in; eauto. 
 (* return *)
   econstructor; split.
   eapply exec_Ireturn; eauto. 
@@ -355,7 +355,7 @@ Proof.
     }
     econs. econs; eauto.
     constructor; eauto.
-    eapply match_identical_frames_intro; eauto.
+    eapply match_frames_identical; eauto.
   - (* Itailcall *)
     inv H; clarify.
     exploit find_function_translated; eauto.
