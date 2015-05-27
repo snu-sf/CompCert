@@ -25,6 +25,8 @@ Require Import RTL.
 Require Import Renumber.
 Require Import Linkeq.
 Require Import SepcompRel.
+Require Import RTL_sepcomp.
+Require Import sflib.
 
 Inductive match_fundef: forall (fd fd': fundef), Prop :=
 | match_fundef_transl
@@ -107,6 +109,14 @@ Proof.
   destruct f; reflexivity.
 Qed.
 
+Lemma match_fundef_sig:
+  forall f1 f2 (MATCHFD: match_fundef f1 f2),
+    funsig f2 = funsig f1.
+Proof.
+  intros. inv MATCHFD; auto.
+  eapply sig_preserved.
+Qed.
+
 Lemma find_function_translated:
   forall ros rs fd,
   find_function ge ros rs = Some fd ->
@@ -182,82 +192,74 @@ Proof.
 Qed.
 
 Inductive match_frames: RTL.stackframe -> RTL.stackframe -> Prop :=
-  | match_transl_frames_intro': forall res f sp pc rs
+  | match_transl_frames_intro: forall res f sp pc rs
         (REACH: reach f pc),
       match_frames (Stackframe res f sp pc rs)
                    (Stackframe res (transf_function f) sp (renum_pc (pnum f) pc) rs)
-  | match_identical_frames_intro' : forall res f sp pc rs,
+  | match_identical_frames_intro : forall res f sp pc rs,
       match_frames (Stackframe res f sp pc rs)
                    (Stackframe res f sp pc rs)
 .
 
-Inductive match_states: RTL.state -> RTL.state -> Prop :=
+Inductive match_transl_states: RTL.state -> RTL.state -> Prop :=
 | match_transl_regular_states: forall stk f sp pc rs m stk'
         (STACKS: list_forall2 match_frames stk stk')
         (REACH: reach f pc),
-      match_states (State stk f sp pc rs m)
+      match_transl_states (State stk f sp pc rs m)
                    (State stk' (transf_function f) sp (renum_pc (pnum f) pc) rs m)
 | match_transl_callstates: forall stk f f' args m stk'
         (FD: match_fundef f f')
         (STACKS: list_forall2 match_frames stk stk'),
-      match_states (Callstate stk f args m)
+      match_transl_states (Callstate stk f args m)
                    (Callstate stk' f' args m)
 | match_transl_returnstates: forall stk v m stk'
         (STACKS: list_forall2 match_frames stk stk'),
-      match_states (Returnstate stk v m)
+      match_transl_states (Returnstate stk v m)
                    (Returnstate stk' v m)
+.
+
+Inductive match_identical_states: RTL.state -> RTL.state -> Prop :=
 | match_identical_regular_states: forall stk f sp pc rs m stk'
         (STACKS: list_forall2 match_frames stk stk'),
-      match_states (State stk f sp pc rs m)
+      match_identical_states (State stk f sp pc rs m)
                    (State stk' f sp pc rs m)
 .
 
-Lemma step_simulation:
+Inductive match_states: RTL.state -> RTL.state -> Prop :=
+| match_states_transl: forall st1 st2
+                              (MSTATE: match_transl_states st1 st2),
+                         match_states st1 st2
+| match_states_identical: forall st1 st2
+                              (MSTATE: match_identical_states st1 st2),
+                         match_states st1 st2
+.
+
+Lemma step_simulation_transl:
   forall S1 t S2, RTL.step ge S1 t S2 ->
-  forall S1', match_states S1 S1' ->
+  forall S1', match_transl_states S1 S1' ->
   exists S2', RTL.step tge S1' t S2' /\ match_states S2 S2'.
 Proof.
   induction 1; intros S1' MS; inv MS; try TR_AT.
 (* nop *)
   econstructor; split. eapply exec_Inop; eauto.
-  constructor; auto. eapply reach_succ; eauto. simpl; auto.
-(* nop2 *)
-  econstructor; split. eapply exec_Inop; eauto.
-  constructor; auto.
+  constructor; auto. constructor; eauto. eapply reach_succ; eauto. simpl; auto.
 (* op *)
   econstructor; split.
   eapply exec_Iop; eauto.
   instantiate (1 := v). rewrite <- H0. apply eval_operation_preserved. exact symbols_preserved.
-  constructor; auto. eapply reach_succ; eauto. simpl; auto.
-(* op2 *)
-  econstructor; split.
-  eapply exec_Iop; eauto.
-  instantiate (1 := v). rewrite <- H0. apply eval_operation_preserved. exact symbols_preserved.
-  constructor; auto.
+  constructor; auto. constructor; auto. eapply reach_succ; eauto. simpl; auto.
 (* load *)
   econstructor; split.
   assert (eval_addressing tge sp addr rs ## args = Some a).
   rewrite <- H0. apply eval_addressing_preserved. exact symbols_preserved. 
   eapply exec_Iload; eauto.
-  constructor; auto. eapply reach_succ; eauto. simpl; auto.
-(* load2 *)
-  econstructor; split.
-  assert (eval_addressing tge sp addr rs ## args = Some a).
-  rewrite <- H0. apply eval_addressing_preserved. exact symbols_preserved. 
-  eapply exec_Iload; eauto.
-  constructor; auto.
+  constructor; auto. constructor; auto. eapply reach_succ; eauto. simpl; auto.
 (* store *)
   econstructor; split.
   assert (eval_addressing tge sp addr rs ## args = Some a).
   rewrite <- H0. apply eval_addressing_preserved. exact symbols_preserved. 
   eapply exec_Istore; eauto.
-  constructor; auto. eapply reach_succ; eauto. simpl; auto.
-(* store2 *)
-  econstructor; split.
-  assert (eval_addressing tge sp addr rs ## args = Some a).
-  rewrite <- H0. apply eval_addressing_preserved. exact symbols_preserved. 
-  eapply exec_Istore; eauto.
-  constructor; auto.
+  constructor; auto. constructor; auto. eapply reach_succ; eauto. simpl; auto.
 (* call *)
   exploit find_function_translated; eauto.
   intros Htfd. destruct Htfd as [tfd [findtfd matchtfd]].
@@ -265,15 +267,7 @@ Proof.
   eapply exec_Icall with (fd := tfd); eauto.
   inv matchtfd; auto.
     apply sig_preserved.
-  constructor; auto. constructor; auto. constructor. eapply reach_succ; eauto. simpl; auto.
-(* call2 *)
-  exploit find_function_translated; eauto.
-  intros Htfd. destruct Htfd as [tfd [findtfd matchtfd]].
-  econstructor; split.
-  eapply exec_Icall with (fd := tfd); eauto.
-  inv matchtfd; auto.
-    apply sig_preserved.
-  constructor; auto. constructor; auto. constructor.
+  constructor; auto. constructor; auto. constructor; auto. constructor; auto. eapply reach_succ; eauto. simpl; auto.
 (* tailcall *)
   exploit find_function_translated; eauto.
   intros Htfd. destruct Htfd as [tfd [findtfd matchtfd]].
@@ -281,86 +275,121 @@ Proof.
   eapply exec_Itailcall with (fd := tfd); eauto.
   inv matchtfd; auto.
     apply sig_preserved.
-  constructor; auto.
-(* tailcall2 *)
-  exploit find_function_translated; eauto.
-  intros Htfd. destruct Htfd as [tfd [findtfd matchtfd]].
-  econstructor; split.
-  eapply exec_Itailcall with (fd := tfd); eauto.
-  inv matchtfd; auto.
-    apply sig_preserved.
+  constructor.
   constructor; auto.
 (* builtin *)
   econstructor; split.
   eapply exec_Ibuiltin; eauto.
     eapply external_call_symbols_preserved; eauto.
     exact symbols_preserved. exact varinfo_preserved.
-  constructor; auto. eapply reach_succ; eauto. simpl; auto.
-(* builtin2 *)
-  econstructor; split.
-  eapply exec_Ibuiltin; eauto.
-    eapply external_call_symbols_preserved; eauto.
-    exact symbols_preserved. exact varinfo_preserved.
-  constructor; auto.
+  constructor; auto. constructor; auto. eapply reach_succ; eauto. simpl; auto.
 (* cond *)
   econstructor; split.
   eapply exec_Icond; eauto. 
   replace (if b then renum_pc (pnum f) ifso else renum_pc (pnum f) ifnot)
      with (renum_pc (pnum f) (if b then ifso else ifnot)).
-  constructor; auto. eapply reach_succ; eauto. simpl. destruct b; auto. 
+  constructor; auto. constructor; auto. eapply reach_succ; eauto. simpl. destruct b; auto. 
   destruct b; auto.
-(* cond2 *)
-  econstructor; split.
-  eapply exec_Icond; eauto.
-  constructor; auto.
 (* jumptbl *)
   econstructor; split.
   eapply exec_Ijumptable; eauto. rewrite list_nth_z_map. rewrite H1. simpl; eauto. 
-  constructor; auto. eapply reach_succ; eauto. simpl. eapply list_nth_z_in; eauto.
-(* jumptbl2 *)
-  econstructor; split.
-  eapply exec_Ijumptable; eauto.
-  constructor; auto.
+  constructor; auto. constructor; auto. eapply reach_succ; eauto. simpl. eapply list_nth_z_in; eauto.
 (* return *)
   econstructor; split.
-  eapply exec_Ireturn; eauto. 
-  constructor; auto.
-(* return2 *)
-  econstructor; split.
-  eapply exec_Ireturn; eauto. 
+  eapply exec_Ireturn; eauto.
+  constructor.
   constructor; auto.
 (* internal function *)
   inv FD.
   simpl. econstructor; split.
   eapply exec_function_internal; eauto. 
-  constructor; auto. unfold reach. constructor.
+  constructor. constructor; auto. unfold reach. constructor.
 (* internal function2 *)
   simpl. econstructor; split.
   eapply exec_function_internal; eauto.
-  constructor; auto.
+  apply match_states_identical. constructor; auto.
 (* external function *)
   inv FD.
   econstructor; split.
   eapply exec_function_external; eauto.
     eapply external_call_symbols_preserved; eauto.
     exact symbols_preserved. exact varinfo_preserved.
-  constructor; auto.
+  constructor. constructor; auto.
 (* external function2 *)
   econstructor; split.
   eapply exec_function_external; eauto.
     eapply external_call_symbols_preserved; eauto.
     exact symbols_preserved. exact varinfo_preserved.
-  constructor; auto.
+  constructor. constructor; auto.
 (* return *)
   inv STACKS. inv H1.
   econstructor; split. 
-  eapply exec_return; eauto. 
-  constructor; auto.
+  eapply exec_return; eauto.
+  constructor. constructor; auto.
 (* return2 *)
   econstructor; split. 
   eapply exec_return; eauto.
+  apply match_states_identical.
   constructor; auto.
 Qed.
+
+Lemma step_simulation_identical:
+  forall S1 t S2, RTL.step ge S1 t S2 ->
+  forall S1' (MS: match_identical_states S1 S1'),
+  exists S2', RTL.step tge S1' t S2' /\ match_states S2 S2'.
+Proof.
+  intros. destruct (is_normal S1) eqn:NORMAL1.
+  { (* is_normal *)
+    destruct S1; try by inv NORMAL1.
+    exploit is_normal_step; eauto. intro. des. subst.
+    inv MS.
+    exploit is_normal_identical;
+      try apply symbols_preserved;
+      try apply varinfo_preserved;
+      eauto.
+    intro. des.
+    eexists. split. eauto.
+    apply match_states_identical. econs; eauto.
+  }
+  inv MS. unfold is_normal in NORMAL1.
+  destruct (fn_code f) ! pc as [[]|] eqn:OPCODE; try by inv NORMAL1; inv H; clarify.
+  - (* Icall *)
+    inv H; clarify.
+    exploit find_function_translated; eauto.
+    intro. des.
+    eexists. split.
+    { eapply exec_Icall; eauto.
+      eapply match_fundef_sig. eauto.
+    }
+    econs. econs; eauto.
+    constructor; eauto.
+    eapply match_identical_frames_intro; eauto.
+  - (* Itailcall *)
+    inv H; clarify.
+    exploit find_function_translated; eauto.
+    intro. des.
+    eexists. split.
+    { eapply exec_Itailcall; eauto.
+      eapply match_fundef_sig. eauto.
+    }
+    econs. econs; eauto.
+  - (* Ireturn *)
+    inv H; clarify.
+    eexists. split.
+    { eapply exec_Ireturn; eauto. }
+    econs. econs; eauto.
+Qed.
+
+Lemma step_simulation:
+  forall S1 t S2, RTL.step ge S1 t S2 ->
+  forall S1' (MS: match_states S1 S1'),
+  exists S2', RTL.step tge S1' t S2' /\ match_states S2 S2'.
+Proof.
+  intros. inv MS.
+  - eapply step_simulation_transl; eauto.
+  - eapply step_simulation_identical; eauto.
+Qed.
+  
 
 Lemma transf_initial_states:
   forall S1, RTL.initial_state prog S1 ->
@@ -378,13 +407,14 @@ Proof.
     eauto.    
     inv matchtf; auto.
     rewrite <- H3; apply sig_preserved.
-  constructor; auto. constructor.
+  constructor; auto. constructor; auto. constructor.
 Qed.
 
 Lemma transf_final_states:
   forall S1 S2 r, match_states S1 S2 -> RTL.final_state S1 r -> RTL.final_state S2 r.
 Proof.
-  intros. inv H0. inv H. inv STACKS. constructor.
+  intros. inv H0. inv H; inv MSTATE.
+  inv STACKS. constructor.
 Qed.
 
 Theorem transf_program_correct:
