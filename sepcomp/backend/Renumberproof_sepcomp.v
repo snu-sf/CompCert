@@ -405,8 +405,7 @@ Qed.
 Lemma transf_final_states:
   forall S1 S2 r, match_states S1 S2 -> RTL.final_state S1 r -> RTL.final_state S2 r.
 Proof.
-  intros. inv H0. inv H; inv MSTATE.
-  inv STACKS. constructor.
+  intros. inv H0. inv H; inv MSTATE. inv STACKS. constructor.
 Qed.
 
 Theorem transf_program_correct:

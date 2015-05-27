@@ -373,7 +373,7 @@ Qed.
 Inductive match_fundef prog: forall (fd fd':fundef), Prop :=
 | match_fundef_transl fd fd' sprog
     (SPROG: program_linkeq Language_RTL sprog prog)
-    (FD: transf_fundef (romem_for_program sprog) fd = OK fd'):
+    (FUN: transf_fundef (romem_for_program sprog) fd = OK fd'):
     match_fundef prog fd fd'
 | match_fundef_identical fd:
     match_fundef prog fd fd.
@@ -495,11 +495,11 @@ Lemma find_function_translated:
               match_fundef prog fd tfd.
 Proof.
   intros. destruct ros as [r|id]; simpl in *.
-- assert (LD: Val.lessdef rs#r trs#r) by eauto with na. inv LD.
-  apply functions_translated; auto.
-  rewrite <- H2 in H; discriminate.
-- rewrite symbols_preserved. destruct (Genv.find_symbol ge id); try discriminate.
-  apply function_ptr_translated; auto.
+  - assert (LD: Val.lessdef rs#r trs#r) by eauto with na. inv LD.
+    apply functions_translated; auto.
+    rewrite <- H2 in H; discriminate.
+  - rewrite symbols_preserved. destruct (Genv.find_symbol ge id); try discriminate.
+    apply function_ptr_translated; auto.
 Qed.
 
 Lemma find_function_translated_identical:
@@ -550,7 +550,7 @@ Inductive match_transl_states: state -> state -> Prop :=
   | match_transl_call_states:
       forall s f args m ts tf targs tm
         (STACKS: list_forall2 match_stackframes s ts)
-        (FUN: match_fundef prog f tf)
+        (MFUN: match_fundef prog f tf)
         (ARGS: Val.lessdef_list args targs)
         (MEM: Mem.extends m tm),
       match_transl_states (Callstate s f args m)
@@ -1028,9 +1028,9 @@ Ltac UseTransfer :=
   eapply magree_extends; eauto. apply nlive_all.
 
 - (* internal function *)
-  inv FUN.
+  inv MFUN.
   (* transl *)
-  monadInv FD. generalize EQ. unfold transf_function. intros EQ'.
+  monadInv FUN. generalize EQ. unfold transf_function. intros EQ'.
   destruct (analyze (vanalyze (romem_for_program sprog) f) f) as [an|] eqn:AN; inv EQ'.
   exploit Mem.alloc_extends; eauto. apply Zle_refl. apply Zle_refl.
   intros (tm' & A & B). 
@@ -1050,9 +1050,9 @@ Ltac UseTransfer :=
 
 - (* external function *)
   exploit external_call_mem_extends; eauto.
-  intros (res' & tm' & A & B & C & D & E).
+  intros (res' & tm' & A & B & C & D & E). 
   assert (tf = External ef); subst.
-    inv FUN; auto. inv FD. auto.
+    inv MFUN; auto. inv FUN. auto.
   econstructor; split.
   econstructor; eauto.
   eapply external_call_symbols_preserved; eauto. 
@@ -1172,8 +1172,7 @@ Lemma transf_final_states:
   forall st1 st2 r, 
   match_states st1 st2 -> final_state st1 r -> final_state st2 r.
 Proof.
-  intros. inv H0. inv H; inv MSTATE.
-  inv STACKS. inv RES. constructor. 
+  intros. inv H0. inv H; inv MSTATE. inv STACKS. inv RES. constructor. 
 Qed.
 
 (** * Semantic preservation *)
