@@ -186,7 +186,7 @@ Proof.
   unfold reach; intros. econstructor; eauto. 
   unfold successors_map. rewrite PTree.gmap1. rewrite H. auto. 
 Qed.
- 
+  
 Inductive match_frames: RTL.stackframe -> RTL.stackframe -> Prop :=
   | match_transl_frames_intro: forall res f sp pc rs
         (REACH: reach f pc),
