@@ -50,15 +50,6 @@ Require Import sflib.
 
 Definition locset := block -> Z -> Prop.
 
-Inductive all_locset : locset :=
-| all_locset_intro: forall b z, all_locset b z
-.
-
-Lemma all_locset_all: forall b ofs, all_locset b ofs.
-Proof.
-  intros. constructor.
-Qed.
-
 Record magree (m1 m2: mem) (P: locset) : Prop := mk_magree {
   ma_perm:
     forall b ofs k p,
@@ -389,15 +380,12 @@ Qed.
 (** * Basic properties of the translation *)
 
 Inductive match_fundef prog: forall (fd fd':fundef), Prop :=
-| match_fundef_transl
-    fd fd' sprog
+| match_fundef_transl fd fd' sprog
     (SPROG: program_linkeq Language_RTL sprog prog)
     (FD: transf_fundef (romem_for_program sprog) fd = OK fd'):
     match_fundef prog fd fd'
-| match_fundef_identical
-    fd:
-    match_fundef prog fd fd
-.
+| match_fundef_identical fd:
+    match_fundef prog fd fd.
 
 Section PRESERVATION.
 
@@ -427,7 +415,7 @@ Proof (find_var_info_transf_partial' _ _ TRANSF).
 Lemma functions_translated:
   forall (v: val) (f: RTL.fundef),
   Genv.find_funct ge v = Some f ->
-  exists tf, Genv.find_funct tge v = Some tf /\
+  exists tf, Genv.find_funct tge v = Some tf /\ 
              match_fundef prog f tf.
 Proof.
   intros. exploit (find_funct_transf_partial' _ _ TRANSF); eauto. simpl in *.
@@ -442,7 +430,7 @@ Qed.
 Lemma function_ptr_translated:
   forall (b: block) (f: RTL.fundef),
   Genv.find_funct_ptr ge b = Some f ->
-  exists tf, Genv.find_funct_ptr tge b = Some tf /\
+  exists tf, Genv.find_funct_ptr tge b = Some tf /\ 
              match_fundef prog f tf.
 Proof.
   intros. exploit (find_funct_ptr_transf_partial' _ _ TRANSF); eauto. simpl in *.
@@ -463,8 +451,7 @@ Proof.
 Qed.
 
 Lemma match_fundef_sig:
-  forall f1 f2 sprog (MATCHFD: match_fundef sprog f1 f2),
-    funsig f2 = funsig f1.
+  forall f1 f2 sprog (MATCHFD: match_fundef sprog f1 f2), funsig f2 = funsig f1.
 Proof.
   intros. inv MATCHFD; auto.
   eapply sig_function_translated; eauto.
@@ -513,7 +500,7 @@ Lemma find_function_translated:
   forall ros rs fd trs ne,
   find_function ge ros rs = Some fd ->
   eagree rs trs (add_ros_need_all ros ne) ->
-  exists tfd, find_function tge ros trs = Some tfd /\
+  exists tfd, find_function tge ros trs = Some tfd /\ 
               match_fundef prog fd tfd.
 Proof.
   intros. destruct ros as [r|id]; simpl in *.
@@ -528,7 +515,7 @@ Lemma find_function_translated_regset_lessdef:
   forall ros rs fd trs,
   find_function ge ros rs = Some fd ->
   regset_lessdef rs trs ->
-  exists tfd, find_function tge ros trs = Some tfd /\
+  exists tfd, find_function tge ros trs = Some tfd /\ 
               match_fundef prog fd tfd.
 Proof.
   intros. destruct ros as [r|id]; simpl in *.
@@ -538,7 +525,6 @@ Proof.
 - rewrite symbols_preserved. destruct (Genv.find_symbol ge id); try discriminate.
   apply function_ptr_translated; auto.
 Qed.
-
 
 (** * Semantic invariant *)
 
@@ -557,8 +543,7 @@ Inductive match_stackframes: stackframe -> stackframe -> Prop :=
   | match_identical_stackframes_intro:
       forall res f sp pc e te
         (ENV: regset_lessdef e te),
-        match_stackframes (Stackframe res f (Vptr sp Int.zero) pc e) (Stackframe res f (Vptr sp Int.zero) pc te)
-.
+        match_stackframes (Stackframe res f (Vptr sp Int.zero) pc e) (Stackframe res f (Vptr sp Int.zero) pc te).
 
 Inductive match_transl_states: state -> state -> Prop :=
   | match_transl_regular_states:
@@ -630,8 +615,8 @@ Lemma match_succ_states:
                (State ts tf (Vptr sp Int.zero) pc' te tm).
 Proof.
   intros. exploit analyze_successors; eauto. rewrite ANPC; simpl. intros [A B]. 
-  econstructor; eauto.
-  econstructor; eauto.
+  econstructor; eauto. 
+  econstructor; eauto. 
   eapply eagree_ge; eauto. 
   eapply magree_monotone; eauto. intros; apply B; auto.  
 Qed.
@@ -847,9 +832,7 @@ Ltac UseTransfer :=
   TransfInstr; UseTransfer.
   exploit find_function_translated; eauto 2 with na. intros (tfd & A & MATCHFD).
   econstructor; split.
-  eapply exec_Icall; eauto.
-  inv MATCHFD; auto.
-  eapply sig_function_translated; eauto.
+  eapply exec_Icall; eauto. inv MATCHFD; auto. eapply sig_function_translated; eauto.
   constructor.
   econstructor. eauto. 
   constructor; auto. econstructor; try apply FUN; eauto. 
@@ -866,9 +849,7 @@ Ltac UseTransfer :=
   intros; eapply nlive_dead_stack; eauto. 
   intros (tm' & C & D). 
   econstructor; split.
-  eapply exec_Itailcall; eauto.
-  inv MATCHFD; auto.
-  eapply sig_function_translated; eauto. 
+  eapply exec_Itailcall; eauto. inv MATCHFD; auto. eapply sig_function_translated; eauto. 
   erewrite stacksize_translated by eauto. eexact C.
   constructor.
   econstructor; eauto 2 with na. eapply magree_extends; eauto. apply nlive_all.
@@ -1049,7 +1030,7 @@ Ltac UseTransfer :=
   intros (tm' & A & B). 
   econstructor; split.
   eapply exec_Ireturn; eauto. 
-  erewrite stacksize_translated by eauto. eexact A.
+  erewrite stacksize_translated by eauto. eexact A. 
   constructor.
   constructor; auto.
   destruct or; simpl; eauto 2 with na.
@@ -1066,7 +1047,7 @@ Ltac UseTransfer :=
   econstructor; simpl; eauto. 
   simpl. constructor. econstructor; eauto. 
   apply eagree_init_regs; auto. 
-  apply mextends_agree; auto.
+  apply mextends_agree; auto. 
   (* identical *)
   exploit Mem.alloc_extends; eauto. apply Zle_refl. apply Zle_refl.
   intros (tm' & A & B). 
@@ -1078,7 +1059,7 @@ Ltac UseTransfer :=
 
 - (* external function *)
   exploit external_call_mem_extends; eauto.
-  intros (res' & tm' & A & B & C & D & E).
+  intros (res' & tm' & A & B & C & D & E). 
   inv FUN.
   (* transl *)
   simpl in FD. inv FD.
@@ -1095,14 +1076,14 @@ Ltac UseTransfer :=
   exact symbols_preserved. exact varinfo_preserved.
   constructor.
   econstructor; eauto. 
-  
+
 - (* return *)
-  inv STACKS. inv H1.
+  inv STACKS. inv H1. 
   (* transl *)
   econstructor; split.
   constructor.
-  constructor.
-  econstructor; eauto. apply mextends_agree; auto.
+  constructor. 
+  econstructor; eauto. apply mextends_agree; auto. 
   (* identical *)
   econstructor; split.
   constructor.

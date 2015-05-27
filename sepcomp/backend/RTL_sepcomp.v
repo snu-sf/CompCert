@@ -100,7 +100,6 @@ Proof.
     + apply regset_lessdef_set_reg; auto.
 Qed.
 
-
 Definition is_normal (s:state): bool :=
   match s with
     | State _ f _ pc _ _ =>
@@ -253,21 +252,18 @@ Lemma is_normal_extends
       (MEM1: Mem.extends m1 tm1):
   exists trs2 tm2,
     <<TSTEP: step tge (State ts f sp pc1 trs1 tm1) tr (State ts f sp pc2 trs2 tm2)>> /\
-    <<UNCHANGED: Mem.unchanged_on (loc_out_of_bounds m1) tm1 tm2>> /\
     <<REGSET2: regset_lessdef rs2 trs2>> /\
     <<MEM2: Mem.extends m2 tm2>>.
 Proof.
   simpl in *. destruct (fn_code f) ! pc1 as [[]|] eqn:X; clarify; inv STEP; clarify.
   - eexists. eexists. splits; eauto.
-    + apply exec_Inop; eauto.
-    + apply Mem.unchanged_on_refl.
+    apply exec_Inop; eauto.
   - exploit eval_operation_lessdef; try apply H10; eauto.
     { apply regset_lessdef_val_list_lessdef. eauto. }
     intro. des.
     eexists. eexists. splits; eauto.
     + eapply exec_Iop; eauto.
       erewrite eval_operation_preserved; eauto.
-    + apply Mem.unchanged_on_refl.
     + apply regset_lessdef_set_reg; auto.
   - exploit eval_addressing_lessdef; try apply H10; eauto.
     { apply regset_lessdef_val_list_lessdef. eauto. }
@@ -277,7 +273,6 @@ Proof.
     eexists. eexists. splits; eauto.
     + eapply exec_Iload; eauto.
       erewrite eval_addressing_preserved; eauto.
-    + apply Mem.unchanged_on_refl.
     + apply regset_lessdef_set_reg; auto.
   - exploit eval_addressing_lessdef; try apply H10; eauto.
     { apply regset_lessdef_val_list_lessdef. eauto. }
@@ -287,13 +282,6 @@ Proof.
     eexists. eexists. splits; eauto.
     + eapply exec_Istore; eauto.
       erewrite eval_addressing_preserved; eauto.
-    + destruct v2; inv H1. eapply Mem.store_unchanged_on; eauto. ii.
-      inv H0; [|inv H11]. simpl in *.
-      exploit Mem.store_valid_access_3; try apply H11; eauto. intros VA1.
-      exploit Mem.store_valid_access_1; try apply H11; eauto. intros VA2.
-      destruct VA1 as [PERM1 _], VA2 as [PERM2 _].
-      apply H3; eauto.
-      apply Mem.perm_cur_max. eapply Mem.perm_implies; [|apply perm_any_N]. apply PERM1. xomega.
   - exploit external_call_mem_extends; eauto.
     { apply regset_lessdef_val_list_lessdef. eauto. }
     intro. des. eexists. eexists. splits; try apply H1; eauto.
@@ -304,10 +292,8 @@ Proof.
     { apply regset_lessdef_val_list_lessdef. eauto. }
     intro.
     eexists. eexists. splits; eauto.
-    + eapply exec_Icond; eauto.
-    + apply Mem.unchanged_on_refl.
+    eapply exec_Icond; eauto.
   - eexists. eexists. splits; eauto.
-    + eapply exec_Ijumptable; eauto.
-      generalize (REGSET1 r). rewrite H10. intro X. inv X. auto.
-    + apply Mem.unchanged_on_refl.
+    eapply exec_Ijumptable; eauto.
+    generalize (REGSET1 r). rewrite H10. intro X. inv X. auto.
 Qed.

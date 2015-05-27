@@ -29,14 +29,11 @@ Require Import RTL_sepcomp.
 Require Import sflib.
 
 Inductive match_fundef: forall (fd fd': fundef), Prop :=
-| match_fundef_transl
-    fd fd'
+| match_fundef_transl fd fd'
     (FD: transf_fundef fd = fd'):
     match_fundef fd fd'
-| match_fundef_identical
-    fd:
-    match_fundef fd fd
-.
+| match_fundef_identical fd:
+    match_fundef fd fd.
 
 Section PRESERVATION.
 
@@ -110,8 +107,7 @@ Proof.
 Qed.
 
 Lemma match_fundef_sig:
-  forall f1 f2 (MATCHFD: match_fundef f1 f2),
-    funsig f2 = funsig f1.
+  forall f1 f2 (MATCHFD: match_fundef f1 f2), funsig f2 = funsig f1.
 Proof.
   intros. inv MATCHFD; auto.
   eapply sig_preserved.
@@ -190,7 +186,7 @@ Proof.
   unfold reach; intros. econstructor; eauto. 
   unfold successors_map. rewrite PTree.gmap1. rewrite H. auto. 
 Qed.
-
+ 
 Inductive match_frames: RTL.stackframe -> RTL.stackframe -> Prop :=
   | match_transl_frames_intro: forall res f sp pc rs
         (REACH: reach f pc),
@@ -198,8 +194,7 @@ Inductive match_frames: RTL.stackframe -> RTL.stackframe -> Prop :=
                    (Stackframe res (transf_function f) sp (renum_pc (pnum f) pc) rs)
   | match_identical_frames_intro : forall res f sp pc rs,
       match_frames (Stackframe res f sp pc rs)
-                   (Stackframe res f sp pc rs)
-.
+                   (Stackframe res f sp pc rs).
 
 Inductive match_transl_states: RTL.state -> RTL.state -> Prop :=
 | match_transl_regular_states: forall stk f sp pc rs m stk'
@@ -215,15 +210,13 @@ Inductive match_transl_states: RTL.state -> RTL.state -> Prop :=
 | match_transl_returnstates: forall stk v m stk'
         (STACKS: list_forall2 match_frames stk stk'),
       match_transl_states (Returnstate stk v m)
-                   (Returnstate stk' v m)
-.
+                   (Returnstate stk' v m).
 
 Inductive match_identical_states: RTL.state -> RTL.state -> Prop :=
 | match_identical_regular_states: forall stk f sp pc rs m stk'
         (STACKS: list_forall2 match_frames stk stk'),
       match_identical_states (State stk f sp pc rs m)
-                   (State stk' f sp pc rs m)
-.
+                   (State stk' f sp pc rs m).
 
 Inductive match_states: RTL.state -> RTL.state -> Prop :=
 | match_states_transl: forall st1 st2
@@ -231,8 +224,7 @@ Inductive match_states: RTL.state -> RTL.state -> Prop :=
                          match_states st1 st2
 | match_states_identical: forall st1 st2
                               (MSTATE: match_identical_states st1 st2),
-                         match_states st1 st2
-.
+                         match_states st1 st2.
 
 Lemma step_simulation_transl:
   forall S1 t S2, RTL.step ge S1 t S2 ->
@@ -241,12 +233,12 @@ Lemma step_simulation_transl:
 Proof.
   induction 1; intros S1' MS; inv MS; try TR_AT.
 (* nop *)
-  econstructor; split. eapply exec_Inop; eauto.
-  constructor; auto. constructor; eauto. eapply reach_succ; eauto. simpl; auto.
+  econstructor; split. eapply exec_Inop; eauto. 
+  constructor; auto. constructor; eauto. eapply reach_succ; eauto. simpl; auto. 
 (* op *)
   econstructor; split.
   eapply exec_Iop; eauto.
-  instantiate (1 := v). rewrite <- H0. apply eval_operation_preserved. exact symbols_preserved.
+  instantiate (1 := v). rewrite <- H0. apply eval_operation_preserved. exact symbols_preserved. 
   constructor; auto. constructor; auto. eapply reach_succ; eauto. simpl; auto.
 (* load *)
   econstructor; split.
@@ -275,7 +267,7 @@ Proof.
   eapply exec_Itailcall with (fd := tfd); eauto.
   inv matchtfd; auto.
     apply sig_preserved.
-  constructor.
+  constructor. auto.
   constructor; auto.
 (* builtin *)
   econstructor; split.
@@ -296,7 +288,7 @@ Proof.
   constructor; auto. constructor; auto. eapply reach_succ; eauto. simpl. eapply list_nth_z_in; eauto.
 (* return *)
   econstructor; split.
-  eapply exec_Ireturn; eauto.
+  eapply exec_Ireturn; eauto. 
   constructor.
   constructor; auto.
 (* internal function *)
@@ -324,7 +316,7 @@ Proof.
 (* return *)
   inv STACKS. inv H1.
   econstructor; split. 
-  eapply exec_return; eauto.
+  eapply exec_return; eauto. 
   constructor. constructor; auto.
 (* return2 *)
   econstructor; split. 

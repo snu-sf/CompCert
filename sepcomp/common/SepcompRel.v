@@ -1052,8 +1052,6 @@ End INITIAL.
 
 End TRANSF_PROGRAM.
 
-(* test *)
-
 Section TRANSF_PROGRAM'.
 
 Variable (sigT:Sig).
