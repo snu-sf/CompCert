@@ -293,21 +293,17 @@ Proof.
   constructor; auto.
 (* internal function *)
   inv FD.
+  (* call translated *)
   simpl. econstructor; split.
   eapply exec_function_internal; eauto. 
   constructor. constructor; auto. unfold reach. constructor.
-(* internal function2 *)
+  (* call identical *)
   simpl. econstructor; split.
   eapply exec_function_internal; eauto.
   apply match_states_identical. constructor; auto.
 (* external function *)
-  inv FD.
-  econstructor; split.
-  eapply exec_function_external; eauto.
-    eapply external_call_symbols_preserved; eauto.
-    exact symbols_preserved. exact varinfo_preserved.
-  constructor. constructor; auto.
-(* external function2 *)
+  assert (f' = AST.External ef); subst.
+  { inv FD; auto. }
   econstructor; split.
   eapply exec_function_external; eauto.
     eapply external_call_symbols_preserved; eauto.
@@ -315,10 +311,11 @@ Proof.
   constructor. constructor; auto.
 (* return *)
   inv STACKS. inv H1.
+  (* transl *)
   econstructor; split. 
   eapply exec_return; eauto. 
   constructor. constructor; auto.
-(* return2 *)
+  (* identical *)
   econstructor; split. 
   eapply exec_return; eauto.
   apply match_states_identical.
