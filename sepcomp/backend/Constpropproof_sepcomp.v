@@ -433,7 +433,7 @@ Lemma match_states_succ:
   match_transl_states O (State s f sp pc rs m)
                  (State s' (transf_function (romem_for_program sprog) f) sp pc rs' m').
 Proof.
-  intros. inv H0. specialize (Hsound _ (program_linkeq_romem_le H)). inv Hsound.
+  intros. inv H0. specialize (Hsound _ (program_linkeq_romem_le H)). inv Hsound. 
   apply match_states_intro with (bc := bc) (ae := ae); auto. 
   constructor.
 Qed.
