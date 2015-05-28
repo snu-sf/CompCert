@@ -150,7 +150,7 @@ Proof.
   apply set_reg_lessdef; auto.
 Qed.
 
-Lemma find_function_translated_identical:
+Lemma find_function_translated:
   forall ros rs fd trs,
   find_function ge ros rs = Some fd ->
   regset_lessdef rs trs ->
@@ -726,7 +726,7 @@ Proof.
   destruct (fn_code f) ! pc as [[]|] eqn:OPCODE; try by inv NORMAL1; inv H; clarify.
   - (* Icall *)
     inv H; clarify.
-    exploit find_function_translated_identical; eauto.
+    exploit find_function_translated; eauto.
     intro. des.
     eexists. eexists. split.
     { eapply exec_Icall; eauto.
@@ -738,7 +738,7 @@ Proof.
     + apply regset_lessdef_val_lessdef_list. auto.
   - (* Itailcall *)
     inv H; clarify.
-    exploit find_function_translated_identical; eauto.
+    exploit find_function_translated; eauto.
     intro. des.
     assert (X: { m1' | Mem.free m' stk 0 (fn_stacksize f) = Some m1'}).
     apply Mem.range_perm_free. red; intros.
