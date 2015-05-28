@@ -520,7 +520,7 @@ Qed.
 (** * Semantic invariant *)
 
 Inductive match_stackframes: stackframe -> stackframe -> Prop :=
-  | match_transl_stackframes_intro:
+  | match_stackframes_transl:
       forall res f sp pc e tf te an sprog
         (SPROG: program_linkeq Language_RTL sprog prog)
         (FUN: transf_function (romem_for_program sprog) f = OK tf)
@@ -531,7 +531,7 @@ Inductive match_stackframes: stackframe -> stackframe -> Prop :=
                      (fst (transfer f (vanalyze (romem_for_program sprog) f) pc an!!pc))),
       match_stackframes (Stackframe res f (Vptr sp Int.zero) pc e)
                         (Stackframe res tf (Vptr sp Int.zero) pc te)
-  | match_identical_stackframes_intro:
+  | match_stackframes_identical:
       forall res f sp pc e te
         (ENV: regset_lessdef e te),
         match_stackframes (Stackframe res f (Vptr sp Int.zero) pc e) (Stackframe res f (Vptr sp Int.zero) pc te).
@@ -1110,7 +1110,7 @@ Proof.
     }
     econs. econs; eauto.
     + constructor; auto.
-      eapply match_identical_stackframes_intro; eauto.
+      eapply match_stackframes_identical; eauto.
     + apply regset_lessdef_val_lessdef_list. auto.
   - (* Itailcall *)
     inv H; clarify.
