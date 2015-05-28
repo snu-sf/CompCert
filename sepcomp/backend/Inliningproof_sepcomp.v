@@ -1573,7 +1573,7 @@ Proof.
     destruct S1; try by inv NORMAL1.
     exploit is_normal_step; eauto. intro. des. subst.
     inv MS.
-    exploit is_normal_steps;
+    exploit is_normal_inject;
       try apply symbols_preserved;
       try apply varinfo_preserved;
       eauto.

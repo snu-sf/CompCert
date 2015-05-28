@@ -65,6 +65,34 @@ Proof.
     + apply regset_inject_set_reg; auto.
 Qed.
 
+Definition regset_lessdef rs trs :=
+  forall r, Val.lessdef rs # r trs # r.
+
+Lemma regset_lessdef_val_lessdef_list rs trs l
+      (INJ: regset_lessdef rs trs):
+  Val.lessdef_list rs ## l trs ## l.
+Proof. induction l; constructor; auto. Qed.
+
+Lemma regset_lessdef_set_reg:
+  forall rs rs' r v v',
+  regset_lessdef rs rs' ->
+  Val.lessdef v v' ->
+  regset_lessdef (rs#r <- v) (rs'#r <- v').
+Proof.
+  ii. rewrite ? Regmap.gsspec. destruct (peq r0 r); auto.
+Qed.
+
+Lemma regset_lessdef_init_regs args args' params
+      (ARGS: Val.lessdef_list args args'):
+  regset_lessdef (init_regs args params) (init_regs args' params).
+Proof.
+  revert args args' ARGS. induction params; simpl; ii.
+  - rewrite ? Regmap.gi. auto.
+  - inv ARGS.
+    + rewrite ? Regmap.gi. auto.
+    + apply regset_lessdef_set_reg; auto.
+Qed.
+
 Definition is_normal (s:state): bool :=
   match s with
     | State _ f _ pc _ _ =>
@@ -93,7 +121,30 @@ Proof.
   - intros. eapply external_call_max_perm; eauto.
 Qed.
 
-Lemma is_normal_steps
+Lemma is_normal_identical
+      ge s f sp pc1 rs1 m1 pc2 rs2 m2 tr
+      tge ts
+      (SYMBOL: forall (s: ident), Genv.find_symbol tge s = Genv.find_symbol ge s)
+      (VARINFO: forall b, Genv.find_var_info tge b = Genv.find_var_info ge b)
+      (NORMAL1: is_normal (State s f sp pc1 rs1 m1))
+      (STEP: step ge (State s f sp pc1 rs1 m1) tr (State s f sp pc2 rs2 m2)):
+    <<TSTEP: step tge (State ts f sp pc1 rs1 m1) tr (State ts f sp pc2 rs2 m2)>>.
+Proof.
+  simpl in *. destruct (fn_code f) ! pc1 as [[]|] eqn:X; clarify; inv STEP; clarify.
+  - apply exec_Inop; eauto.
+  - eapply exec_Iop; eauto.
+    erewrite eval_operation_preserved; eauto.
+  - eapply exec_Iload; eauto.
+    erewrite eval_addressing_preserved; eauto.
+  - eapply exec_Istore; eauto.
+    erewrite eval_addressing_preserved; eauto.
+  - eapply exec_Ibuiltin; eauto.
+    eapply external_call_symbols_preserved; eauto.
+  - eapply exec_Icond; eauto.
+  - eapply exec_Ijumptable; eauto.
+Qed.
+
+Lemma is_normal_inject
       ge s f sp pc1 rs1 m1 pc2 rs2 m2 tr
       tge ts tsp trs1 tm1
       F1
@@ -181,4 +232,61 @@ Proof.
       generalize (REGSET1 r). rewrite H10. intro X. inv X. auto.
     + apply Mem.unchanged_on_refl.
     + apply inject_separated_refl.
+Qed.
+
+Lemma is_normal_extends
+      ge s f sp pc1 rs1 m1 pc2 rs2 m2 tr
+      tge ts trs1 tm1
+      (SYMBOL: forall (s: ident), Genv.find_symbol tge s = Genv.find_symbol ge s)
+      (VARINFO: forall b, Genv.find_var_info tge b = Genv.find_var_info ge b)
+      (NORMAL1: is_normal (State s f sp pc1 rs1 m1))
+      (STEP: step ge (State s f sp pc1 rs1 m1) tr (State s f sp pc2 rs2 m2))
+      (REGSET1: regset_lessdef rs1 trs1)
+      (MEM1: Mem.extends m1 tm1):
+  exists trs2 tm2,
+    <<TSTEP: step tge (State ts f sp pc1 trs1 tm1) tr (State ts f sp pc2 trs2 tm2)>> /\
+    <<REGSET2: regset_lessdef rs2 trs2>> /\
+    <<MEM2: Mem.extends m2 tm2>>.
+Proof.
+  simpl in *. destruct (fn_code f) ! pc1 as [[]|] eqn:X; clarify; inv STEP; clarify.
+  - eexists. eexists. splits; eauto.
+    apply exec_Inop; eauto.
+  - exploit eval_operation_lessdef; try apply H10; eauto.
+    { apply regset_lessdef_val_lessdef_list. eauto. }
+    intro. des.
+    eexists. eexists. splits; eauto.
+    + eapply exec_Iop; eauto.
+      erewrite eval_operation_preserved; eauto.
+    + apply regset_lessdef_set_reg; auto.
+  - exploit eval_addressing_lessdef; try apply H10; eauto.
+    { apply regset_lessdef_val_lessdef_list. eauto. }
+    intro. des.
+    exploit Mem.loadv_extends; eauto.
+    intro. des.
+    eexists. eexists. splits; eauto.
+    + eapply exec_Iload; eauto.
+      erewrite eval_addressing_preserved; eauto.
+    + apply regset_lessdef_set_reg; auto.
+  - exploit eval_addressing_lessdef; try apply H10; eauto.
+    { apply regset_lessdef_val_lessdef_list. eauto. }
+    intro. des.
+    exploit Mem.storev_extends; eauto.
+    intro. des.
+    eexists. eexists. splits; eauto.
+    + eapply exec_Istore; eauto.
+      erewrite eval_addressing_preserved; eauto.
+  - exploit external_call_mem_extends; eauto.
+    { apply regset_lessdef_val_lessdef_list. eauto. }
+    intro. des. eexists. eexists. splits; try apply H1; eauto.
+    + econs; eauto.
+      eapply external_call_symbols_preserved; eauto. 
+    + apply regset_lessdef_set_reg; auto.
+  - exploit eval_condition_lessdef; try apply H10; eauto.
+    { apply regset_lessdef_val_lessdef_list. eauto. }
+    intro.
+    eexists. eexists. splits; eauto.
+    eapply exec_Icond; eauto.
+  - eexists. eexists. splits; eauto.
+    eapply exec_Ijumptable; eauto.
+    generalize (REGSET1 r). rewrite H10. intro X. inv X. auto.
 Qed.
