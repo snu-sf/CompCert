@@ -553,18 +553,18 @@ Proof.
   constructor. econstructor; eauto.
 
 (* call *)
-  exploit find_function_translated; eauto. intro FIND'.
+  exploit find_function_translated; eauto. intro FIND'.  
   inv FIND'. des.
   inv H1.
   (* transl *)
   TransfInstr.
 (* call turned tailcall *)
   assert ({ m'' | Mem.free m' sp0 0 (fn_stacksize (transf_function f)) = Some m''}).
-    apply Mem.range_perm_free. rewrite stacksize_preserved. rewrite H8.
+    apply Mem.range_perm_free. rewrite stacksize_preserved. rewrite H8. 
     red; intros; omegaContradiction.
   destruct X as [m'' FREE].
   left. exists (Callstate s' (transf_fundef fd) (rs'##args) m''); split.
-  eapply exec_Itailcall; eauto. apply sig_preserved.
+  eapply exec_Itailcall; eauto. apply sig_preserved. 
   constructor. constructor. eapply match_stackframes_tail; eauto. apply regset_get_list; auto.
   eapply Mem.free_right_extends; eauto.
   rewrite stacksize_preserved. rewrite H8. intros. omegaContradiction.
@@ -572,8 +572,8 @@ Proof.
 (* call that remains a call *)
   left. exists (Callstate (Stackframe res (transf_function f) (Vptr sp0 Int.zero) pc' rs' :: s')
                           (transf_fundef fd) (rs'##args) m'); split.
-  eapply exec_Icall; eauto. apply sig_preserved.
-  constructor. constructor. constructor; auto. apply regset_get_list; auto. auto.
+  eapply exec_Icall; eauto. apply sig_preserved. 
+  constructor. constructor. constructor; auto. apply regset_get_list; auto. auto. 
   constructor; auto.
     (* identical *)
   TransfInstr.
@@ -679,7 +679,7 @@ Proof.
   left. econstructor; split.
   simpl. eapply exec_function_internal; eauto. rewrite EQ1; eauto.
   rewrite EQ2. rewrite EQ3. constructor. constructor; auto.
-  apply regset_init_regs. auto. 
+  apply regset_init_regs. auto.
   (* identical *)
   intros [m'1 [ALLOC EXT]].
   assert (fn_stacksize (transf_function f) = fn_stacksize f /\
@@ -690,7 +690,7 @@ Proof.
   left. econstructor; split.
   simpl. eapply exec_function_internal; eauto. apply match_states_identical. constructor; auto.
   apply regset_init_regs. auto. 
-  
+
 (* external call *)
   assert (tf = External ef); subst.
   { inv H8; auto. }
@@ -707,7 +707,7 @@ Proof.
 (* synchronous return in both programs *)
   left. econstructor; split. 
   apply exec_return. 
-  apply match_states_identical. constructor; auto. apply regset_set; auto.
+  apply match_states_identical. constructor; auto. apply regset_set; auto. 
 (* identical *)
   left. econstructor; split.
   apply exec_return.
