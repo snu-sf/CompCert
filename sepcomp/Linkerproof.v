@@ -18,6 +18,7 @@ Require Renumberproof_sepcomp.
 Require Constpropproof_sepcomp.
 Require CSEproof_sepcomp.
 Require Deadcodeproof_sepcomp.
+Require Import sflib.
 
 Set Implicit Arguments.
 
@@ -234,10 +235,180 @@ Ltac simplify :=
          end;
   subst; auto.
 
+Definition transf_rtl_program_to_asm (f: RTL.program) : res Asm.program :=
+   OK f
+   (* @@ print (print_RTL 0) *)
+  (*  @@ time "Tail calls" Tailcall.transf_program *)
+  (*  @@ print (print_RTL 1) *)
+  (* @@@ time "Inlining" Inlining.transf_program *)
+  (*  @@ print (print_RTL 2) *)
+  (*  @@ time "Renumbering" Renumber.transf_program *)
+  (*  @@ print (print_RTL 3) *)
+  (*  @@ time "Constant propagation" Constprop.transf_program *)
+  (*  @@ print (print_RTL 4) *)
+  (*  @@ time "Renumbering" Renumber.transf_program *)
+  (*  @@ print (print_RTL 5) *)
+  (* @@@ time "CSE" CSE.transf_program *)
+  (*  @@ print (print_RTL 6) *)
+  (* @@@ time "Dead code" Deadcode.transf_program *)
+   @@ print (print_RTL 0)
+   @@@ time "Register allocation" Allocation.transf_program
+   @@ print print_LTL
+   @@ time "Branch tunneling" Tunneling.tunnel_program
+  @@@ Linearize.transf_program
+   @@ time "Label cleanup" CleanupLabels.transf_program
+  @@@ time "Mach generation" Stacking.transf_program
+   @@ print print_Mach
+  @@@ time "Asm generation" Asmgen.transf_program.
+
+Definition transf_cminor_program_to_rtl (p: Cminor.program) : res RTL.program :=
+   OK p
+   @@ print print_Cminor
+  @@@ time "Instruction selection" Selection.sel_program
+  @@@ time "RTL generation" RTLgen.transl_program.
+(*  @@@ transf_rtl_program'. *)
+
+Definition transf_clight_program_to_rtl (p: Clight.program) : res RTL.program :=
+  OK p 
+   @@ print print_Clight
+  @@@ time "Simplification of locals" SimplLocals.transf_program
+  @@@ time "C#minor generation" Cshmgen.transl_program
+  @@@ time "Cminor generation" Cminorgen.transl_program
+  @@@ transf_cminor_program_to_rtl.
+
+Definition transf_c_program_to_rtl (p: Csyntax.program) : res RTL.program :=
+  OK p 
+  @@@ time "Clight generation" SimplExpr.transl_program
+  @@@ transf_clight_program_to_rtl.
+
+Inductive rtl_optimized: forall (rtl: RTL.program) (ortl: RTL.program), Prop :=
+| rtlopt_none : forall r, rtl_optimized r r
+| rtlopt_tailcall:
+    forall r1 r2
+           (ROPT: rtl_optimized r1 r2),
+      rtl_optimized r1 (Tailcall.transf_program r2)
+| rtlopt_inlining:
+    forall r1 r2 r2'
+           (ROPT: rtl_optimized r1 r2)
+           (TR_OK: Inlining.transf_program r2 = OK r2'),
+      rtl_optimized r1 r2'
+| rtlopt_renumber:
+    forall r1 r2
+           (ROPT: rtl_optimized r1 r2),
+      rtl_optimized r1 (Renumber.transf_program r2)
+| rtlopt_constprop:
+    forall r1 r2
+           (ROPT: rtl_optimized r1 r2),
+      rtl_optimized r1 (Constprop.transf_program r2)
+| rtlopt_cse:
+    forall r1 r2 r2'
+           (ROPT: rtl_optimized r1 r2)
+           (TR_OK: CSE.transf_program r2 = OK r2'),
+      rtl_optimized r1 r2'
+| rtlopt_deadcode:
+    forall r1 r2 r2'
+           (ROPT: rtl_optimized r1 r2)
+           (TR_OK: Deadcode.transf_program r2 = OK r2'),
+      rtl_optimized r1 r2'.
+
+Definition compiled (c: Csyntax.program) (a:Asm.program) : Prop :=
+  exists rtl ortl,
+    transf_c_program_to_rtl c = OK rtl
+    /\ rtl_optimized rtl ortl
+    /\ transf_rtl_program_to_asm ortl = OK a.
+
+Lemma exists_defer:
+  forall X (P:Prop) (Q:X->Prop), (exists x, P /\ (Q x)) <-> P /\ (exists x, Q x).
+Proof.
+  intros.
+  split.
+  - intros. des.
+    split; auto. exists x; auto.
+  - intros. des.
+    exists x. auto.
+Qed.
+
+Lemma Tree_Forall2_split2:
+  forall (A B C : Type) (pred1 : A -> B -> Prop) (predb : B -> B -> Prop)
+         (pred2 : B -> C -> Prop) (treeA : Tree.t A) (treeC : Tree.t C),
+    Tree.Forall2
+      (fun (a : A) (c : C) => exists (b1 b2:B), pred1 a b1 /\ (predb b1 b2 /\ pred2 b2 c)) treeA treeC <->
+    (exists (treeB1 treeB2: Tree.t B),
+       Tree.Forall2 pred1 treeA treeB1 /\ Tree.Forall2 predb treeB1 treeB2 /\ Tree.Forall2 pred2 treeB2 treeC).
+Proof.
+  intros.
+  split; intros HP.
+  - exploit Tree.Forall2_split. intros. des. clear H0.
+    exploit H.
+    + eapply Tree.Forall2_compat; eauto.
+      simpl. intros.
+      split; intros He; des.
+      * exists b0. apply exists_defer. split; eauto. eapply He0.
+      * exists b1. split; auto. exists b2; auto.
+    + intros. des.
+      exists treeB.
+      exploit Tree.Forall2_split. intros. des. clear H3.
+      apply exists_defer. split;auto.
+  - 
+               
+    + intros.
+    assert (Tree.Forall2_compat. rewrite <- exists_defer in HP.
+  specialize (Tree.Forall2_split pred1 (fun b c => exists b2:B, predb b b2 /\ pred2 b2 c) treeA treeC).
+  intros. des.
+  exploit 
+
+  rewrite <- exists_defer with (P:=pred1 a b) in H. rewrite -> H.
+  split.
+  {
+    intros. des.
+    specialize (Tree.Forall2_split predb pred2 treeB treeC). intros.
+    exists treeB. split;auto. apply H3;auto.
+  }
+  {
+    intros. des.
+    specialize (Tree.Forall2_split predb pred2 treeB1 treeC). intros.
+    exists treeB1. split;auto. apply H4. eexists; eauto.
+  }
+Qed.
+
+
+Lemma Tree_Forall2_split2':
+  forall (A B C : Type) (pred1 : A -> B -> Prop) (predb : B -> B -> Prop)
+         (pred2 : B -> C -> Prop) (treeA : Tree.t A) (treeC : Tree.t C),
+    Tree.Forall2
+      (fun (a : A) (c : C) => exists b1:B, pred1 a b1 /\ (exists b2:B, predb b1 b2 /\ pred2 b2 c)) treeA treeC <->
+    (exists (treeB1: Tree.t B),
+       Tree.Forall2 pred1 treeA treeB1 /\ exists treeB2:Tree.t B, Tree.Forall2 predb treeB1 treeB2 /\ Tree.Forall2 pred2 treeB2 treeC).
+Proof.
+  intros.
+  specialize (Tree.Forall2_split pred1 (fun b c => exists b2:B, predb b b2 /\ pred2 b2 c) treeA treeC).
+  intros. rewrite -> H.
+  split.
+  {
+    intros. des.
+    specialize (Tree.Forall2_split predb pred2 treeB treeC). intros.
+    exists treeB. split;auto. apply H3;auto.
+  }
+  {
+    intros. des.
+    specialize (Tree.Forall2_split predb pred2 treeB1 treeC). intros.
+    exists treeB1. split;auto. apply H4. eexists; eauto.
+  }
+Qed.
+
+Lemma Tree_Forall2_split2:
+  forall (A B C : Type) (pred1 : A -> B -> Prop) (predb : B -> B -> Prop)
+         (pred2 : B -> C -> Prop) (treeA : Tree.t A) (treeC : Tree.t C),
+    Tree.Forall2
+      (fun (a : A) (c : C) => exists (b1 b2:B), pred1 a b1 /\ (predb b1 b2 /\ pred2 b2 c)) treeA treeC <->
+    (exists (treeB1 treeB2: Tree.t B),
+       Tree.Forall2 pred1 treeA treeB1 /\ Tree.Forall2 predb treeB1 treeB2 /\ Tree.Forall2 pred2 treeB2 treeC).
+Proof. admit. Qed.
+
 Theorem linker_correct
         ctree asmtree cprog
         (CLINK: Tree.reduce (link_program Language_C) ctree = Some cprog)
-        (TRANSF: Tree.Forall2 (fun c a => transf_c_program c = OK a) ctree asmtree):
+        (TRANSF: Tree.Forall2 (fun c a => compiled c a) ctree asmtree):
   exists (asmprog:Asm.program)
     (_:forward_simulation (Cstrategy.semantics cprog) (Asm.semantics asmprog)),
     Tree.reduce (link_program Language_Asm) asmtree = Some asmprog.
@@ -245,6 +416,13 @@ Proof.
   repeat intro.
 
   (* C *)
+  unfold compiled in TRANSF.
+  eapply Tree_Forall2_split2 in TRANSF.
+  
+  unfold transf_c_program_to_rtl in TRANSF.
+  unfold transf_rtl_program_to_asm in TRANSF. clarify.
+  eapply Tree_Forall2_split2 in TRANSF.
+  
   unfold transf_c_program in TRANSF. clarify.
 
   eapply Tree.Forall2_implies in T; [|apply SimplExpr_sepcomp_rel].
