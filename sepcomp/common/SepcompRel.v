@@ -491,6 +491,81 @@ Let transf_fundefT (prog:lang.(progT)) (fd:fundefT): res fundefT :=
 Variable p: lang.(progT).
 Variable p': lang.(progT).
 
+Section TRANSF.
+
+Hypothesis TRANSF: transform_partial_program2 (transf_fundefT p) transf_vT p = OK p'.
+
+Lemma transf_partial2_sepcomp_rel':
+  @sepcomp_rel
+    lang lang
+    (fun p f tf => transf_fT p f = OK tf \/ f = tf)
+    (fun p ef tef => transf_efT p ef = OK tef)
+    transf_vT
+    p p'.
+Proof.
+  destruct p as [defs ?], p' as [tdefs ?].
+  unfold transform_partial_program2 in TRANSF. monadInv TRANSF.
+  constructor; auto.
+  revert tdefs EQ. generalize defs at 1 3 as fdefs.
+  induction defs; simpl; intros fdefs tdefs Hdefs.
+  { inv Hdefs. constructor. }
+  destruct a. destruct g.
+  - match goal with
+      | [H: match ?x with OK _ => _ | Error _ => _ end = OK _ |- _] =>
+        destruct x as [tf|] eqn:Hf; [|inv H]
+    end.
+    monadInv Hdefs. constructor; simpl.
+    + split; auto. eexists. split; [reflexivity|].
+      unfold transf_fundefT in Hf. destruct (fundefT.(AtoB) f) as [func|efunc] eqn:Hf'; monadInv Hf.
+      * eapply grel_f. eauto. apply HBAB. left. auto.
+      * eapply grel_ef; eauto. apply HBAB.
+    + apply IHdefs. auto.
+  - match goal with
+      | [H: match ?x with OK _ => _ | Error _ => _ end = OK _ |- _] =>
+        destruct x as [tf|] eqn:Hf; [|inv H]
+    end.
+    monadInv Hdefs. constructor; simpl.
+    + split; auto. eexists. split; [reflexivity|].
+      constructor. auto.
+    + apply IHdefs. auto.
+Qed.
+
+End TRANSF.
+
+Section TRANSF_ID.
+
+Hypothesis TRANSF: p = p'.
+
+Lemma transf_partial2_sepcomp_rel'_identical:
+  @sepcomp_rel
+    lang lang
+    (fun p f tf => transf_fT p f = OK tf \/ f = tf)
+    (fun p ef tef => (fun _ ef => OK ef) p ef = OK tef)
+    (@OK vT)
+    p p'.
+Proof.
+  destruct p as [defs ?], p' as [tdefs ?].
+  unfold transform_partial_program2 in TRANSF. inv TRANSF.
+  constructor; auto.
+  generalize tdefs at 1 as fdefs.
+  revert tdefs.
+  induction tdefs; simpl.
+  { constructor. }
+  destruct a. destruct g.
+  - constructor; simpl.
+    + split; auto. eexists. split; [reflexivity|].
+      unfold transf_fundefT. destruct (fundefT.(AtoB) f) as [func|efunc] eqn:Hf'.
+      * eapply grel_f; eauto.
+      * eapply grel_ef; eauto.
+    + apply IHtdefs.
+  - constructor; simpl.
+    + split; auto. eexists. split; [reflexivity|].
+      constructor. unfold transf_globvar. simpl. destruct v; auto.
+    + apply IHtdefs.
+Qed.
+
+End TRANSF_ID.
+
 Section INITIAL.
 
 Hypothesis Hsepcomp_rel:
@@ -790,6 +865,40 @@ Let transf_fundefT (prog:lang.(progT)) (fd:fundefT): res fundefT :=
 Variable p: lang.(progT).
 Variable p': lang.(progT).
 
+Section TRANSF.
+
+Hypothesis TRANSF: transform_partial_program (transf_fundefT p) p = OK p'.
+
+Lemma transf_partial_sepcomp_rel':
+  @sepcomp_rel
+    lang lang
+    (fun p f tf => transf_fT p f = OK tf \/ f = tf)
+    (fun p ef tef => transf_efT p ef = OK tef)
+    (@OK _)
+    p p'.
+Proof.
+  exploit transf_partial2_sepcomp_rel'; eauto.
+Qed.
+
+End TRANSF.
+
+Section TRANSF_ID.
+
+Hypothesis TRANSF: p = p'.
+
+Lemma transf_partial_sepcomp_rel'_identical:
+  @sepcomp_rel
+    lang lang
+    (fun p f tf => transf_fT p f = OK tf \/ f = tf)
+    (fun p ef tef => (fun _ ef => OK ef) p ef = OK tef)
+    (@OK _)
+    p p'.
+Proof.
+  exploit transf_partial2_sepcomp_rel'_identical; eauto.
+Qed.
+  
+End TRANSF_ID.
+
 Section INITIAL.
 
 Hypothesis Hsepcomp_rel:
@@ -1083,7 +1192,7 @@ Hypothesis TRANSF: transform_program (transf_fundefT p) p = tp.
 Lemma transf_program_sepcomp_rel':
   @sepcomp_rel
     lang lang
-    (fun p f tf => transf_fT p f = tf)
+    (fun p f tf => transf_fT p f = tf \/ f = tf)
     (fun p ef tef => transf_efT p ef = tef)
     (@OK _)
     p tp.
@@ -1097,13 +1206,41 @@ Proof.
     + eexists. split; [reflexivity|].
       destruct a. simpl. destruct g.
       * unfold transf_fundefT. destruct (fundefT.(AtoB) f) as [func|efunc] eqn:Hf'.
-        { eapply grel_f; eauto. apply HBAB. }
+        { eapply grel_f. eauto. apply HBAB. left. auto. }
         { eapply grel_ef; eauto. apply HBAB. }
       * constructor. destruct v. auto.
   - apply IHdefs.
 Qed.
 
 End TRANSF.
+
+Section TRANSF_ID.
+
+Hypothesis TRANSF: p = tp.
+
+Lemma transf_program_sepcomp_rel'_identical:
+  @sepcomp_rel
+    lang lang
+    (fun p f tf => transf_fT p f = tf \/ f = tf)
+    (fun p ef tef => ef = tef)
+    (@OK _)
+    p tp.
+Proof.
+  destruct p as [defs ?], tp as [tdefs ?]. inv TRANSF.
+  constructor; auto. simpl.
+  generalize tdefs at 1 as fdefs.
+  induction tdefs; simpl; intros fdefs; constructor.
+  - split; auto.
+    eexists. split; [reflexivity| ].
+    destruct a. simpl. destruct g.
+    + unfold transf_fundefT. destruct (fundefT.(AtoB) f) as [func|efunc] eqn:Hf'.
+      { eapply grel_f. eauto. eauto. right. auto. }
+      { eapply grel_ef; eauto. }
+    + constructor. destruct v. auto.
+  - apply IHtdefs.
+Qed.
+
+End TRANSF_ID.
 
 Section INITIAL.
 
