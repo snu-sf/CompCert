@@ -444,15 +444,15 @@ Proof.
     + des; subst; [eapply Deadcode_sig|]; eauto.
 Qed.
 
-Inductive match_state_refl: forall (s1 s2:RTL.state), Prop :=
-| match_state_refl_intro: forall s, match_state_refl s s.
+Inductive match_state_refl (s:semantics): forall (st1 st2:state s), Prop :=
+| match_state_refl_intro: forall st, match_state_refl s st st.
 
-Lemma forward_simulation_rtl_refl:
-  forall prog, forward_simulation (RTL.semantics prog) (RTL.semantics prog).
+Lemma forward_simulation_refl:
+  forall sem, forward_simulation sem sem.
 Proof.
   intros.
   eapply forward_simulation_step; eauto; intros.
-  - eexists. split; eauto. apply (match_state_refl_intro s1).
+  - eexists. split; eauto. apply (match_state_refl_intro _ s1).
   - inv H; auto.
   - eexists. inv H0. split; eauto. constructor.
 Qed.
@@ -468,7 +468,7 @@ Lemma rtl_optimized_reduce_simulation:
 Proof.
   intros. generalize dependent rtlprog.
   induction OPT; intros.
-  - exists rtlprog. exists (forward_simulation_rtl_refl rtlprog); eauto.
+  - exists rtlprog. exists (forward_simulation_refl (RTL.semantics rtlprog)); eauto.
   - exploit IHOPT; eauto. intros. des.
     exploit rtl_opt1_tree_reduce_simulation; eauto. intros. des.
     exists rtlprog'0.
