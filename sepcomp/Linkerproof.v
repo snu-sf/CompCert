@@ -248,6 +248,8 @@ Ltac simplify :=
          end;
   subst; auto.
 
+Definition rtl_opt_tree := Tree.tree_change_one optimize_rtl_program.
+
 Lemma Tree_Forall2_opt_rtc_rtl_opt_tree:
   forall (tr1 tr2: Tree.t RTL.program)
          (ROPTT: Tree.Forall2 (rtc optimize_rtl_program) tr1 tr2),

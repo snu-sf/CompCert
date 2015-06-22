@@ -71,7 +71,6 @@ Require Linearizeproof.
 Require CleanupLabelsproof.
 Require Stackingproof.
 Require Asmgenproof.
-Require Import Tree.
 Require Import sflib.
 
 (** Pretty-printers (defined in Caml). *)
@@ -170,20 +169,6 @@ Inductive optimize_rtl_program: forall (rtl: RTL.program) (ortl: RTL.program), P
                 optimize_rtl_program r1 r1'
 | rtlopt_deadcode: forall r1 r1' (TR_OK: Deadcode.transf_program r1 = OK r1'),
                      optimize_rtl_program r1 r1'.
-
-(*Definition optimize_rtl_program := rtc optimize_rtl_program_1.*)
-
-(*  Relation_Operators.clos_refl_trans  RTL.program optimize_rtl_program_1. *)
-
-Definition rtl_opt_tree := Tree.tree_change_one optimize_rtl_program.
-
-(* Inductive rtl_opt_tree: forall (tr: Tree.t RTL.program) (tr': Tree.t RTL.program), Prop := *)
-(* | rtl_opt1_tree_base: forall r r' (ROPT: optimize_rtl_program r r'), *)
-(*                         rtl_opt_tree (Tree.Tree_singleton r) (Tree.Tree_singleton r') *)
-(* | rtl_opt1_tree_comp_left: forall r r' tr (ROPTT: rtl_opt_tree r r'), *)
-(*                              rtl_opt_tree (Tree.Tree_composite r tr) (Tree.Tree_composite r' tr) *)
-(* | rtl_opt1_tree_comp_right: forall r r' tr (ROPTT: rtl_opt_tree r r'), *)
-(*                               rtl_opt_tree (Tree.Tree_composite tr r) (Tree.Tree_composite tr r'). *)
 
 Definition compile_c_program (c: Csyntax.program) (a:Asm.program) : Prop :=
   exists rtl ortl,
