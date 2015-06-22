@@ -462,7 +462,7 @@ End INITIAL.
 
 End TRANSF_PARTIAL2.
 
-Section TRANSF_PARTIAL2'.
+Section TRANSF_PARTIAL2_OPTIONALLY.
 
 Variable (sigT:Sig).
 Variable (fT:F sigT).
@@ -495,7 +495,7 @@ Section TRANSF.
 
 Hypothesis TRANSF: transform_partial_program2 (transf_fundefT p) transf_vT p = OK p'.
 
-Lemma transf_partial2_sepcomp_rel':
+Lemma transf_partial2_optionally_sepcomp_rel:
   @sepcomp_rel
     lang lang
     (fun p f tf => transf_fT p f = OK tf \/ f = tf)
@@ -536,7 +536,7 @@ Section TRANSF_ID.
 
 Hypothesis TRANSF: p = p'.
 
-Lemma transf_partial2_sepcomp_rel'_identical:
+Lemma transf_partial2_optionally_sepcomp_rel_identical:
   @sepcomp_rel
     lang lang
     (fun p f tf => transf_fT p f = OK tf \/ f = tf)
@@ -612,7 +612,7 @@ Proof.
     apply match_glob_var. auto.
 Qed.
 
-Theorem find_funct_ptr_transf_partial2':
+Theorem find_funct_ptr_transf_partial2_optionally:
   forall (b: block) (f: fundefT),
   Genv.find_funct_ptr (Genv.globalenv p) b = Some f ->
   exists f',
@@ -627,7 +627,7 @@ Proof.
   intros [tf [X Y]]. exists tf; auto.
 Qed.
 
-Theorem find_funct_ptr_rev_transf_partial2':
+Theorem find_funct_ptr_rev_transf_partial2_optionally:
   forall (b: block) (tf: fundefT),
   Genv.find_funct_ptr (Genv.globalenv p') b = Some tf ->
   exists f, Genv.find_funct_ptr (Genv.globalenv p) b = Some f /\ 
@@ -642,7 +642,7 @@ Proof.
   intros [f [X Y]]. exists f; auto.
 Qed.
 
-Theorem find_funct_transf_partial2':
+Theorem find_funct_transf_partial2_optionally:
   forall (v: val) (f: fundefT),
   Genv.find_funct (Genv.globalenv p) v = Some f ->
   exists f',
@@ -657,7 +657,7 @@ Proof.
   intros [tf [X Y]]. exists tf; auto.
 Qed.
 
-Theorem find_funct_rev_transf_partial2':
+Theorem find_funct_rev_transf_partial2_optionally:
   forall (v: val) (tf: fundefT),
   Genv.find_funct (Genv.globalenv p') v = Some tf ->
   exists f, Genv.find_funct (Genv.globalenv p) v = Some f /\ 
@@ -671,7 +671,7 @@ Proof.
   intros [[f [X Y]]|X]; [|inv X]. exists f; auto.
 Qed.
 
-Theorem find_var_info_transf_partial2':
+Theorem find_var_info_transf_partial2_optionally:
   forall (b: block) (v: globvar vT),
   Genv.find_var_info (Genv.globalenv p) b = Some v ->
   exists v',
@@ -683,7 +683,7 @@ Proof.
   rewrite H0; simpl. auto.
 Qed.
 
-Theorem find_var_info_rev_transf_partial2':
+Theorem find_var_info_rev_transf_partial2_optionally:
   forall (b: block) (v': globvar vT),
   Genv.find_var_info (Genv.globalenv p') b = Some v' ->
   exists v,
@@ -696,14 +696,14 @@ Proof.
   rewrite H0; simpl. auto.
 Qed.
 
-Theorem find_symbol_transf_partial2':
+Theorem find_symbol_transf_partial2_optionally:
   forall (s: ident),
   Genv.find_symbol (Genv.globalenv p') s = Genv.find_symbol (Genv.globalenv p) s.
 Proof.
   intros. eapply Genv.find_symbol_match. eexact prog_match. auto.
 Qed.
 
-Theorem init_mem_transf_partial2':
+Theorem init_mem_transf_partial2_optionally:
   forall m, Genv.init_mem p = Some m -> Genv.init_mem p' = Some m.
 Proof.
   intros. erewrite Genv.init_mem_match; eauto. eauto.
@@ -711,7 +711,7 @@ Qed.
 
 End INITIAL.
 
-End TRANSF_PARTIAL2'.
+End TRANSF_PARTIAL2_OPTIONALLY.
 
 Section TRANSF_PARTIAL.
 
@@ -758,7 +758,7 @@ Lemma transf_partial_sepcomp_rel:
     (@OK _)
     p p'.
 Proof.
-  exploit transf_partial2_sepcomp_rel; eauto.
+  apply transf_partial2_sepcomp_rel; eauto.
 Qed.
 
 End TRANSF.
@@ -837,7 +837,7 @@ End INITIAL.
 
 End TRANSF_PARTIAL.
 
-Section TRANSF_PARTIAL'.
+Section TRANSF_PARTIAL_OPTIONALLY.
 
 Variable (sigT:Sig).
 Variable (fT:F sigT).
@@ -869,7 +869,7 @@ Section TRANSF.
 
 Hypothesis TRANSF: transform_partial_program (transf_fundefT p) p = OK p'.
 
-Lemma transf_partial_sepcomp_rel':
+Lemma transf_partial_optionally_sepcomp_rel:
   @sepcomp_rel
     lang lang
     (fun p f tf => transf_fT p f = OK tf \/ f = tf)
@@ -877,7 +877,7 @@ Lemma transf_partial_sepcomp_rel':
     (@OK _)
     p p'.
 Proof.
-  exploit transf_partial2_sepcomp_rel'; eauto.
+  apply transf_partial2_optionally_sepcomp_rel; eauto.
 Qed.
 
 End TRANSF.
@@ -886,7 +886,7 @@ Section TRANSF_ID.
 
 Hypothesis TRANSF: p = p'.
 
-Lemma transf_partial_sepcomp_rel'_identical:
+Lemma transf_partial_optionally_sepcomp_rel_identical:
   @sepcomp_rel
     lang lang
     (fun p f tf => transf_fT p f = OK tf \/ f = tf)
@@ -894,7 +894,7 @@ Lemma transf_partial_sepcomp_rel'_identical:
     (@OK _)
     p p'.
 Proof.
-  exploit transf_partial2_sepcomp_rel'_identical; eauto.
+  apply transf_partial2_optionally_sepcomp_rel_identical; eauto.
 Qed.
   
 End TRANSF_ID.
@@ -909,7 +909,7 @@ Hypothesis Hsepcomp_rel:
     (@OK _)
     p p'.
 
-Theorem find_funct_ptr_transf_partial':
+Theorem find_funct_ptr_transf_partial_optionally:
   forall (b: block) (f: fundefT),
   Genv.find_funct_ptr (Genv.globalenv p) b = Some f ->
   exists f',
@@ -918,9 +918,9 @@ Theorem find_funct_ptr_transf_partial':
       program_linkeq lang prog p /\
       transf_fundefT prog f = OK f') \/
    f = f').
-Proof (find_funct_ptr_transf_partial2' _ _ Hsepcomp_rel).
+Proof (find_funct_ptr_transf_partial2_optionally _ _ Hsepcomp_rel).
 
-Theorem find_funct_ptr_rev_transf_partial':
+Theorem find_funct_ptr_rev_transf_partial_optionally:
   forall (b: block) (tf: fundefT),
   Genv.find_funct_ptr (Genv.globalenv p') b = Some tf ->
   exists f, Genv.find_funct_ptr (Genv.globalenv p) b = Some f /\ 
@@ -928,9 +928,9 @@ Theorem find_funct_ptr_rev_transf_partial':
       program_linkeq lang prog p /\
       transf_fundefT prog f = OK tf) \/
    f = tf).
-Proof (find_funct_ptr_rev_transf_partial2' _ _ Hsepcomp_rel).
+Proof (find_funct_ptr_rev_transf_partial2_optionally _ _ Hsepcomp_rel).
 
-Theorem find_funct_transf_partial':
+Theorem find_funct_transf_partial_optionally:
   forall (v: val) (f: fundefT),
   Genv.find_funct (Genv.globalenv p) v = Some f ->
   exists f',
@@ -939,9 +939,9 @@ Theorem find_funct_transf_partial':
       program_linkeq lang prog p /\
       transf_fundefT prog f = OK f') \/
    f = f').
-Proof (find_funct_transf_partial2' _ _ Hsepcomp_rel).
+Proof (find_funct_transf_partial2_optionally _ _ Hsepcomp_rel).
 
-Theorem find_funct_rev_transf_partial':
+Theorem find_funct_rev_transf_partial_optionally:
   forall (v: val) (tf: fundefT),
   Genv.find_funct (Genv.globalenv p') v = Some tf ->
   exists f, Genv.find_funct (Genv.globalenv p) v = Some f /\ 
@@ -949,33 +949,33 @@ Theorem find_funct_rev_transf_partial':
       program_linkeq lang prog p /\
       transf_fundefT prog f = OK tf) \/
    f = tf).
-Proof (find_funct_rev_transf_partial2' _ _ Hsepcomp_rel).
+Proof (find_funct_rev_transf_partial2_optionally _ _ Hsepcomp_rel).
 
-Theorem find_var_info_transf_partial':
+Theorem find_var_info_transf_partial_optionally:
   forall (b: block),
   Genv.find_var_info (Genv.globalenv p') b = Genv.find_var_info (Genv.globalenv p) b.
 Proof.
   intros. destruct (Genv.find_var_info (Genv.globalenv p) b) as [v|] eqn:Hg.
-  - exploit find_var_info_transf_partial2'; try apply Hsepcomp_rel; eauto.
+  - exploit find_var_info_transf_partial2_optionally; try apply Hsepcomp_rel; eauto.
     simpl. intros [v'' [Hv'' X]]. destruct v. inv X. auto.
   - destruct (Genv.find_var_info (Genv.globalenv p') b) as [v|] eqn:Hg'; [|auto].
-    exploit find_var_info_rev_transf_partial2'; try apply Hsepcomp_rel; eauto.
+    exploit find_var_info_rev_transf_partial2_optionally; try apply Hsepcomp_rel; eauto.
     simpl. intros [v'' [Hv'' X]].
     simpl in *. rewrite Hg in Hv''. inv Hv''.
 Qed.
 
-Theorem find_symbol_transf_partial':
+Theorem find_symbol_transf_partial_optionally:
   forall (s: ident),
   Genv.find_symbol (Genv.globalenv p') s = Genv.find_symbol (Genv.globalenv p) s.
-Proof (find_symbol_transf_partial2' _ _ Hsepcomp_rel).
+Proof (find_symbol_transf_partial2_optionally _ _ Hsepcomp_rel).
 
-Theorem init_mem_transf_partial':
+Theorem init_mem_transf_partial_optionally:
   forall m, Genv.init_mem p = Some m -> Genv.init_mem p' = Some m.
-Proof (init_mem_transf_partial2' _ _ Hsepcomp_rel).
+Proof (init_mem_transf_partial2_optionally _ _ Hsepcomp_rel).
 
 End INITIAL.
 
-End TRANSF_PARTIAL'.
+End TRANSF_PARTIAL_OPTIONALLY.
 
 Section TRANSF_PROGRAM.
 
@@ -1161,7 +1161,7 @@ End INITIAL.
 
 End TRANSF_PROGRAM.
 
-Section TRANSF_PROGRAM'.
+Section TRANSF_PROGRAM_OPTIONALLY.
 
 Variable (sigT:Sig).
 Variable (fT:F sigT).
@@ -1189,7 +1189,7 @@ Section TRANSF.
 
 Hypothesis TRANSF: transform_program (transf_fundefT p) p = tp.
 
-Lemma transf_program_sepcomp_rel':
+Lemma transf_program_optionally_sepcomp_rel:
   @sepcomp_rel
     lang lang
     (fun p f tf => transf_fT p f = tf \/ f = tf)
@@ -1218,7 +1218,7 @@ Section TRANSF_ID.
 
 Hypothesis TRANSF: p = tp.
 
-Lemma transf_program_sepcomp_rel'_identical:
+Lemma transf_program_optionally_sepcomp_rel_identical:
   @sepcomp_rel
     lang lang
     (fun p f tf => transf_fT p f = tf \/ f = tf)
@@ -1289,7 +1289,7 @@ Proof.
     apply match_glob_var. auto.
 Qed.
 
-Theorem find_funct_ptr_transf':
+Theorem find_funct_ptr_transf_optionally:
   forall (b: block) (f: fundefT),
     Genv.find_funct_ptr (Genv.globalenv p) b = Some f ->
     exists f',
@@ -1304,7 +1304,7 @@ Proof.
   intros [tf [X Y]]. exists tf; auto.
 Qed.
 
-Theorem find_funct_ptr_rev_transf':
+Theorem find_funct_ptr_rev_transf_optionally:
   forall (b: block) (tf: fundefT),
     Genv.find_funct_ptr (Genv.globalenv tp) b = Some tf ->
     exists f, Genv.find_funct_ptr (Genv.globalenv p) b = Some f /\
@@ -1319,7 +1319,7 @@ Proof.
   intros [f [X Y]]. exists f; auto.
 Qed.
 
-Theorem find_funct_transf':
+Theorem find_funct_transf_optionally:
   forall (v: val) (f: fundefT),
   Genv.find_funct (Genv.globalenv p) v = Some f ->
   exists tf,
@@ -1335,7 +1335,7 @@ Proof.
   eexists. split; eauto.
 Qed.
 
-Theorem find_funct_rev_transf':
+Theorem find_funct_rev_transf_optionally:
   forall (v: val) (tf: fundefT),
   Genv.find_funct (Genv.globalenv tp) v = Some tf ->
   exists f, Genv.find_funct (Genv.globalenv p) v = Some f /\ 
@@ -1349,14 +1349,14 @@ Proof.
   intros [[f [X Y]]|X]; [|inv X]. exists f; auto.
 Qed.
 
-Theorem find_symbol_transf':
+Theorem find_symbol_transf_optionally:
   forall (s: ident),
   Genv.find_symbol (Genv.globalenv tp) s = Genv.find_symbol (Genv.globalenv p) s.
 Proof.
   intros. eapply Genv.find_symbol_match. eexact prog_match. auto.
 Qed.
 
-Theorem find_var_info_transf':
+Theorem find_var_info_transf_optionally:
   forall (b: block),
   Genv.find_var_info (Genv.globalenv tp) b = Genv.find_var_info (Genv.globalenv p) b.
 Proof.
@@ -1369,7 +1369,7 @@ Proof.
     intros [v' [X Y]]. rewrite Hg in X. inv X.
 Qed.
 
-Theorem init_mem_transf':
+Theorem init_mem_transf_optionally:
   forall m, Genv.init_mem p = Some m -> Genv.init_mem tp = Some m.
 Proof.
   intros. erewrite Genv.init_mem_match; eauto. eauto.
@@ -1377,4 +1377,4 @@ Qed.
 
 End INITIAL.
 
-End TRANSF_PROGRAM'.
+End TRANSF_PROGRAM_OPTIONALLY.

@@ -1,4 +1,5 @@
 Require Import Coqlib.
+Require Import sflib.
 
 Set Implicit Arguments.
 
@@ -39,6 +40,15 @@ Fixpoint reduce (r:forall (elt1 elt2:A), option A) (tree:t): option A :=
         | _, _ => None
       end
   end.
+
+Inductive tree_change_one (R: Relation_Definitions.relation A):
+  forall (tr: t) (tr': t), Prop :=
+| tree_change_one_base: forall r r' (REL: R r r'),
+                          tree_change_one R (Tree_singleton r) (Tree_singleton r')
+| tree_change_one_comp_left: forall r r' tr (TREL: tree_change_one R r r'),
+                               tree_change_one R (Tree_composite r tr) (Tree_composite r' tr)
+| tree_change_one_comp_right: forall r r' tr (TREL: tree_change_one R r r'),
+                                tree_change_one R (Tree_composite tr r) (Tree_composite tr r').
 
 End DEF.
 
@@ -93,6 +103,26 @@ Proof.
     + apply IHtreeA2. eexists. split; eauto.
 Qed.
 
+Lemma Tree_Forall2_split2 A B C
+      (pred1 : A -> B -> Prop) (pred2 : B -> B -> Prop)
+      (pred3 : B -> C -> Prop) (treeA : Tree.t A) (treeC : Tree.t C):
+  Tree.Forall2
+    (fun (a : A) (c : C) => exists (b1 b2:B), pred1 a b1 /\ pred2 b1 b2 /\ pred3 b2 c) treeA treeC <->
+  (exists (treeB1 treeB2: Tree.t B),
+     Tree.Forall2 pred1 treeA treeB1 /\ Tree.Forall2 pred2 treeB1 treeB2 /\ Tree.Forall2 pred3 treeB2 treeC).
+Proof.
+  intros.
+  remember (fun a c => exists b1 b2, pred1 a b1 /\ pred2 b1 b2 /\ pred3 b2 c) as predA.
+  remember (fun a c => exists b1, pred1 a b1 /\ exists b2, pred2 b1 b2 /\ pred3 b2 c) as predB.
+  assert (pcomp: Tree.Forall2 predA treeA treeC <-> Tree.Forall2 predB treeA treeC).
+  { apply Tree.Forall2_compat. subst. split; intros; des; eauto. }
+  subst. rewrite -> pcomp.
+  generalize (Tree.Forall2_split pred1 (fun b c => exists b2, pred2 b b2 /\ pred3 b2 c) treeA treeC). intros. rewrite -> H.
+  split; intros; des.
+  - apply Tree.Forall2_split in H1. des. eauto.
+  - exists treeB1. split; auto. apply Tree.Forall2_split. eauto.
+Qed.
+
 Lemma Forall2_eq A (tree1 tree2:t A) (HForall: Forall2 eq tree1 tree2):
   tree1 = tree2.
 Proof.
@@ -100,6 +130,12 @@ Proof.
   f_equal.
   - apply IHtree1_1. auto.
   - apply IHtree1_2. auto.
+Qed.
+
+Lemma Tree_Forall2_eq_same X (tr: Tree.t X):
+  Tree.Forall2 eq tr tr.
+Proof.
+  intros. induction tr; constructor; auto.
 Qed.
 
 Lemma Forall2_reduce A B (pred:A->B->Prop) (rA:A->A->option A) (rB:B->B->option B)
@@ -120,6 +156,26 @@ Proof.
   eapply IHtreeA1 in H0; eauto. eapply IHtreeA2 in H4; eauto.
   destruct H0 as [? [? ?]]. destruct H4 as [? [? ?]].
   simpl. rewrite H0, H2. eapply H; eauto.
+Qed.
+
+Lemma rtc_tree_change_one_attach_left:
+  forall A (tr1 tr1' tr2:t A) R (RTCTR: rtc (tree_change_one R) tr1 tr1'),
+    rtc (tree_change_one R) (Tree_composite tr1 tr2) (Tree_composite tr1' tr2).
+Proof.
+  intros. induction RTCTR.
+  - constructor. constructor. eauto.
+  - econs 2.
+  - econs 3; eauto.
+Qed.
+
+Lemma rtc_tree_change_one_attach_right:
+  forall A (tr1 tr2 tr2':t A) R (RTCTR: rtc (tree_change_one R) tr2 tr2'),
+    rtc (tree_change_one R) (Tree_composite tr1 tr2) (Tree_composite tr1 tr2').
+Proof.
+  intros. induction RTCTR.
+  - constructor. constructor. eauto.
+  - econs 2.
+  - econs 3; eauto.
 Qed.
 
 End Tree.

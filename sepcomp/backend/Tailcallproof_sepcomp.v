@@ -260,11 +260,11 @@ Inductive match_fundef: forall (fd fd':fundef), Prop :=
 
 Lemma symbols_preserved:
   forall (s: ident), Genv.find_symbol tge s = Genv.find_symbol ge s.
-Proof (find_symbol_transf' _ _ TRANSF). 
+Proof (find_symbol_transf_optionally _ _ TRANSF). 
 
 Lemma varinfo_preserved:
   forall b, Genv.find_var_info tge b = Genv.find_var_info ge b.
-Proof (find_var_info_transf' _ _ TRANSF).
+Proof (find_var_info_transf_optionally _ _ TRANSF).
 
 Lemma functions_translated:
   forall (v: val) (f: RTL.fundef),
@@ -272,7 +272,7 @@ Lemma functions_translated:
   exists tf, match_fundef f tf /\
              Genv.find_funct tge v = Some tf.
 Proof.
-  generalize (find_funct_transf' _ _ TRANSF).
+  generalize (find_funct_transf_optionally _ _ TRANSF).
   intros H1 v f. specialize (H1 v f).
   revert H1. unfold ge, fundef. simpl.
   match goal with
@@ -293,7 +293,7 @@ Lemma funct_ptr_translated:
   exists tf, match_fundef f tf /\
              Genv.find_funct_ptr tge b = Some tf.
 Proof.
-  generalize (find_funct_ptr_transf' _ _ TRANSF).
+  generalize (find_funct_ptr_transf_optionally _ _ TRANSF).
   intros H1 v f. specialize (H1 v f).
   revert H1. unfold ge, fundef. simpl.
   match goal with
@@ -806,7 +806,7 @@ Proof.
   intros. inv H. 
   exploit funct_ptr_translated; eauto. intros [tf [MATCHFD FIND]].
   exists (Callstate nil tf nil m0); split.
-  econstructor; eauto. apply (init_mem_transf' _ _ TRANSF). auto.
+  econstructor; eauto. apply (init_mem_transf_optionally _ _ TRANSF). auto.
   replace (prog_main tprog) with (prog_main prog).
   rewrite symbols_preserved. eauto.
   inv TRANSF. auto.

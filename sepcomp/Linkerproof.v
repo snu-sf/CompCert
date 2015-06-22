@@ -18,6 +18,7 @@ Require Renumberproof_sepcomp.
 Require Constpropproof_sepcomp.
 Require CSEproof_sepcomp.
 Require Deadcodeproof_sepcomp.
+Require Import Compiler_sepcomp.
 Require Import sflib.
 
 Set Implicit Arguments.
@@ -118,11 +119,11 @@ Lemma Tailcall_sepcomp_rel
     rtlprog1 rtlprog2.
 Proof.
   inv Htrans.
-  - apply transf_program_sepcomp_rel'.
+  - apply transf_program_optionally_sepcomp_rel.
     unfold Tailcall.transf_program. f_equal.
-    apply Axioms.functional_extensionality. intro fd.
+    apply functional_extensionality. intro fd.
     destruct fd; auto.
-  - apply transf_program_sepcomp_rel'_identical; auto.
+  - apply transf_program_optionally_sepcomp_rel_identical; auto.
 Qed.
 
 Lemma Inlining_sepcomp_rel
@@ -136,12 +137,12 @@ Lemma Inlining_sepcomp_rel
     rtlprog1 rtlprog2.
 Proof.
   inv Htrans.
-  - apply transf_partial_sepcomp_rel'.
+  - apply transf_partial_optionally_sepcomp_rel.
     unfold progT, RTL.program, RTL.fundef in *. simpl in *. rewrite <- H.
     unfold Inlining.transf_program. f_equal.
-    apply Axioms.functional_extensionality. intro fd.
+    apply functional_extensionality. intro fd.
     destruct fd; auto.
-  - apply transf_partial_sepcomp_rel'_identical; auto.
+  - apply transf_partial_optionally_sepcomp_rel_identical; auto.
 Qed.
 
 Lemma Renumber_sepcomp_rel
@@ -155,11 +156,11 @@ Lemma Renumber_sepcomp_rel
     rtlprog1 rtlprog2.
 Proof.
   inv Htrans.
-  - apply transf_program_sepcomp_rel'.
+  - apply transf_program_optionally_sepcomp_rel.
     unfold Renumber.transf_program. f_equal.
-    apply Axioms.functional_extensionality. intro fd.
+    apply functional_extensionality. intro fd.
     destruct fd; auto.
-  - apply transf_program_sepcomp_rel'_identical. auto.
+  - apply transf_program_optionally_sepcomp_rel_identical. auto.
 Qed.
 
 Lemma Constprop_sepcomp_rel
@@ -173,11 +174,11 @@ Lemma Constprop_sepcomp_rel
     rtlprog1 rtlprog2.
 Proof.
   inv Htrans.
-  - apply transf_program_sepcomp_rel'.
+  - apply transf_program_optionally_sepcomp_rel.
     unfold Constprop.transf_program. f_equal.
-    apply Axioms.functional_extensionality. intro fd.
+    apply functional_extensionality. intro fd.
     destruct fd; auto.
-  - apply transf_program_sepcomp_rel'_identical. auto.
+  - apply transf_program_optionally_sepcomp_rel_identical. auto.
 Qed.
 
 Lemma CSE_sepcomp_rel
@@ -191,12 +192,12 @@ Lemma CSE_sepcomp_rel
     rtlprog1 rtlprog2.
 Proof.
   inv Htrans.
-  - apply transf_partial_sepcomp_rel'.
+  - apply transf_partial_optionally_sepcomp_rel.
     unfold progT, RTL.program, RTL.fundef in *. simpl in *. rewrite <- H.
     unfold CSE.transf_program. f_equal.
-    apply Axioms.functional_extensionality. intro fd.
+    apply functional_extensionality. intro fd.
     destruct fd; auto.
-  - apply transf_partial_sepcomp_rel'_identical. auto.
+  - apply transf_partial_optionally_sepcomp_rel_identical. auto.
 Qed.
 
 Lemma Deadcode_sepcomp_rel
@@ -210,12 +211,12 @@ Lemma Deadcode_sepcomp_rel
     rtlprog1 rtlprog2.
 Proof.
   inv Htrans.
-  - apply transf_partial_sepcomp_rel'.
+  - apply transf_partial_optionally_sepcomp_rel.
     unfold progT, RTL.program, RTL.fundef in *. simpl in *. rewrite <- H.
     unfold Deadcode.transf_program. f_equal.
-    apply Axioms.functional_extensionality. intro fd.
+    apply functional_extensionality. intro fd.
     destruct fd; auto.
-  - apply transf_partial_sepcomp_rel'_identical. auto.
+  - apply transf_partial_optionally_sepcomp_rel_identical. auto.
 Qed.
 
 Ltac clarify :=
@@ -247,127 +248,24 @@ Ltac simplify :=
          end;
   subst; auto.
 
-Definition transf_rtl_program_to_asm (f: RTL.program) : res Asm.program :=
-   OK f
-   @@ print (print_RTL 0)
-   @@@ time "Register allocation" Allocation.transf_program
-   @@ print print_LTL
-   @@ time "Branch tunneling" Tunneling.tunnel_program
-  @@@ Linearize.transf_program
-   @@ time "Label cleanup" CleanupLabels.transf_program
-  @@@ time "Mach generation" Stacking.transf_program
-   @@ print print_Mach
-  @@@ time "Asm generation" Asmgen.transf_program.
-
-Definition transf_cminor_program_to_rtl (p: Cminor.program) : res RTL.program :=
-   OK p
-   @@ print print_Cminor
-  @@@ time "Instruction selection" Selection.sel_program
-  @@@ time "RTL generation" RTLgen.transl_program.
-
-Definition transf_clight_program_to_rtl (p: Clight.program) : res RTL.program :=
-  OK p 
-   @@ print print_Clight
-  @@@ time "Simplification of locals" SimplLocals.transf_program
-  @@@ time "C#minor generation" Cshmgen.transl_program
-  @@@ time "Cminor generation" Cminorgen.transl_program
-  @@@ transf_cminor_program_to_rtl.
-
-Definition transf_c_program_to_rtl (p: Csyntax.program) : res RTL.program :=
-  OK p 
-  @@@ time "Clight generation" SimplExpr.transl_program
-  @@@ transf_clight_program_to_rtl.
-
-Lemma Tree_Forall2_split2:
-  forall (A B C : Type) (pred1 : A -> B -> Prop) (predb : B -> B -> Prop)
-         (pred2 : B -> C -> Prop) (treeA : Tree.t A) (treeC : Tree.t C),
-    Tree.Forall2
-      (fun (a : A) (c : C) => exists (b1 b2:B), pred1 a b1 /\ (predb b1 b2 /\ pred2 b2 c)) treeA treeC <->
-    (exists (treeB1 treeB2: Tree.t B),
-       Tree.Forall2 pred1 treeA treeB1 /\ Tree.Forall2 predb treeB1 treeB2 /\ Tree.Forall2 pred2 treeB2 treeC).
-Proof.
-  intros.
-  remember (fun a c => exists b1 b2, pred1 a b1 /\ predb b1 b2 /\ pred2 b2 c) as predA.
-  remember (fun a c => exists b1, pred1 a b1 /\ exists b2, predb b1 b2 /\ pred2 b2 c) as predB.
-  assert (pcomp: Tree.Forall2 predA treeA treeC <-> Tree.Forall2 predB treeA treeC).
-  { apply Tree.Forall2_compat. subst. split; intros; des; eauto. }
-  subst. rewrite -> pcomp.
-  generalize (Tree.Forall2_split pred1 (fun b c => exists b2, predb b b2 /\ pred2 b2 c) treeA treeC). intros. rewrite -> H.
-  split; intros; des.
-  - apply Tree.Forall2_split in H1. des. eauto.
-  - exists treeB1. split; auto. apply Tree.Forall2_split. eauto.
-Qed.
-
-Inductive rtl_optimized_1: forall (rtl: RTL.program) (ortl: RTL.program), Prop:=
-| rtlopt_tailcall: forall r1,
-                     rtl_optimized_1 r1 (Tailcall.transf_program r1)
-| rtlopt_inlining: forall r1 r1' (TR_OK: Inlining.transf_program r1 = OK r1'),
-                     rtl_optimized_1 r1 r1'
-| rtlopt_renumber: forall r1,
-                     rtl_optimized_1 r1 (Renumber.transf_program r1)
-| rtlopt_constprop: forall r1,
-                      rtl_optimized_1 r1 (Constprop.transf_program r1)
-| rtlopt_cse: forall r1 r1' (TR_OK: CSE.transf_program r1 = OK r1'),
-                rtl_optimized_1 r1 r1'
-| rtlopt_deadcode: forall r1 r1' (TR_OK: Deadcode.transf_program r1 = OK r1'),
-                     rtl_optimized_1 r1 r1'.
-
-Definition rtl_optimized := Relation_Operators.clos_refl_trans  RTL.program rtl_optimized_1.
-
-Inductive rtl_opt1_tree: forall (tr: Tree.t RTL.program) (tr': Tree.t RTL.program), Prop :=
-| rtl_opt1_tree_base: forall r r' (ROPT: rtl_optimized_1 r r'),
-                        rtl_opt1_tree (Tree.Tree_singleton r) (Tree.Tree_singleton r')
-| rtl_opt1_tree_comp_left: forall r r' tr (ROPTT: rtl_opt1_tree r r'),
-                             rtl_opt1_tree (Tree.Tree_composite r tr) (Tree.Tree_composite r' tr)
-| rtl_opt1_tree_comp_right: forall r r' tr (ROPTT: rtl_opt1_tree r r'),
-                              rtl_opt1_tree (Tree.Tree_composite tr r) (Tree.Tree_composite tr r').
-
-Definition rtl_opt_tree := Relation_Operators.clos_refl_trans (Tree.t RTL.program) rtl_opt1_tree.
-
-Lemma rtl_opt_tree_attach_left:
-  forall tr tr' tr2 (ROPTT: rtl_opt_tree tr tr'),
-    rtl_opt_tree (Tree.Tree_composite tr tr2) (Tree.Tree_composite tr' tr2).
-Proof.
-  intros. induction ROPTT.
-  - constructor. constructor. eauto.
-  - econstructor 2.
-  - econstructor 3; eauto.
-Qed.
-
-Lemma rtl_opt_tree_attach_right:
-  forall tr tr' tr2 (ROPTT: rtl_opt_tree tr tr'),
-    rtl_opt_tree (Tree.Tree_composite tr2 tr) (Tree.Tree_composite tr2 tr').
-Proof.
-  intros. induction ROPTT.
-  - constructor. constructor. eauto.
-  - econstructor 2.
-  - econstructor 3; eauto.
-Qed.
-
-Lemma Tree_Forall2_opt_rtl_opt_tree:
+Lemma Tree_Forall2_opt_rtc_rtl_opt_tree:
   forall (tr1 tr2: Tree.t RTL.program)
-         (ROPTT: Tree.Forall2 rtl_optimized tr1 tr2),
-    rtl_opt_tree tr1 tr2.
+         (ROPTT: Tree.Forall2 (rtc optimize_rtl_program) tr1 tr2),
+    rtc rtl_opt_tree tr1 tr2.
 Proof.
   intros.
   induction ROPTT.
   - induction Hpred.
     + constructor. constructor. auto.
-    + constructor 2.
-    + econstructor 3; eauto.
-  - econstructor 3.
-    + eapply rtl_opt_tree_attach_left. eauto.
-    + eapply rtl_opt_tree_attach_right. eauto.
+    + econs 2.
+    + econs 3; eauto.
+  - econs 3.
+    + eapply Tree.rtc_tree_change_one_attach_left. eauto.
+    + eapply Tree.rtc_tree_change_one_attach_right. eauto.
 Qed.
 
-Lemma Tree_Forall2_eq_same:
-  forall X (tr: Tree.t X), Tree.Forall2 eq tr tr.
-Proof.
-  intros. induction tr; constructor; auto.
-Qed.
-
-Lemma rtl_opt1_tree_destruct:
-  forall tr tr' (ROPT1T: rtl_opt1_tree tr tr'),
+Lemma rtl_opt_tree_destruct:
+  forall tr tr' (ROPTT: rtl_opt_tree tr tr'),
     << TAILCALL: Tree.Forall2 (fun p1 p2 => (Tailcall.transf_program p1 = p2) \/ p1 = p2) tr tr' >>
     \/  << INLINING: Tree.Forall2 (fun p1 p2 => (Inlining.transf_program p1 = OK p2) \/ p1 = p2) tr tr' >>
     \/  << RENUMBER: Tree.Forall2 (fun p1 p2 => (Renumber.transf_program p1 = p2) \/ p1 = p2) tr tr' >>
@@ -375,26 +273,26 @@ Lemma rtl_opt1_tree_destruct:
     \/  << CSE: Tree.Forall2 (fun p1 p2 => (CSE.transf_program p1 = OK p2) \/ p1 = p2) tr tr' >>
     \/  << DEADCODE: Tree.Forall2 (fun p1 p2 => (Deadcode.transf_program p1 = OK p2) \/ p1 = p2) tr tr' >>.
 Proof.
-  intros. induction ROPT1T.
-  - inv ROPT; [|right|right;right|right;right;right|right;right;right;right |right;right;right;right;right ]; [left|left|left|left|left| ]; constructor; auto.
+  intros. induction ROPTT.
+  - inv REL; [|right|right;right|right;right;right|right;right;right;right |right;right;right;right;right ]; [left|left|left|left|left| ]; constructor; auto.
   - des; [|right|right;right|right;right;right|right;right;right;right |right;right;right;right;right ]; [left|left|left|left|left|];
     (constructor; auto; eapply Tree.Forall2_implies;
-    [ intros; right; apply H | apply Tree_Forall2_eq_same]).
+    [ intros; right; apply H | apply Tree.Tree_Forall2_eq_same]).
   - des; [|right|right;right|right;right;right|right;right;right;right |right;right;right;right;right ]; [left|left|left|left|left|];
     (constructor; auto; eapply Tree.Forall2_implies;
-    [ intros; right; apply H | apply Tree_Forall2_eq_same]).
+    [ intros; right; apply H | apply Tree.Tree_Forall2_eq_same]).
 Qed.
 
-Lemma rtl_opt1_tree_reduce_simulation:
+Lemma rtl_opt_tree_reduce_simulation:
   forall tr tr' rtlprog
-         (ROPT1T: rtl_opt1_tree tr tr')
+         (ROPT1T: rtl_opt_tree tr tr')
          (REDUCE: Tree.reduce (link_program Language_RTL) tr = Some rtlprog),
   exists rtlprog'
     (Hrtlsim': forward_simulation (RTL.semantics rtlprog) (RTL.semantics rtlprog')),
     << Hrtlprog': Tree.reduce (link_program Language_RTL) tr' = Some rtlprog' >>.
 Proof.
   intros.
-  apply rtl_opt1_tree_destruct in ROPT1T. des.
+  apply rtl_opt_tree_destruct in ROPT1T. des.
   - eapply Tree.Forall2_implies in TAILCALL; [|apply Tailcall_sepcomp_rel].
     eapply Tree.Forall2_reduce in TAILCALL; eauto; [|eapply (@link_program_sepcomp_rel Language_RTL Language_RTL id)]; simplify.
     + destruct TAILCALL as [rtlprog1 [Hrtlprog1 Hrtlsim1]].
@@ -440,35 +338,29 @@ Proof.
   - eexists. inv H0. split; eauto. constructor.
 Qed.
 
-Lemma rtl_optimized_reduce_simulation:
+Lemma optimize_rtl_program_reduce_simulation:
   forall (rtlprog: RTL.program)
          (tr1 tr2: Tree.t RTL.program)
          (REDUCE: Tree.reduce (link_program Language_RTL) tr1 = Some rtlprog)
-         (OPT: rtl_opt_tree tr1 tr2),
+         (ROPT: rtc rtl_opt_tree tr1 tr2),
   exists rtlprog'
          (Hrtlsim': forward_simulation (RTL.semantics rtlprog) (RTL.semantics rtlprog')),
     << Hrtlprog': Tree.reduce (link_program Language_RTL) tr2 = Some rtlprog' >>.
 Proof.
   intros. generalize dependent rtlprog.
-  induction OPT; intros.
-  - exploit rtl_opt1_tree_reduce_simulation; eauto.
+  induction ROPT; intros.
+  - exploit rtl_opt_tree_reduce_simulation; eauto.
   - exists rtlprog. exists (forward_simulation_refl (RTL.semantics rtlprog)); eauto.
-  - exploit IHOPT1; eauto. intros. des.
-    exploit IHOPT2; eauto. intros. des.
+  - exploit IHROPT1; eauto. intros. des.
+    exploit IHROPT2; eauto. intros. des.
     exists rtlprog'0.
     exists (compose_forward_simulation Hrtlsim' Hrtlsim'0); eauto.
 Qed.
 
-Definition compiled (c: Csyntax.program) (a:Asm.program) : Prop :=
-  exists rtl ortl,
-    transf_c_program_to_rtl c = OK rtl
-    /\ rtl_optimized rtl ortl
-    /\ transf_rtl_program_to_asm ortl = OK a.
-
 Theorem linker_correct_det_forward
         ctree asmtree cprog
         (CLINK: Tree.reduce (link_program Language_C) ctree = Some cprog)
-        (TRANSF: Tree.Forall2 (fun c a => compiled c a) ctree asmtree):
+        (TRANSF: Tree.Forall2 (fun c a => compile_c_program c a) ctree asmtree):
   exists (asmprog:Asm.program)
     (_:forward_simulation (Cstrategy.semantics cprog) (Asm.semantics asmprog)),
     Tree.reduce (link_program Language_Asm) asmtree = Some asmprog.
@@ -476,8 +368,8 @@ Proof.
   repeat intro.
 
   (* C *)
-  unfold compiled in TRANSF.
-  eapply Tree_Forall2_split2 in TRANSF. des.
+  unfold compile_c_program in TRANSF.
+  eapply Tree.Tree_Forall2_split2 in TRANSF. des.
 
   unfold transf_c_program_to_rtl in TRANSF. clarify.
   eapply Tree.Forall2_implies in T; [|apply SimplExpr_sepcomp_rel].
@@ -529,8 +421,8 @@ Proof.
   apply RTLgenproof.transf_program_correct in Hrtlsim0.
 
 (* RTL *)
-  exploit rtl_optimized_reduce_simulation; eauto.
-  apply Tree_Forall2_opt_rtl_opt_tree. eauto.
+  exploit optimize_rtl_program_reduce_simulation.
+  eauto. apply Tree_Forall2_opt_rtc_rtl_opt_tree. eauto.
   intros. des.
   unfold transf_rtl_program_to_asm in TRANSF1. clarify.
 
@@ -581,7 +473,7 @@ Qed.
 Theorem linker_correct_det_backward
         ctree asmtree cprog
         (CLINK: Tree.reduce (link_program Language_C) ctree = Some cprog)
-        (TRANSF: Tree.Forall2 (fun c a => compiled c a) ctree asmtree):
+        (TRANSF: Tree.Forall2 (fun c a => compile_c_program c a) ctree asmtree):
   exists (asmprog:Asm.program)
     (_:backward_simulation (atomic (Cstrategy.semantics cprog)) (Asm.semantics asmprog)),
     Tree.reduce (link_program Language_Asm) asmtree = Some asmprog.
@@ -598,7 +490,7 @@ Qed.
 Theorem linker_correct
         ctree asmtree cprog
         (CLINK: Tree.reduce (link_program Language_C) ctree = Some cprog)
-        (TRANSF: Tree.Forall2 (fun c a => compiled c a) ctree asmtree):
+        (TRANSF: Tree.Forall2 (fun c a => compile_c_program c a) ctree asmtree):
   exists (asmprog:Asm.program)
     (_:backward_simulation (Csem.semantics cprog) (Asm.semantics asmprog)),
     Tree.reduce (link_program Language_Asm) asmtree = Some asmprog.
