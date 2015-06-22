@@ -250,21 +250,6 @@ Ltac simplify :=
 
 Definition rtl_opt_tree := Tree.tree_change_one optimize_rtl_program.
 
-Lemma Tree_Forall2_opt_rtc_rtl_opt_tree:
-  forall (tr1 tr2: Tree.t RTL.program)
-         (ROPTT: Tree.Forall2 (rtc optimize_rtl_program) tr1 tr2),
-    rtc rtl_opt_tree tr1 tr2.
-Proof.
-  intros.
-  induction ROPTT.
-  - induction Hpred.
-    + constructor. constructor. auto.
-    + econs 2.
-    + econs 3; eauto.
-  - econs 3.
-    + eapply Tree.rtc_tree_change_one_attach_left. eauto.
-    + eapply Tree.rtc_tree_change_one_attach_right. eauto.
-Qed.
 
 Lemma rtl_opt_tree_destruct:
   forall tr tr' (ROPTT: rtl_opt_tree tr tr'),
@@ -424,7 +409,7 @@ Proof.
 
 (* RTL *)
   exploit optimize_rtl_program_reduce_simulation.
-  eauto. apply Tree_Forall2_opt_rtc_rtl_opt_tree. eauto.
+  eauto. apply Tree.Tree_Forall2_rtc_rel_rtc_tree_change_one. eauto.
   intros. des.
   unfold transf_rtl_program_to_asm in TRANSF1. clarify.
 
