@@ -69,12 +69,8 @@ Lemma Selection_sepcomp_rel
   @sepcomp_rel
     Language_Cminor Language_CminorSel
     (fun p f tf =>
-       exists hf,
-         SelectLongproof.i64_helpers_correct (Genv.globalenv p) hf /\
-         Selection.sel_function hf (Genv.globalenv p) f = OK tf)
+         Selection.sel_function (Genv.globalenv p) f = OK tf)
     (fun p ef tef =>
-       exists hf,
-         SelectLongproof.i64_helpers_correct (Genv.globalenv p) hf /\
          ef = tef)
     (@OK _)
     cminorprog cminorselprog.
@@ -96,9 +92,7 @@ Proof.
       destruct f; inv Hf.
       * monadInv H0.
         eapply (@grel_f Language_Cminor Language_CminorSel); simpl; auto.
-        exists x. split; auto. apply Selectionproof.get_helpers_correct. auto.
       * eapply (@grel_ef Language_Cminor Language_CminorSel); simpl; auto.
-        exists x. split; auto. apply Selectionproof.get_helpers_correct. auto.
     + apply IHdefs; auto.
   - monadInv Hdefs. constructor; simpl.
     + split; auto. eexists. split; [reflexivity|].
@@ -229,7 +223,6 @@ Ltac simplify :=
   repeat match goal with
            | [H: OK _ = OK _ |- _] => inv H
            | [H: bind _ _ = OK _ |- _] => monadInv H
-           | [H: exists (_:SelectLong.helper_functions), _ |- _] => destruct H
            | [H: _ /\ _ |- _] => destruct H
          end;
   subst; auto.
@@ -279,15 +272,21 @@ Proof.
   (* Cminor *)
   unfold transf_cminor_program in TRANSF. clarify.
 
+  assert(Hcheck_helper: 
+    SelectLong.check_helpers (Genv.globalenv cminorprog) = OK tt).
+  {
+    admit.
+  }
+  
   eapply Tree.Forall2_implies in T0; [|apply Selection_sepcomp_rel].
   eapply Tree.Forall2_reduce in T0; eauto;
     [|eapply (@link_program_sepcomp_rel Language_Cminor Language_CminorSel id)]; simplify;
-    [|eapply Selection_sig; eauto
-     |eexists; split; auto; eapply Selectionproof_sepcomp.Hget_helpers_monotone; eauto].
+      [|eapply Selection_sig; eauto].
 
   destruct T0 as [cminorselprog [Hcminorselprog Hcminorselsim]].
-  apply Selectionproof_sepcomp.transl_program_correct in Hcminorselsim.
-
+  apply Selectionproof_sepcomp.transl_program_correct in Hcminorselsim
+  ; eauto using Selectionproof.check_helpers_correct.
+  
   eapply Tree.Forall2_reduce in T; eauto;
     [|eapply (transform_partial_program2_link_program Language_CminorSel Language_RTL)];
     [|apply globfun_linkable_transf_partial_fundef];
