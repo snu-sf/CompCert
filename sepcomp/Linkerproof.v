@@ -420,4 +420,3 @@ Proof.
   eapply ssr_well_behaved; eapply Cstrategy.semantics_strongly_receptive.
   exact x.
 Qed.
-
