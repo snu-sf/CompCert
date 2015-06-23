@@ -240,6 +240,89 @@ Ltac simplify :=
          end;
   subst; auto.
 
+Ltac simplify_match:=
+  match goal with
+    | H: match ?x with
+           | OK _ => _
+           | Error _ => Error _
+         end = OK _
+      |- _ => (destruct x eqn:?D;[|inv H])
+  end.
+
+Ltac simplify_res:=
+  match goal with
+    | H: OK ?x = OK ?y |- _ => inv H
+  end.
+
+Lemma compiler_generalization:
+  forall p tp
+         (Htrans: Compiler.transf_c_program p = OK tp),
+    compile_c_program p tp.
+Proof.
+  intros.
+  unfold Compiler.transf_c_program in Htrans.
+  unfold Compiler.transf_clight_program in Htrans.
+  unfold Compiler.transf_cminor_program in Htrans.
+  unfold Compiler.time, Compiler.print in Htrans.
+  unfold Compiler.apply_partial, Compiler.apply_total in Htrans.
+
+  unfold compile_c_program.
+  unfold transf_c_program.
+  unfold transf_clight_program.
+  unfold transf_cminor_program.
+  unfold time, print, apply_partial, apply_total.
+
+  destruct (SimplExpr.transl_program p); [|inversion Htrans].
+  destruct (SimplLocals.transf_program p0); [|inversion Htrans].
+  destruct (Cshmgen.transl_program p1); [|inversion Htrans].
+  destruct (Cminorgen.transl_program p2); [|inversion Htrans].
+  destruct (Selection.sel_program p3); [|inversion Htrans].
+  destruct (RTLgen.transl_program p4); [|inversion Htrans].
+  exists p5. clear -Htrans.
+
+  unfold Compiler.transf_rtl_program in Htrans.
+  unfold Compiler.time, Compiler.apply_partial, Compiler.apply_total, Compiler.print in Htrans.
+  repeat simplify_match.
+
+  unfold Compiler.total_if, Compiler.partial_if in *.
+  exists p7. split; auto.
+  repeat simplify_res.
+  split.
+  - assert (Hr1: rtc optimize_rtl_program p5 p17).
+    { destruct (Compopts.optim_tailcalls tt).
+      - econs 3; econs 1; [econs 1 | econs 2; eauto].
+      - econs 1. econs 2. eauto. }
+    assert (Hr2: rtc optimize_rtl_program p17 p9).
+    { destruct (Compopts.optim_CSE tt).
+      - destruct (Compopts.optim_constprop tt).
+        + econs 3. econs 1. econs 3.
+          econs 3. econs 1. econs 4.
+          econs 3. econs 1. econs 3.
+          econs 1. econs 5. eauto.
+        + econs 3. econs 1. econs 3.
+          econs 1. econs 5. eauto.
+      - destruct (Compopts.optim_constprop tt).
+        + econs 3. econs 1. econs 3.
+          econs 3. econs 1. econs 4.
+          econs 1. inv D9. econs 3.
+        + econs 1. inv D9. econs 3.
+    }
+    assert (Hr3: rtc optimize_rtl_program p9 p7).
+    { destruct (Compopts.optim_redundancy tt).
+      - econs 1. econs 6. eauto.
+      - inv D7. econs 2.
+    }
+    econs 3; econs 3; eauto.
+  - clear D7 D9 D17.
+    unfold transf_rtl_program.
+    unfold apply_partial, apply_total.
+    unfold time, print.
+
+    destruct (Allocation.transf_program p7); [|inv D5].
+    inv D5. rewrite -> D2.
+    rewrite -> D0. auto.
+Qed.
+
 Definition rtl_opt_tree := Tree.tree_change_one optimize_rtl_program.
 
 Lemma rtl_opt_tree_destruct:
@@ -386,18 +469,18 @@ Proof.
   {
     exploit Tree.Forall_reduce; [| |eauto|].
     - eapply Selectionproof_sepcomp.link_program_check_helpers.
-    - clear -T0. revert p5 T0.
-      induction p6; intros; inv T0; econstructor; eauto.
+    - clear -T. revert p5 T.
+      induction p; intros; inv T; econstructor; eauto.
       monadInv Hpred. destruct x. auto.
     - auto.
   }
 
-  eapply Tree.Forall2_implies in T0; [|apply Selection_sepcomp_rel].
-  eapply Tree.Forall2_reduce in T0; eauto;
+  eapply Tree.Forall2_implies in T; [|apply Selection_sepcomp_rel].
+  eapply Tree.Forall2_reduce in T; eauto;
     [|eapply (@link_program_sepcomp_rel Language_Cminor Language_CminorSel id)]; simplify;
     [|eapply Selection_sig; eauto].
 
-  destruct T0 as [cminorselprog [Hcminorselprog Hcminorselsim]].
+  destruct T as [cminorselprog [Hcminorselprog Hcminorselsim]].
   apply Selectionproof_sepcomp.transl_program_correct in Hcminorselsim;
     eauto using Selectionproof.check_helpers_correct.
 

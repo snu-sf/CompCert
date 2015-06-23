@@ -100,7 +100,7 @@ Lemma Tailcall_sig:
     F_sig F_RTL f = F_sig F_RTL (Tailcall.transf_function f).
 Proof.
   intros. unfold Tailcall.transf_function.
-  destruct (zeq (RTL.fn_stacksize f) 0 && Compopts.eliminate_tailcalls tt); auto.
+  destruct (zeq (RTL.fn_stacksize f)); auto.
 Qed.
 
 Lemma RTLgen_sig:
