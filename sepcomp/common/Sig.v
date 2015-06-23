@@ -114,8 +114,8 @@ Proof.
 Qed.
 
 Lemma Selection_sig:
-  forall hf ge (f1 : F_Cminor) (f2 : F_CminorSel),
-    Selection.sel_function hf ge f1 = OK f2 -> F_sig F_Cminor f1 = F_sig F_CminorSel f2.
+  forall ge (f1 : F_Cminor) (f2 : F_CminorSel),
+    Selection.sel_function ge f1 = OK f2 -> F_sig F_Cminor f1 = F_sig F_CminorSel f2.
 Proof.
   intros. unfold Selection.sel_function in H. monadInv H. auto.
 Qed.

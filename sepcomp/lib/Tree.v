@@ -102,6 +102,22 @@ Proof.
   - apply IHtree1_2. auto.
 Qed.
 
+Lemma Forall_reduce A (pred:A->Prop) (rA:A->A->option A)
+      (H: forall a1 a2 a (Ha:rA a1 a2 = Some a) (H1:pred a1) (H2:pred a2),
+          pred a)
+      (treeA:t A) (a:A)
+      (Hpred: Forall pred treeA)
+      (Ha: reduce rA treeA = Some a):
+    pred a.
+Proof.
+  revert a Ha Hpred. induction treeA; simpl; intros a Ha Hpred.
+  { inv Ha. inv Hpred. auto. }
+  inv Hpred.
+  destruct (reduce rA treeA1) as [a1|] eqn:Ha1; [|inv Ha].
+  destruct (reduce rA treeA2) as [a2|] eqn:Ha2; [|inv Ha].
+  eapply H; eauto.
+Qed.
+
 Lemma Forall2_reduce A B (pred:A->B->Prop) (rA:A->A->option A) (rB:B->B->option B)
       (H: forall a1 a2 a b1 b2 (Ha:rA a1 a2 = Some a) (H1:pred a1 b1) (H2:pred a2 b2),
           exists b, rB b1 b2 = Some b /\ pred a b)
