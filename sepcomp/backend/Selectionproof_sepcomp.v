@@ -35,8 +35,11 @@ Require Import SelectOpproof.
 Require Import SelectDivproof.
 Require Import SelectLongproof.
 Require Import Maps_sepcomp.
+Require Import Linker.
+Require Import LinkerProp.
 Require Import Linkeq.
 Require Import SepcompRel.
+Require Import Coqlib_sepcomp.
 
 Local Open Scope cminorsel_scope.
 Local Open Scope error_monad_scope.
@@ -60,7 +63,6 @@ Hypothesis TRANSF:
        ef = tef)
     (@OK _)
     prog tprog.
-
 
 Let prog_match:
   match_program
@@ -1126,4 +1128,102 @@ Proof.
   generalize i64_helpers x. induction 1; simpl; intros.
   contradiction.
   destruct H1. subst a1. eapply check_helper_correct; eauto. eauto. 
+Qed.
+
+Lemma link_program_check_helper
+      idsig p1 p2 p
+      (LINK: link_program Language_Cminor p1 p2 = Some p)
+      (CHECK1: SelectLong.check_helper (Genv.globalenv p1) idsig = OK tt)
+      (CHECK2: SelectLong.check_helper (Genv.globalenv p2) idsig = OK tt):
+  SelectLong.check_helper (Genv.globalenv p) idsig = OK tt.
+Proof.
+  destruct idsig as [id sig]. simpl in *.
+  destruct (@Genv.find_symbol Cminor.fundef unit (Genv.globalenv p1) id) as [s1|] eqn:SYM1; try congruence.
+  destruct (@Genv.find_symbol Cminor.fundef unit (Genv.globalenv p2) id) as [s2|] eqn:SYM2; try congruence.
+  destruct (@Genv.find_funct_ptr Cminor.fundef unit (Genv.globalenv p1) s1) as [f1|] eqn:FUNC1; try congruence.
+  destruct (@Genv.find_funct_ptr Cminor.fundef unit (Genv.globalenv p2) s2) as [f2|] eqn:FUNC2; try congruence.
+  destruct f1 as [|[]]; try congruence.
+  destruct f2 as [|[]]; try congruence.
+  destruct (ident_eq name id); simpl in *; subst; try congruence.
+  destruct (signature_eq sg sig); simpl in *; subst; try congruence.
+  destruct (ident_eq name0 id); simpl in *; subst; try congruence.
+  destruct (signature_eq sg0 sig); simpl in *; subst; try congruence.
+  exploit find_symbol_spec; eauto.
+  instantiate (1 := p1). instantiate (1 := id).
+  simpl in *. fold Cminor.fundef in *. rewrite SYM1, FUNC1.
+  intro ID1.
+  exploit find_symbol_spec; eauto.
+  instantiate (1 := p2). instantiate (1 := id).
+  simpl in *. fold Cminor.fundef in *. rewrite SYM2, FUNC2.
+  intro ID2.
+  exploit find_symbol_spec; eauto.
+  instantiate (1 := p). instantiate (1 := id).
+  simpl in *. fold Cminor.fundef in *.
+  intro ID.
+  unfold link_program in LINK. simpl in *. fold Cminor.fundef in *.
+  destruct (Pos.eqb (prog_main p1) (prog_main p2)); try congruence.
+  destruct (link_globdef_list Language_Cminor (prog_defs p1) (prog_defs p2)) eqn:DEFS; inv LINK.
+  unfold link_globdef_list in DEFS. simpl in *. fold Cminor.fundef in *.
+  destruct (link_globdefs Language_Cminor (PTree_unelements (prog_defs p1)) (PTree_unelements (prog_defs p2))) eqn:DEFS'; inv DEFS.
+  exploit gtlink_globdefs; eauto. instantiate (1 := id). rewrite ? PTree_guespec.
+  revert ID1 ID2. simpl in *. fold Cminor.fundef in *. fold ident.
+  destruct
+    (@option_map (prod ident (globdef Cminor.fundef unit))
+                 (globdef Cminor.fundef unit) (@snd ident (globdef Cminor.fundef unit))
+                 (@find (prod ident (globdef Cminor.fundef unit))
+                        (fun id0 : prod ident (globdef Cminor.fundef unit) =>
+                           @proj_sumbool
+                             (@eq ident id (@fst ident (globdef Cminor.fundef unit) id0))
+                             (not
+                                (@eq ident id (@fst ident (globdef Cminor.fundef unit) id0)))
+                             (peq id (@fst ident (globdef Cminor.fundef unit) id0)))
+                        (@rev (prod ident (globdef Cminor.fundef unit))
+                              (@prog_defs Cminor.fundef unit p1)))); [|intros; exfalso; auto].
+  destruct
+    (@option_map (prod ident (globdef Cminor.fundef unit))
+                 (globdef Cminor.fundef unit) (@snd ident (globdef Cminor.fundef unit))
+                 (@find (prod ident (globdef Cminor.fundef unit))
+                        (fun id0 : prod ident (globdef Cminor.fundef unit) =>
+                           @proj_sumbool
+                             (@eq ident id (@fst ident (globdef Cminor.fundef unit) id0))
+                             (not
+                                (@eq ident id (@fst ident (globdef Cminor.fundef unit) id0)))
+                             (peq id (@fst ident (globdef Cminor.fundef unit) id0)))
+                        (@rev (prod ident (globdef Cminor.fundef unit))
+                              (@prog_defs Cminor.fundef unit p2)))); [|intros; exfalso; auto].
+  destruct g, g0; intros; try (exfalso; auto; fail).
+  destruct (t ! id) eqn:TID; [|exfalso; auto].
+  rewrite PTree_gespec in TID.
+  rewrite <- list_norepet_option_map_find in TID; [|apply PTree.elements_keys_norepet].
+  simpl in *. fold Cminor.fundef ident in *. rewrite TID in ID.
+  destruct (Genv.find_symbol (Genv.globalenv {| prog_defs := PTree.elements t; prog_main := prog_main p1 |}) id); [|exfalso; auto].
+  destruct g; [|destruct H as [[]|[]]; congruence].
+  destruct (Genv.find_funct_ptr (Genv.globalenv {| prog_defs := PTree.elements t; prog_main := prog_main p1 |}) b); [|exfalso; auto].
+  destruct (Genv.find_var_info (Genv.globalenv {| prog_defs := PTree.elements t; prog_main := prog_main p1 |}) b); [exfalso; auto|].
+  destruct (Genv.find_var_info (Genv.globalenv p1) s1); [exfalso; auto|].
+  destruct (Genv.find_var_info (Genv.globalenv p2) s2); [exfalso; auto|].
+  subst. destruct H as [[]|[]]; inv H0.
+  - destruct (ident_eq id id); [|congruence].
+    destruct (signature_eq sig sig); [|congruence].
+    auto.
+  - destruct (ident_eq id id); [|congruence].
+    destruct (signature_eq sig sig); [|congruence].
+    auto.
+Qed.
+
+Lemma link_program_check_helpers
+      p1 p2 p
+      (LINK: link_program Language_Cminor p1 p2 = Some p)
+      (CHECK1: SelectLong.check_helpers (Genv.globalenv p1) = OK tt)
+      (CHECK2: SelectLong.check_helpers (Genv.globalenv p2) = OK tt):
+  SelectLong.check_helpers (Genv.globalenv p) = OK tt.
+Proof.
+  unfold SelectLong.check_helpers in *.
+  monadInv CHECK1. monadInv CHECK2.
+  apply mmap_inversion in EQ. apply mmap_inversion in EQ0.
+  revert x x0 EQ EQ0. induction SelectLong.i64_helpers; intros; auto.
+  inv EQ. inv EQ0. destruct b0, b1. simpl.
+  erewrite link_program_check_helper; eauto. simpl.
+  exploit IHl; eauto. simpl in *.
+  destruct (mmap (SelectLong.check_helper (Genv.globalenv p)) l); auto.
 Qed.

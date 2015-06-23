@@ -272,21 +272,25 @@ Proof.
   (* Cminor *)
   unfold transf_cminor_program in TRANSF. clarify.
 
-  assert(Hcheck_helper: 
-    SelectLong.check_helpers (Genv.globalenv cminorprog) = OK tt).
+  assert (Hcheck_helpers: SelectLong.check_helpers (Genv.globalenv cminorprog) = OK tt).
   {
-    admit.
+    exploit Tree.Forall_reduce; [| |eauto|].
+    - eapply Selectionproof_sepcomp.link_program_check_helpers.
+    - clear -T0. revert p5 T0.
+      induction p6; intros; inv T0; econstructor; eauto.
+      monadInv Hpred. destruct x. auto.
+    - auto.
   }
-  
+
   eapply Tree.Forall2_implies in T0; [|apply Selection_sepcomp_rel].
   eapply Tree.Forall2_reduce in T0; eauto;
     [|eapply (@link_program_sepcomp_rel Language_Cminor Language_CminorSel id)]; simplify;
       [|eapply Selection_sig; eauto].
 
   destruct T0 as [cminorselprog [Hcminorselprog Hcminorselsim]].
-  apply Selectionproof_sepcomp.transl_program_correct in Hcminorselsim
-  ; eauto using Selectionproof.check_helpers_correct.
-  
+  apply Selectionproof_sepcomp.transl_program_correct in Hcminorselsim;
+    eauto using Selectionproof.check_helpers_correct.
+
   eapply Tree.Forall2_reduce in T; eauto;
     [|eapply (transform_partial_program2_link_program Language_CminorSel Language_RTL)];
     [|apply globfun_linkable_transf_partial_fundef];
