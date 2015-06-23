@@ -81,7 +81,7 @@ Lemma functions_translated:
   Genv.find_funct ge v = Some f ->
   exists tf, Genv.find_funct tge v = Some tf /\
              match_fundef prog f tf.
-Proof.
+Proof.  
   intros. exploit (find_funct_transf_optionally _ _ TRANSF); eauto. simpl in *.
   intros [tf [Htf [[sprog [Hsprog Hf]]|Hf]]].
   eexists. split; eauto.
@@ -790,8 +790,7 @@ Proof.
   rewrite symbols_preserved. eauto.
   inv TRANSF. auto.
   rewrite <- H3. eapply match_fundef_sig; eauto.
-  constructor.
-  constructor; auto. constructor. apply Mem.extends_refl.
+  constructor. constructor; auto. constructor. apply Mem.extends_refl.
 Qed.
 
 Lemma transf_final_states:

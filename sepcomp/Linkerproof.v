@@ -347,7 +347,7 @@ Qed.
 Theorem linker_correct_det_forward
         ctree asmtree cprog
         (CLINK: Tree.reduce (link_program Language_C) ctree = Some cprog)
-        (TRANSF: Tree.Forall2 (fun c a => compile_c_program c a) ctree asmtree):
+        (TRANSF: Tree.Forall2 compile_c_program ctree asmtree):
   exists (asmprog:Asm.program)
     (_:forward_simulation (Cstrategy.semantics cprog) (Asm.semantics asmprog)),
     Tree.reduce (link_program Language_Asm) asmtree = Some asmprog.
@@ -460,7 +460,7 @@ Qed.
 Theorem linker_correct_det_backward
         ctree asmtree cprog
         (CLINK: Tree.reduce (link_program Language_C) ctree = Some cprog)
-        (TRANSF: Tree.Forall2 (fun c a => compile_c_program c a) ctree asmtree):
+        (TRANSF: Tree.Forall2 compile_c_program ctree asmtree):
   exists (asmprog:Asm.program)
     (_:backward_simulation (atomic (Cstrategy.semantics cprog)) (Asm.semantics asmprog)),
     Tree.reduce (link_program Language_Asm) asmtree = Some asmprog.
@@ -477,7 +477,7 @@ Qed.
 Theorem linker_correct
         ctree asmtree cprog
         (CLINK: Tree.reduce (link_program Language_C) ctree = Some cprog)
-        (TRANSF: Tree.Forall2 (fun c a => compile_c_program c a) ctree asmtree):
+        (TRANSF: Tree.Forall2 compile_c_program ctree asmtree):
   exists (asmprog:Asm.program)
     (_:backward_simulation (Csem.semantics cprog) (Asm.semantics asmprog)),
     Tree.reduce (link_program Language_Asm) asmtree = Some asmprog.
@@ -493,3 +493,4 @@ Proof.
   eapply ssr_well_behaved; eapply Cstrategy.semantics_strongly_receptive.
   exact x.
 Qed.
+

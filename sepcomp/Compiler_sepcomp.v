@@ -177,5 +177,3 @@ Lemma compose_print_identity:
 Proof.
   intros. destruct x; simpl. rewrite print_identity. auto. auto. 
 Qed.
-
-
