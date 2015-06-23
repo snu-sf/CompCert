@@ -104,6 +104,59 @@ Definition print {A: Type} (printer: A -> unit) (prog: A) : A :=
 
 Definition time {A B: Type} (name: string) (f: A -> B) : A -> B := f.
 
+(** translation functions *)
+
+Definition transf_rtl_program (f: RTL.program) : res Asm.program :=
+   OK f
+   @@ print (print_RTL 0)
+   @@@ time "Register allocation" Allocation.transf_program
+   @@ print print_LTL
+   @@ time "Branch tunneling" Tunneling.tunnel_program
+  @@@ Linearize.transf_program
+   @@ time "Label cleanup" CleanupLabels.transf_program
+  @@@ time "Mach generation" Stacking.transf_program
+   @@ print print_Mach
+  @@@ time "Asm generation" Asmgen.transf_program.
+
+Definition transf_cminor_program (p: Cminor.program) : res RTL.program :=
+   OK p
+   @@ print print_Cminor
+  @@@ time "Instruction selection" Selection.sel_program
+  @@@ time "RTL generation" RTLgen.transl_program.
+
+Definition transf_clight_program (p: Clight.program) : res RTL.program :=
+  OK p 
+   @@ print print_Clight
+  @@@ time "Simplification of locals" SimplLocals.transf_program
+  @@@ time "C#minor generation" Cshmgen.transl_program
+  @@@ time "Cminor generation" Cminorgen.transl_program
+  @@@ transf_cminor_program.
+
+Definition transf_c_program (p: Csyntax.program) : res RTL.program :=
+  OK p 
+  @@@ time "Clight generation" SimplExpr.transl_program
+  @@@ transf_clight_program.
+
+Inductive optimize_rtl_program: forall (rtl: RTL.program) (ortl: RTL.program), Prop:=
+| rtlopt_tailcall: forall r1,
+                     optimize_rtl_program r1 (Tailcall.transf_program r1)
+| rtlopt_inlining: forall r1 r1' (TR_OK: Inlining.transf_program r1 = OK r1'),
+                     optimize_rtl_program r1 r1'
+| rtlopt_renumber: forall r1,
+                     optimize_rtl_program r1 (Renumber.transf_program r1)
+| rtlopt_constprop: forall r1,
+                      optimize_rtl_program r1 (Constprop.transf_program r1)
+| rtlopt_cse: forall r1 r1' (TR_OK: CSE.transf_program r1 = OK r1'),
+                optimize_rtl_program r1 r1'
+| rtlopt_deadcode: forall r1 r1' (TR_OK: Deadcode.transf_program r1 = OK r1'),
+                     optimize_rtl_program r1 r1'.
+
+Definition compile_c_program (c: Csyntax.program) (a:Asm.program) : Prop :=
+  exists rtl ortl,
+    transf_c_program c = OK rtl
+    /\ (rtc optimize_rtl_program) rtl ortl
+    /\ transf_rtl_program ortl = OK a.
+
 (** Force [Initializers] and [Cexec] to be extracted as well. *)
 
 Definition transl_init := Initializers.transl_init.
@@ -125,53 +178,4 @@ Proof.
   intros. destruct x; simpl. rewrite print_identity. auto. auto. 
 Qed.
 
-Definition transf_rtl_program_to_asm (f: RTL.program) : res Asm.program :=
-   OK f
-   @@ print (print_RTL 0)
-   @@@ time "Register allocation" Allocation.transf_program
-   @@ print print_LTL
-   @@ time "Branch tunneling" Tunneling.tunnel_program
-  @@@ Linearize.transf_program
-   @@ time "Label cleanup" CleanupLabels.transf_program
-  @@@ time "Mach generation" Stacking.transf_program
-   @@ print print_Mach
-  @@@ time "Asm generation" Asmgen.transf_program.
 
-Definition transf_cminor_program_to_rtl (p: Cminor.program) : res RTL.program :=
-   OK p
-   @@ print print_Cminor
-  @@@ time "Instruction selection" Selection.sel_program
-  @@@ time "RTL generation" RTLgen.transl_program.
-
-Definition transf_clight_program_to_rtl (p: Clight.program) : res RTL.program :=
-  OK p 
-   @@ print print_Clight
-  @@@ time "Simplification of locals" SimplLocals.transf_program
-  @@@ time "C#minor generation" Cshmgen.transl_program
-  @@@ time "Cminor generation" Cminorgen.transl_program
-  @@@ transf_cminor_program_to_rtl.
-
-Definition transf_c_program_to_rtl (p: Csyntax.program) : res RTL.program :=
-  OK p 
-  @@@ time "Clight generation" SimplExpr.transl_program
-  @@@ transf_clight_program_to_rtl.
-
-Inductive optimize_rtl_program: forall (rtl: RTL.program) (ortl: RTL.program), Prop:=
-| rtlopt_tailcall: forall r1,
-                     optimize_rtl_program r1 (Tailcall.transf_program r1)
-| rtlopt_inlining: forall r1 r1' (TR_OK: Inlining.transf_program r1 = OK r1'),
-                     optimize_rtl_program r1 r1'
-| rtlopt_renumber: forall r1,
-                     optimize_rtl_program r1 (Renumber.transf_program r1)
-| rtlopt_constprop: forall r1,
-                      optimize_rtl_program r1 (Constprop.transf_program r1)
-| rtlopt_cse: forall r1 r1' (TR_OK: CSE.transf_program r1 = OK r1'),
-                optimize_rtl_program r1 r1'
-| rtlopt_deadcode: forall r1 r1' (TR_OK: Deadcode.transf_program r1 = OK r1'),
-                     optimize_rtl_program r1 r1'.
-
-Definition compile_c_program (c: Csyntax.program) (a:Asm.program) : Prop :=
-  exists rtl ortl,
-    transf_c_program_to_rtl c = OK rtl
-    /\ (rtc optimize_rtl_program) rtl ortl
-    /\ transf_rtl_program_to_asm ortl = OK a.

@@ -4,7 +4,7 @@ Require String.
 Require Import Coqlib Coqlib_sepcomp.
 Require Import Maps Maps_sepcomp.
 Require Import Integers Floats Values AST Globalenvs.
-Require Import Errors Behaviors Compiler Smallstep.
+Require Import Errors Behaviors Smallstep.
 Require Import Language Linker.
 Require Import Tree.
 Require Import LinkerBasicproof Sig.
@@ -358,7 +358,7 @@ Proof.
   unfold compile_c_program in TRANSF.
   eapply Tree.Tree_Forall2_split2 in TRANSF. des.
 
-  unfold transf_c_program_to_rtl in TRANSF. clarify.
+  unfold transf_c_program in TRANSF. clarify.
   eapply Tree.Forall2_implies in T; [|apply SimplExpr_sepcomp_rel].
   eapply Tree.Forall2_reduce in T; eauto;
     [|eapply (@link_program_sepcomp_rel Language_C Language_Clight id)]; simplify;
@@ -367,7 +367,7 @@ Proof.
   apply SimplExprproof_sepcomp.transl_program_correct in Hclightsim.
 
   (* Clight *)
-  unfold transf_clight_program_to_rtl in TRANSF. clarify.
+  unfold transf_clight_program in TRANSF. clarify.
 
   eapply Tree.Forall2_reduce in T1; eauto;
     [|eapply (transform_partial_program2_link_program Language_Clight Language_Clight)];
@@ -389,7 +389,7 @@ Proof.
   apply Cminorgenproof.transl_program_correct in Hcminorsim.
 
   (* Cminor *)
-  unfold transf_cminor_program_to_rtl in TRANSF. clarify.
+  unfold transf_cminor_program in TRANSF. clarify.
 
   eapply Tree.Forall2_implies in T; [|apply Selection_sepcomp_rel].
   eapply Tree.Forall2_reduce in T; eauto;
@@ -411,7 +411,7 @@ Proof.
   exploit optimize_rtl_program_reduce_simulation.
   eauto. apply Tree.Tree_Forall2_rtc_rel_rtc_tree_change_one. eauto.
   intros. des.
-  unfold transf_rtl_program_to_asm in TRANSF1. clarify.
+  unfold transf_rtl_program in TRANSF1. clarify.
 
   eapply Tree.Forall2_reduce in T5; eauto;
     [|eapply (transform_partial_program2_link_program Language_RTL Language_LTL)];
