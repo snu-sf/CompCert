@@ -11,6 +11,7 @@
 (** Symbols starting with [vlib__] are internal. *)
 
 Require Import Bool Arith ZArith String Program.
+Require Import Relations.
 Require Export paconotation.
 (* Require Export newtac. *)
 
@@ -930,3 +931,7 @@ Ltac ren H :=
 (* Tactic Notation "insts" constr(terms) := *)
 (*   Hdo (fun x => instantiate (1 := x)) terms. *)
 (* (* TODO this is not very useful after all *) *)
+
+Notation rtc := (clos_refl_trans _). (* reflexive transitive closure *)
+Notation tc := (clos_trans _). (* transitive closure *)
+Hint Immediate rt_step Relation_Operators.rt_refl Relation_Operators.t_step.

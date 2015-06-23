@@ -4,7 +4,7 @@ Require String.
 Require Import Coqlib Coqlib_sepcomp.
 Require Import Maps Maps_sepcomp.
 Require Import Integers Floats Values AST Globalenvs.
-Require Import Errors Behaviors Compiler Smallstep.
+Require Import Errors Behaviors Smallstep.
 Require Import Language Linker.
 Require Import Tree.
 Require Import LinkerBasicproof Sig.
@@ -18,6 +18,8 @@ Require Renumberproof_sepcomp.
 Require Constpropproof_sepcomp.
 Require CSEproof_sepcomp.
 Require Deadcodeproof_sepcomp.
+Require Import Compiler_sepcomp.
+Require Import sflib.
 
 Set Implicit Arguments.
 
@@ -108,101 +110,113 @@ Qed.
 
 Lemma Tailcall_sepcomp_rel
       rtlprog1 rtlprog2
-      (Htrans: Tailcall.transf_program rtlprog1 = rtlprog2):
+      (Htrans: Tailcall.transf_program rtlprog1 = rtlprog2 \/ rtlprog1 = rtlprog2):
   @sepcomp_rel
     Language_RTL Language_RTL
-    (fun p f tf => Tailcall.transf_function f = tf)
+    (fun p f tf => Tailcall.transf_function f = tf \/ f = tf)
     (fun p ef tef => ef = tef)
     (@OK _)
     rtlprog1 rtlprog2.
 Proof.
-  apply transf_program_sepcomp_rel. rewrite <- Htrans.
-  unfold Tailcall.transf_program. f_equal.
-  apply Axioms.functional_extensionality. intro fd.
-  destruct fd; auto.
+  inv Htrans.
+  - apply transf_program_optionally_sepcomp_rel.
+    unfold Tailcall.transf_program. f_equal.
+    apply functional_extensionality. intro fd.
+    destruct fd; auto.
+  - apply transf_program_optionally_sepcomp_rel_identical; auto.
 Qed.
 
 Lemma Inlining_sepcomp_rel
       rtlprog1 rtlprog2
-      (Htrans: Inlining.transf_program rtlprog1 = OK rtlprog2):
+      (Htrans: Inlining.transf_program rtlprog1 = OK rtlprog2 \/ rtlprog1 = rtlprog2):
   @sepcomp_rel
     Language_RTL Language_RTL
-    (fun p f tf => Inlining.transf_function (Inlining.funenv_program p) f = OK tf)
+    (fun p f tf => Inlining.transf_function (Inlining.funenv_program p) f = OK tf \/ f = tf)
     (fun p ef tef => (fun _ ef => OK ef) p ef = OK tef)
     (@OK _)
     rtlprog1 rtlprog2.
 Proof.
-  apply transf_partial_sepcomp_rel.
-  unfold progT, RTL.program, RTL.fundef in *. simpl in *. rewrite <- Htrans.
-  unfold Inlining.transf_program. f_equal.
-  apply Axioms.functional_extensionality. intro fd.
-  destruct fd; auto.
+  inv Htrans.
+  - apply transf_partial_optionally_sepcomp_rel.
+    unfold progT, RTL.program, RTL.fundef in *. simpl in *. rewrite <- H.
+    unfold Inlining.transf_program. f_equal.
+    apply functional_extensionality. intro fd.
+    destruct fd; auto.
+  - apply transf_partial_optionally_sepcomp_rel_identical; auto.
 Qed.
 
 Lemma Renumber_sepcomp_rel
       rtlprog1 rtlprog2
-      (Htrans: Renumber.transf_program rtlprog1 = rtlprog2):
+      (Htrans: Renumber.transf_program rtlprog1 = rtlprog2 \/ rtlprog1 = rtlprog2):
   @sepcomp_rel
     Language_RTL Language_RTL
-    (fun p f tf => Renumber.transf_function f = tf)
+    (fun p f tf => Renumber.transf_function f = tf \/ f = tf)
     (fun p ef tef => ef = tef)
     (@OK _)
     rtlprog1 rtlprog2.
 Proof.
-  apply transf_program_sepcomp_rel. rewrite <- Htrans.
-  unfold Renumber.transf_program. f_equal.
-  apply Axioms.functional_extensionality. intro fd.
-  destruct fd; auto.
+  inv Htrans.
+  - apply transf_program_optionally_sepcomp_rel.
+    unfold Renumber.transf_program. f_equal.
+    apply functional_extensionality. intro fd.
+    destruct fd; auto.
+  - apply transf_program_optionally_sepcomp_rel_identical. auto.
 Qed.
 
 Lemma Constprop_sepcomp_rel
       rtlprog1 rtlprog2
-      (Htrans: Constprop.transf_program rtlprog1 = rtlprog2):
+      (Htrans: Constprop.transf_program rtlprog1 = rtlprog2 \/ rtlprog1 = rtlprog2):
   @sepcomp_rel
     Language_RTL Language_RTL
-    (fun p f tf => Constprop.transf_function (ValueAnalysis.romem_for_program p) f = tf)
+    (fun p f tf => Constprop.transf_function (ValueAnalysis.romem_for_program p) f = tf \/ f = tf)
     (fun p ef tef => ef = tef)
     (@OK _)
     rtlprog1 rtlprog2.
 Proof.
-  apply transf_program_sepcomp_rel. rewrite <- Htrans.
-  unfold Constprop.transf_program. f_equal.
-  apply Axioms.functional_extensionality. intro fd.
-  destruct fd; auto.
+  inv Htrans.
+  - apply transf_program_optionally_sepcomp_rel.
+    unfold Constprop.transf_program. f_equal.
+    apply functional_extensionality. intro fd.
+    destruct fd; auto.
+  - apply transf_program_optionally_sepcomp_rel_identical. auto.
 Qed.
 
 Lemma CSE_sepcomp_rel
       rtlprog1 rtlprog2
-      (Htrans: CSE.transf_program rtlprog1 = OK rtlprog2):
+      (Htrans: CSE.transf_program rtlprog1 = OK rtlprog2 \/ rtlprog1 = rtlprog2):
   @sepcomp_rel
     Language_RTL Language_RTL
-    (fun p f tf => CSE.transf_function (ValueAnalysis.romem_for_program p) f = OK tf)
+    (fun p f tf => CSE.transf_function (ValueAnalysis.romem_for_program p) f = OK tf \/ f = tf)
     (fun p ef tef => (fun _ ef => OK ef) p ef = OK tef)
     (@OK _)
     rtlprog1 rtlprog2.
 Proof.
-  apply transf_partial_sepcomp_rel.
-  unfold progT, RTL.program, RTL.fundef in *. simpl in *. rewrite <- Htrans.
-  unfold CSE.transf_program. f_equal.
-  apply Axioms.functional_extensionality. intro fd.
-  destruct fd; auto.
+  inv Htrans.
+  - apply transf_partial_optionally_sepcomp_rel.
+    unfold progT, RTL.program, RTL.fundef in *. simpl in *. rewrite <- H.
+    unfold CSE.transf_program. f_equal.
+    apply functional_extensionality. intro fd.
+    destruct fd; auto.
+  - apply transf_partial_optionally_sepcomp_rel_identical. auto.
 Qed.
 
 Lemma Deadcode_sepcomp_rel
       rtlprog1 rtlprog2
-      (Htrans: Deadcode.transf_program rtlprog1 = OK rtlprog2):
+      (Htrans: Deadcode.transf_program rtlprog1 = OK rtlprog2 \/ rtlprog1 = rtlprog2):
   @sepcomp_rel
     Language_RTL Language_RTL
-    (fun p f tf => Deadcode.transf_function (ValueAnalysis.romem_for_program p) f = OK tf)
+    (fun p f tf => Deadcode.transf_function (ValueAnalysis.romem_for_program p) f = OK tf \/ f = tf)
     (fun p ef tef => (fun _ ef => OK ef) p ef = OK tef)
     (@OK _)
     rtlprog1 rtlprog2.
 Proof.
-  apply transf_partial_sepcomp_rel.
-  unfold progT, RTL.program, RTL.fundef in *. simpl in *. rewrite <- Htrans.
-  unfold Deadcode.transf_program. f_equal.
-  apply Axioms.functional_extensionality. intro fd.
-  destruct fd; auto.
+  inv Htrans.
+  - apply transf_partial_optionally_sepcomp_rel.
+    unfold progT, RTL.program, RTL.fundef in *. simpl in *. rewrite <- H.
+    unfold Deadcode.transf_program. f_equal.
+    apply functional_extensionality. intro fd.
+    destruct fd; auto.
+  - apply transf_partial_optionally_sepcomp_rel_identical. auto.
 Qed.
 
 Ltac clarify :=
@@ -234,10 +248,106 @@ Ltac simplify :=
          end;
   subst; auto.
 
-Theorem linker_correct
+Definition rtl_opt_tree := Tree.tree_change_one optimize_rtl_program.
+
+
+Lemma rtl_opt_tree_destruct:
+  forall tr tr' (ROPTT: rtl_opt_tree tr tr'),
+    << TAILCALL: Tree.Forall2 (fun p1 p2 => (Tailcall.transf_program p1 = p2) \/ p1 = p2) tr tr' >>
+    \/  << INLINING: Tree.Forall2 (fun p1 p2 => (Inlining.transf_program p1 = OK p2) \/ p1 = p2) tr tr' >>
+    \/  << RENUMBER: Tree.Forall2 (fun p1 p2 => (Renumber.transf_program p1 = p2) \/ p1 = p2) tr tr' >>
+    \/  << CONSTPROP: Tree.Forall2 (fun p1 p2 => (Constprop.transf_program p1 = p2) \/ p1 = p2) tr tr' >>
+    \/  << CSE: Tree.Forall2 (fun p1 p2 => (CSE.transf_program p1 = OK p2) \/ p1 = p2) tr tr' >>
+    \/  << DEADCODE: Tree.Forall2 (fun p1 p2 => (Deadcode.transf_program p1 = OK p2) \/ p1 = p2) tr tr' >>.
+Proof.
+  intros. induction ROPTT.
+  - inv REL; [|right|right;right|right;right;right|right;right;right;right |right;right;right;right;right ]; [left|left|left|left|left| ]; constructor; auto.
+  - des; [|right|right;right|right;right;right|right;right;right;right |right;right;right;right;right ]; [left|left|left|left|left|];
+    (constructor; auto; eapply Tree.Forall2_implies;
+    [ intros; right; apply H | apply Tree.Tree_Forall2_eq_same]).
+  - des; [|right|right;right|right;right;right|right;right;right;right |right;right;right;right;right ]; [left|left|left|left|left|];
+    (constructor; auto; eapply Tree.Forall2_implies;
+    [ intros; right; apply H | apply Tree.Tree_Forall2_eq_same]).
+Qed.
+
+Lemma rtl_opt_tree_reduce_simulation:
+  forall tr tr' rtlprog
+         (ROPT1T: rtl_opt_tree tr tr')
+         (REDUCE: Tree.reduce (link_program Language_RTL) tr = Some rtlprog),
+  exists rtlprog'
+    (Hrtlsim': forward_simulation (RTL.semantics rtlprog) (RTL.semantics rtlprog')),
+    << Hrtlprog': Tree.reduce (link_program Language_RTL) tr' = Some rtlprog' >>.
+Proof.
+  intros.
+  apply rtl_opt_tree_destruct in ROPT1T. des.
+  - eapply Tree.Forall2_implies in TAILCALL; [|apply Tailcall_sepcomp_rel].
+    eapply Tree.Forall2_reduce in TAILCALL; eauto; [|eapply (@link_program_sepcomp_rel Language_RTL Language_RTL id)]; simplify.
+    + destruct TAILCALL as [rtlprog1 [Hrtlprog1 Hrtlsim1]].
+      apply Tailcallproof_sepcomp.transf_program_correct in Hrtlsim1. eexists. eauto.
+    + des; subst; [apply Tailcall_sig | auto].
+  - eapply Tree.Forall2_implies in INLINING; [|apply Inlining_sepcomp_rel].
+    eapply Tree.Forall2_reduce in INLINING; eauto; [|eapply (@link_program_sepcomp_rel Language_RTL Language_RTL id)]; simplify.
+    + destruct INLINING as [rtlprog1 [Hrtlprog1 Hrtlsim1]].
+      apply Inliningproof_sepcomp.transf_program_correct in Hrtlsim1. eexists. eauto.
+    + des; subst; [eapply Inlining_sig|]; eauto.
+  - eapply Tree.Forall2_implies in RENUMBER; [|apply Renumber_sepcomp_rel].
+    eapply Tree.Forall2_reduce in RENUMBER; eauto; [|eapply (@link_program_sepcomp_rel Language_RTL Language_RTL id)]; simplify.
+    + destruct RENUMBER as [rtlprog1 [Hrtlprog1 Hrtlsim1]].
+      apply Renumberproof_sepcomp.transf_program_correct in Hrtlsim1. eexists. eauto.
+    + des; subst; auto.
+  - eapply Tree.Forall2_implies in CONSTPROP; [|apply Constprop_sepcomp_rel].
+    eapply Tree.Forall2_reduce in CONSTPROP; eauto; [|eapply (@link_program_sepcomp_rel Language_RTL Language_RTL id)]; simplify.
+    + destruct CONSTPROP as [rtlprog1 [Hrtlprog1 Hrtlsim1]].
+      apply Constpropproof_sepcomp.transf_program_correct in Hrtlsim1. eexists. eauto.
+    + des; subst; auto.
+  - eapply Tree.Forall2_implies in CSE; [|apply CSE_sepcomp_rel].
+    eapply Tree.Forall2_reduce in CSE; eauto; [|eapply (@link_program_sepcomp_rel Language_RTL Language_RTL id)]; simplify.
+    + destruct CSE as [rtlprog1 [Hrtlprog1 Hrtlsim1]].
+      apply CSEproof_sepcomp.transf_program_correct in Hrtlsim1. eexists. eauto.
+    + des; subst; [eapply CSE_sig|]; eauto.
+  - eapply Tree.Forall2_implies in DEADCODE; [|apply Deadcode_sepcomp_rel].
+    eapply Tree.Forall2_reduce in DEADCODE; eauto; [|eapply (@link_program_sepcomp_rel Language_RTL Language_RTL id)]; simplify.
+    + destruct DEADCODE as [rtlprog1 [Hrtlprog1 Hrtlsim1]].
+      apply Deadcodeproof_sepcomp.transf_program_correct in Hrtlsim1. eexists. eauto.
+    + des; subst; [eapply Deadcode_sig|]; eauto.
+Qed.
+
+Inductive match_state_refl (s:semantics): forall (st1 st2:state s), Prop :=
+| match_state_refl_intro: forall st, match_state_refl s st st.
+
+Lemma forward_simulation_refl:
+  forall sem, forward_simulation sem sem.
+Proof.
+  intros.
+  eapply forward_simulation_step; eauto; intros.
+  - eexists. split; eauto. apply (match_state_refl_intro _ s1).
+  - inv H; auto.
+  - eexists. inv H0. split; eauto. constructor.
+Qed.
+
+Lemma optimize_rtl_program_reduce_simulation:
+  forall (rtlprog: RTL.program)
+         (tr1 tr2: Tree.t RTL.program)
+         (REDUCE: Tree.reduce (link_program Language_RTL) tr1 = Some rtlprog)
+         (ROPT: rtc rtl_opt_tree tr1 tr2),
+  exists rtlprog'
+         (Hrtlsim': forward_simulation (RTL.semantics rtlprog) (RTL.semantics rtlprog')),
+    << Hrtlprog': Tree.reduce (link_program Language_RTL) tr2 = Some rtlprog' >>.
+Proof.
+  intros. generalize dependent rtlprog.
+  induction ROPT; intros.
+  - exploit rtl_opt_tree_reduce_simulation; eauto.
+  - exists rtlprog. exists (forward_simulation_refl (RTL.semantics rtlprog)); eauto.
+  - exploit IHROPT1; eauto. intros. des.
+    exploit IHROPT2; eauto. intros. des.
+    exists rtlprog'0.
+    exists (compose_forward_simulation Hrtlsim' Hrtlsim'0); eauto.
+Qed.
+
+Theorem linker_correct_det_forward
         ctree asmtree cprog
         (CLINK: Tree.reduce (link_program Language_C) ctree = Some cprog)
-        (TRANSF: Tree.Forall2 (fun c a => transf_c_program c = OK a) ctree asmtree):
+        (TRANSF: Tree.Forall2 compile_c_program ctree asmtree):
   exists (asmprog:Asm.program)
     (_:forward_simulation (Cstrategy.semantics cprog) (Asm.semantics asmprog)),
     Tree.reduce (link_program Language_Asm) asmtree = Some asmprog.
@@ -245,8 +355,10 @@ Proof.
   repeat intro.
 
   (* C *)
-  unfold transf_c_program in TRANSF. clarify.
+  unfold compile_c_program in TRANSF.
+  eapply Tree.Tree_Forall2_split2 in TRANSF. des.
 
+  unfold transf_c_program in TRANSF. clarify.
   eapply Tree.Forall2_implies in T; [|apply SimplExpr_sepcomp_rel].
   eapply Tree.Forall2_reduce in T; eauto;
     [|eapply (@link_program_sepcomp_rel Language_C Language_Clight id)]; simplify;
@@ -279,63 +391,27 @@ Proof.
   (* Cminor *)
   unfold transf_cminor_program in TRANSF. clarify.
 
-  eapply Tree.Forall2_implies in T0; [|apply Selection_sepcomp_rel].
-  eapply Tree.Forall2_reduce in T0; eauto;
+  eapply Tree.Forall2_implies in T; [|apply Selection_sepcomp_rel].
+  eapply Tree.Forall2_reduce in T; eauto;
     [|eapply (@link_program_sepcomp_rel Language_Cminor Language_CminorSel id)]; simplify;
     [|eapply Selection_sig; eauto
      |eexists; split; auto; eapply Selectionproof_sepcomp.Hget_helpers_monotone; eauto].
 
-  destruct T0 as [cminorselprog [Hcminorselprog Hcminorselsim]].
+  destruct T as [cminorselprog [Hcminorselprog Hcminorselsim]].
   apply Selectionproof_sepcomp.transl_program_correct in Hcminorselsim.
 
-  eapply Tree.Forall2_reduce in T; eauto;
+  eapply Tree.Forall2_reduce in TRANSF; eauto;
     [|eapply (transform_partial_program2_link_program Language_CminorSel Language_RTL)];
     [|apply globfun_linkable_transf_partial_fundef];
     [|apply RTLgen_sig].
-  destruct T as [rtlprog0 [Hrtlprog0 Hrtlsim0]].
+  destruct TRANSF as [rtlprog0 [Hrtlprog0 Hrtlsim0]].
   apply RTLgenproof.transf_program_correct in Hrtlsim0.
 
-  (* RTL *)
-  unfold transf_rtl_program in TRANSF. clarify.
-
-  eapply Tree.Forall2_implies in T19; [|apply Tailcall_sepcomp_rel].
-  eapply Tree.Forall2_reduce in T19; eauto; [|eapply (@link_program_sepcomp_rel Language_RTL Language_RTL id)]; simplify;
-    [|apply Tailcall_sig].
-  destruct T19 as [rtlprog1 [Hrtlprog1 Hrtlsim1]].
-  apply Tailcallproof_sepcomp.transf_program_correct in Hrtlsim1.
-
-  eapply Tree.Forall2_implies in T17; [|apply Inlining_sepcomp_rel].
-  eapply Tree.Forall2_reduce in T17; eauto; [|eapply (@link_program_sepcomp_rel Language_RTL Language_RTL id)]; simplify;
-    [|eapply Inlining_sig; eauto].
-  destruct T17 as [rtlprog2 [Hrtlprog2 Hrtlsim2]].
-  apply Inliningproof_sepcomp.transf_program_correct in Hrtlsim2.
-
-  eapply Tree.Forall2_implies in T15; [|apply Renumber_sepcomp_rel].
-  eapply Tree.Forall2_reduce in T15; eauto; [|eapply (@link_program_sepcomp_rel Language_RTL Language_RTL id)]; simplify.
-  destruct T15 as [rtlprog3 [Hrtlprog3 Hrtlsim3]].
-  apply Renumberproof_sepcomp.transf_program_correct in Hrtlsim3.
-
-  eapply Tree.Forall2_implies in T13; [|apply Constprop_sepcomp_rel].
-  eapply Tree.Forall2_reduce in T13; eauto; [|eapply (@link_program_sepcomp_rel Language_RTL Language_RTL id)]; simplify.
-  destruct T13 as [rtlprog4 [Hrtlprog4 Hrtlsim4]].
-  apply Constpropproof_sepcomp.transf_program_correct in Hrtlsim4.
-
-  eapply Tree.Forall2_implies in T11; [|apply Renumber_sepcomp_rel].
-  eapply Tree.Forall2_reduce in T11; eauto; [|eapply (@link_program_sepcomp_rel Language_RTL Language_RTL id)]; simplify.
-  destruct T11 as [rtlprog5 [Hrtlprog5 Hrtlsim5]].
-  apply Renumberproof_sepcomp.transf_program_correct in Hrtlsim5.
-
-  eapply Tree.Forall2_implies in T9; [|apply CSE_sepcomp_rel].
-  eapply Tree.Forall2_reduce in T9; eauto; [|eapply (@link_program_sepcomp_rel Language_RTL Language_RTL id)]; simplify;
-    [|eapply CSE_sig; eauto].
-  destruct T9 as [rtlprog6 [Hrtlprog6 Hrtlsim6]].
-  apply CSEproof_sepcomp.transf_program_correct in Hrtlsim6.
-
-  eapply Tree.Forall2_implies in T7; [|apply Deadcode_sepcomp_rel].
-  eapply Tree.Forall2_reduce in T7; eauto; [|eapply (@link_program_sepcomp_rel Language_RTL Language_RTL id)]; simplify;
-    [|eapply Deadcode_sig; eauto].
-  destruct T7 as [rtlprog7 [Hrtlprog7 Hrtlsim7]].
-  apply Deadcodeproof_sepcomp.transf_program_correct in Hrtlsim7.
+(* RTL *)
+  exploit optimize_rtl_program_reduce_simulation.
+  eauto. apply Tree.Tree_Forall2_rtc_rel_rtc_tree_change_one. eauto.
+  intros. des.
+  unfold transf_rtl_program in TRANSF1. clarify.
 
   eapply Tree.Forall2_reduce in T5; eauto;
     [|eapply (transform_partial_program2_link_program Language_RTL Language_LTL)];
@@ -369,14 +445,52 @@ Proof.
   eapply Stackingproof.transf_program_correct in Hmachsim; eauto;
     [|eexact Asmgenproof.return_address_exists; eassumption].
 
-  eapply Tree.Forall2_reduce in TRANSF; eauto;
+  eapply Tree.Forall2_reduce in TRANSF1; eauto;
     [|eapply (transform_partial_program2_link_program Language_Mach Language_Asm)];
     [|apply globfun_linkable_transf_partial_fundef];
     [|apply Asmgen_sig].
-  destruct TRANSF as [asmprog [Hasmprog Hasmsim]].
+  destruct TRANSF1 as [asmprog [Hasmprog Hasmsim]].
   eapply Asmgenproof.transf_program_correct in Hasmsim; eauto.
 
   (* epilogue *)
   exists asmprog. eexists; auto.
   repeat (auto; try (eapply compose_forward_simulation; [|eauto; fail])).
 Qed.
+
+Theorem linker_correct_det_backward
+        ctree asmtree cprog
+        (CLINK: Tree.reduce (link_program Language_C) ctree = Some cprog)
+        (TRANSF: Tree.Forall2 compile_c_program ctree asmtree):
+  exists (asmprog:Asm.program)
+    (_:backward_simulation (atomic (Cstrategy.semantics cprog)) (Asm.semantics asmprog)),
+    Tree.reduce (link_program Language_Asm) asmtree = Some asmprog.
+Proof.
+  exploit linker_correct_det_forward; eauto.
+  intros. des. exists asmprog.
+  eexists; auto.
+  apply forward_to_backward_simulation.
+  apply factor_forward_simulation. auto. eapply sd_traces. eapply Asm.semantics_determinate.
+  apply atomic_receptive. apply Cstrategy.semantics_strongly_receptive.
+  apply Asm.semantics_determinate.
+Qed.
+
+Theorem linker_correct
+        ctree asmtree cprog
+        (CLINK: Tree.reduce (link_program Language_C) ctree = Some cprog)
+        (TRANSF: Tree.Forall2 compile_c_program ctree asmtree):
+  exists (asmprog:Asm.program)
+    (_:backward_simulation (Csem.semantics cprog) (Asm.semantics asmprog)),
+    Tree.reduce (link_program Language_Asm) asmtree = Some asmprog.
+Proof.
+  exploit linker_correct_det_backward; eauto. intros. des.
+  exists asmprog.
+  eexists; eauto.
+  apply compose_backward_simulation with (atomic (Cstrategy.semantics cprog)).
+  eapply sd_traces; eapply Asm.semantics_determinate.
+  apply factor_backward_simulation. 
+  apply Cstrategy.strategy_simulation.
+  apply Csem.semantics_single_events.
+  eapply ssr_well_behaved; eapply Cstrategy.semantics_strongly_receptive.
+  exact x.
+Qed.
+

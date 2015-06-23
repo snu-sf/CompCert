@@ -54,7 +54,7 @@ Lemma functions_translated:
   Genv.find_funct ge v = Some f ->
   exists tf, Genv.find_funct tge v = Some tf /\ (match_fundef f tf).
 Proof.
-  generalize (find_funct_transf' _ _ TRANSF).
+  generalize (find_funct_transf_optionally _ _ TRANSF).
   intros H1 v f. specialize (H1 v f).
   revert H1. unfold ge, fundef. simpl.
   match goal with
@@ -75,7 +75,7 @@ Lemma function_ptr_translated:
   Genv.find_funct_ptr ge v = Some f ->
   exists tf, Genv.find_funct_ptr tge v = Some tf /\ (match_fundef f tf).
 Proof.
-  generalize (find_funct_ptr_transf' _ _ TRANSF).
+  generalize (find_funct_ptr_transf_optionally _ _ TRANSF).
   intros H1 v f. specialize (H1 v f).
   revert H1. unfold ge, fundef. simpl.
   match goal with
@@ -94,11 +94,11 @@ Qed.
 Lemma symbols_preserved:
   forall id,
   Genv.find_symbol tge id = Genv.find_symbol ge id.
-Proof (find_symbol_transf' _ _ TRANSF).
+Proof (find_symbol_transf_optionally _ _ TRANSF).
 
 Lemma varinfo_preserved:
   forall b, Genv.find_var_info tge b = Genv.find_var_info ge b.
-Proof (find_var_info_transf' _ _ TRANSF).
+Proof (find_var_info_transf_optionally _ _ TRANSF).
 
 Lemma sig_preserved:
   forall f, funsig (transf_fundef f) = funsig f.
@@ -389,7 +389,7 @@ Proof.
   intros Htf. destruct Htf as [tf [findtf matchtf]].
   econstructor; split.
   econstructor. 
-    eapply (init_mem_transf' _ _ TRANSF); eauto. 
+    eapply (init_mem_transf_optionally _ _ TRANSF); eauto. 
     replace (AST.prog_main tprog) with (AST.prog_main prog).
     rewrite symbols_preserved. eauto.
     inv TRANSF. auto.

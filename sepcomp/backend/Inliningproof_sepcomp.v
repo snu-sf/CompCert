@@ -111,18 +111,18 @@ Let fenv := funenv_program prog.
 
 Lemma symbols_preserved:
   forall (s: ident), Genv.find_symbol tge s = Genv.find_symbol ge s.
-Proof (find_symbol_transf_partial' _ _ TRANSF).
+Proof (find_symbol_transf_partial_optionally _ _ TRANSF).
 
 Lemma varinfo_preserved:
   forall b, Genv.find_var_info tge b = Genv.find_var_info ge b.
-Proof (find_var_info_transf_partial' _ _ TRANSF).
+Proof (find_var_info_transf_partial_optionally _ _ TRANSF).
 
 Lemma functions_translated:
   forall (v: val) (f: RTL.fundef),
   Genv.find_funct ge v = Some f ->
   exists tf, Genv.find_funct tge v = Some tf /\ match_fundef prog f tf.
 Proof.
-  intros. exploit (find_funct_transf_partial' _ _ TRANSF); eauto. simpl in *.
+  intros. exploit (find_funct_transf_partial_optionally _ _ TRANSF); eauto. simpl in *.
   intros [tf [Htf [[sprog [Hsprog Hf]]|Hf]]].
   - eexists. split; eauto. econstructor; eauto.
     destruct f; Errors.monadInv Hf; auto.
@@ -136,7 +136,7 @@ Lemma function_ptr_translated:
   Genv.find_funct_ptr ge b = Some f ->
   exists tf, Genv.find_funct_ptr tge b = Some tf /\ match_fundef prog f tf.
 Proof.
-  intros. exploit (find_funct_ptr_transf_partial' _ _ TRANSF); eauto. simpl in *.
+  intros. exploit (find_funct_ptr_transf_partial_optionally _ _ TRANSF); eauto. simpl in *.
   intros [tf [Htf [[sprog [Hsprog Hf]]|Hf]]].
   - eexists. split; eauto. econstructor; eauto.
     destruct f; Errors.monadInv Hf; auto.
@@ -1680,7 +1680,7 @@ Proof.
   exploit function_ptr_translated; eauto. intros [tf [FIND MF]].
   exists (Callstate nil tf nil m0); split.
   econstructor; eauto.
-    exploit (init_mem_transf_partial' _ _ TRANSF); eauto.
+    exploit (init_mem_transf_partial_optionally _ _ TRANSF); eauto.
     rewrite symbols_preserved. 
     inv TRANSF. unfold fundef in *. simpl in *. rewrite <- Hmain. unfold ge, ge0 in *. congruence.
     rewrite <- H3. eapply match_fundef_sig; eauto. 

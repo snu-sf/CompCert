@@ -70,19 +70,19 @@ Inductive match_fundef prog: forall (fd fd':fundef), Prop :=
 
 Lemma symbols_preserved:
   forall (s: ident), Genv.find_symbol tge s = Genv.find_symbol ge s.
-Proof (find_symbol_transf' _ _ TRANSF).
+Proof (find_symbol_transf_optionally _ _ TRANSF).
 
 Lemma varinfo_preserved:
   forall b, Genv.find_var_info tge b = Genv.find_var_info ge b.
-Proof (find_var_info_transf' _ _ TRANSF).
+Proof (find_var_info_transf_optionally _ _ TRANSF).
 
 Lemma functions_translated:
   forall (v: val) (f: fundef),
   Genv.find_funct ge v = Some f ->
   exists tf, Genv.find_funct tge v = Some tf /\
              match_fundef prog f tf.
-Proof.
-  intros. exploit (find_funct_transf' _ _ TRANSF); eauto. simpl in *.
+Proof.  
+  intros. exploit (find_funct_transf_optionally _ _ TRANSF); eauto. simpl in *.
   intros [tf [Htf [[sprog [Hsprog Hf]]|Hf]]].
   eexists. split; eauto.
   destruct f; auto.
@@ -98,7 +98,7 @@ Lemma function_ptr_translated:
     Genv.find_funct_ptr tge b = Some tf /\
     match_fundef prog f tf.
 Proof.
-  intros. exploit (find_funct_ptr_transf' _ _ TRANSF); eauto. simpl in *.
+  intros. exploit (find_funct_ptr_transf_optionally _ _ TRANSF); eauto. simpl in *.
   intros [tf [Htf [[sprog [Hsprog Hf]]|Hf]]].
   eexists. split; eauto.
   destruct f; auto.
@@ -785,13 +785,12 @@ Proof.
   exploit function_ptr_translated; eauto. intros [tf [FIND MFUN]].
   exists O; exists (Callstate nil tf nil m0); split.
   econstructor; eauto.
-  apply (init_mem_transf' _ _ TRANSF); auto.
+  apply (init_mem_transf_optionally _ _ TRANSF); auto.
   replace (prog_main tprog) with (prog_main prog).
   rewrite symbols_preserved. eauto.
   inv TRANSF. auto.
   rewrite <- H3. eapply match_fundef_sig; eauto.
-  constructor.
-  constructor; auto. constructor. apply Mem.extends_refl.
+  constructor. constructor; auto. constructor. apply Mem.extends_refl.
 Qed.
 
 Lemma transf_final_states:
