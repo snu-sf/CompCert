@@ -42,14 +42,14 @@ Fixpoint reduce (r:forall (elt1 elt2:A), option A) (tree:t): option A :=
       end
   end.
 
-Inductive tree_change_one (R: relation A):
+Inductive change_one (R: relation A):
   forall (tr: t) (tr': t), Prop :=
-| tree_change_one_base: forall r r' (REL: R r r'),
-                          tree_change_one R (Tree_singleton r) (Tree_singleton r')
-| tree_change_one_comp_left: forall r r' tr (TREL: tree_change_one R r r'),
-                               tree_change_one R (Tree_composite r tr) (Tree_composite r' tr)
-| tree_change_one_comp_right: forall r r' tr (TREL: tree_change_one R r r'),
-                                tree_change_one R (Tree_composite tr r) (Tree_composite tr r').
+| change_one_base: forall r r' (REL: R r r'),
+                          change_one R (Tree_singleton r) (Tree_singleton r')
+| change_one_comp_left: forall r r' tr (TREL: change_one R r r'),
+                               change_one R (Tree_composite r tr) (Tree_composite r' tr)
+| change_one_comp_right: forall r r' tr (TREL: change_one R r r'),
+                                change_one R (Tree_composite tr r) (Tree_composite tr r').
 
 End DEF.
 
@@ -175,9 +175,9 @@ Proof.
   simpl. rewrite H0, H2. eapply H; eauto.
 Qed.
 
-Lemma rtc_tree_change_one_attach_left:
-  forall A (tr1 tr1' tr2:t A) R (RTCTR: rtc (tree_change_one R) tr1 tr1'),
-    rtc (tree_change_one R) (Tree_composite tr1 tr2) (Tree_composite tr1' tr2).
+Lemma rtc_change_one_attach_left:
+  forall A (tr1 tr1' tr2:t A) R (RTCTR: rtc (change_one R) tr1 tr1'),
+    rtc (change_one R) (Tree_composite tr1 tr2) (Tree_composite tr1' tr2).
 Proof.
   intros. induction RTCTR.
   - constructor. constructor. eauto.
@@ -185,9 +185,9 @@ Proof.
   - econs 3; eauto.
 Qed.
 
-Lemma rtc_tree_change_one_attach_right:
-  forall A (tr1 tr2 tr2':t A) R (RTCTR: rtc (tree_change_one R) tr2 tr2'),
-    rtc (tree_change_one R) (Tree_composite tr1 tr2) (Tree_composite tr1 tr2').
+Lemma rtc_change_one_attach_right:
+  forall A (tr1 tr2 tr2':t A) R (RTCTR: rtc (change_one R) tr2 tr2'),
+    rtc (change_one R) (Tree_composite tr1 tr2) (Tree_composite tr1 tr2').
 Proof.
   intros. induction RTCTR.
   - constructor. constructor. eauto.
@@ -195,10 +195,10 @@ Proof.
   - econs 3; eauto.
 Qed.
 
-Lemma Tree_Forall2_rtc_rel_rtc_tree_change_one:
+Lemma Tree_Forall2_rtc_rel_rtc_change_one:
   forall A (tr1 tr2: Tree.t A) (R: relation A)
          (FAR: Tree.Forall2 (rtc R) tr1 tr2),
-    rtc (tree_change_one R) tr1 tr2.
+    rtc (change_one R) tr1 tr2.
 Proof.
   intros.
   induction FAR.
@@ -207,8 +207,8 @@ Proof.
     + econs 2.
     + econs 3; eauto.
   - econs 3.
-    + eapply rtc_tree_change_one_attach_left. eauto.
-    + eapply rtc_tree_change_one_attach_right. eauto.
+    + eapply rtc_change_one_attach_left. eauto.
+    + eapply rtc_change_one_attach_right. eauto.
 Qed.
 
 End Tree.

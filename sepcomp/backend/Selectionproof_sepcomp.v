@@ -57,10 +57,8 @@ Hypothesis HELPERS:
 Hypothesis TRANSF:
   @sepcomp_rel
     Language_Cminor Language_CminorSel
-    (fun p f tf =>
-       sel_function (Genv.globalenv p) f = OK tf)
-    (fun p ef tef =>
-       ef = tef)
+    (fun p f tf => sel_function (Genv.globalenv p) f = OK tf)
+    (fun p ef tef => ef = tef)
     (@OK _)
     prog tprog.
 

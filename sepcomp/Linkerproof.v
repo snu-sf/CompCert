@@ -254,7 +254,7 @@ Ltac simplify_res:=
     | H: OK ?x = OK ?y |- _ => inv H
   end.
 
-Lemma compiler_generalization:
+Lemma transf_c_program_compile_c_program:
   forall p tp
          (Htrans: Compiler.transf_c_program p = OK tp),
     compile_c_program p tp.
@@ -323,7 +323,7 @@ Proof.
     rewrite -> D0. auto.
 Qed.
 
-Definition rtl_opt_tree := Tree.tree_change_one optimize_rtl_program.
+Definition rtl_opt_tree := Tree.change_one optimize_rtl_program.
 
 Lemma rtl_opt_tree_destruct:
   forall tr tr' (ROPTT: rtl_opt_tree tr tr'),
@@ -493,7 +493,7 @@ Proof.
 
 (* RTL *)
   exploit optimize_rtl_program_reduce_simulation.
-  eauto. apply Tree.Tree_Forall2_rtc_rel_rtc_tree_change_one. eauto.
+  eauto. apply Tree.Tree_Forall2_rtc_rel_rtc_change_one. eauto.
   intros. des.
   unfold transf_rtl_program in TRANSF1. clarify.
 
