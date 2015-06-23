@@ -18,7 +18,6 @@ Require Renumberproof_sepcomp.
 Require Constpropproof_sepcomp.
 Require CSEproof_sepcomp.
 Require Deadcodeproof_sepcomp.
-Require Import sflib.
 
 Set Implicit Arguments.
 
@@ -393,7 +392,8 @@ Theorem linker_correct_det_backward
     Tree.reduce (link_program Language_Asm) asmtree = Some asmprog.
 Proof.
   exploit linker_correct_det_forward; eauto.
-  intros. des. exists asmprog.
+  intros. destruct H as [asmprog [fsim Hasm]].
+  exists asmprog.
   eexists; auto.
   apply forward_to_backward_simulation.
   apply factor_forward_simulation. auto. eapply sd_traces. eapply Asm.semantics_determinate.
@@ -409,7 +409,8 @@ Theorem linker_correct
     (_:backward_simulation (Csem.semantics cprog) (Asm.semantics asmprog)),
     Tree.reduce (link_program Language_Asm) asmtree = Some asmprog.
 Proof.
-  exploit linker_correct_det_backward; eauto. intros. des.
+  exploit linker_correct_det_backward; eauto.
+  intros. destruct H as [asmprog [fsim Hasm]].
   exists asmprog.
   eexists; eauto.
   apply compose_backward_simulation with (atomic (Cstrategy.semantics cprog)).
@@ -418,5 +419,5 @@ Proof.
   apply Cstrategy.strategy_simulation.
   apply Csem.semantics_single_events.
   eapply ssr_well_behaved; eapply Cstrategy.semantics_strongly_receptive.
-  exact x.
+  exact fsim.
 Qed.
