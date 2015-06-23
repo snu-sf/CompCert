@@ -49,7 +49,8 @@ Lemma SimplExpr_sepcomp_rel
   @sepcomp_rel
     Language_C Language_Clight
     (fun _ f tf => SimplExprspec.tr_function f tf)
-    (fun _ ef tef => ef = tef) (@OK _)
+    (fun _ ef tef => ef = tef)
+    (@OK _)
     cprog clightprog.
 Proof.
   destruct cprog as [defs ?], clightprog as [tdefs ?].
@@ -70,14 +71,8 @@ Lemma Selection_sepcomp_rel
       (Htrans: Selection.sel_program cminorprog = OK cminorselprog):
   @sepcomp_rel
     Language_Cminor Language_CminorSel
-    (fun p f tf =>
-       exists hf,
-         SelectLongproof.i64_helpers_correct (Genv.globalenv p) hf /\
-         Selection.sel_function hf (Genv.globalenv p) f = OK tf)
-    (fun p ef tef =>
-       exists hf,
-         SelectLongproof.i64_helpers_correct (Genv.globalenv p) hf /\
-         ef = tef)
+    (fun p f tf => Selection.sel_function (Genv.globalenv p) f = OK tf)
+    (fun p ef tef => ef = tef)
     (@OK _)
     cminorprog cminorselprog.
 Proof.
@@ -98,9 +93,7 @@ Proof.
       destruct f; inv Hf.
       * monadInv H0.
         eapply (@grel_f Language_Cminor Language_CminorSel); simpl; auto.
-        exists x. split; auto. apply Selectionproof.get_helpers_correct. auto.
       * eapply (@grel_ef Language_Cminor Language_CminorSel); simpl; auto.
-        exists x. split; auto. apply Selectionproof.get_helpers_correct. auto.
     + apply IHdefs; auto.
   - monadInv Hdefs. constructor; simpl.
     + split; auto. eexists. split; [reflexivity|].
@@ -243,13 +236,94 @@ Ltac simplify :=
   repeat match goal with
            | [H: OK _ = OK _ |- _] => inv H
            | [H: bind _ _ = OK _ |- _] => monadInv H
-           | [H: exists (_:SelectLong.helper_functions), _ |- _] => destruct H
            | [H: _ /\ _ |- _] => destruct H
          end;
   subst; auto.
 
-Definition rtl_opt_tree := Tree.tree_change_one optimize_rtl_program.
+Ltac simplify_match:=
+  match goal with
+    | H: match ?x with
+           | OK _ => _
+           | Error _ => Error _
+         end = OK _
+      |- _ => (destruct x eqn:?D;[|inv H])
+  end.
 
+Ltac simplify_res:=
+  match goal with
+    | H: OK ?x = OK ?y |- _ => inv H
+  end.
+
+Lemma transf_c_program_compile_c_program:
+  forall p tp
+         (Htrans: Compiler.transf_c_program p = OK tp),
+    compile_c_program p tp.
+Proof.
+  intros.
+  unfold Compiler.transf_c_program in Htrans.
+  unfold Compiler.transf_clight_program in Htrans.
+  unfold Compiler.transf_cminor_program in Htrans.
+  unfold Compiler.time, Compiler.print in Htrans.
+  unfold Compiler.apply_partial, Compiler.apply_total in Htrans.
+
+  unfold compile_c_program.
+  unfold transf_c_program.
+  unfold transf_clight_program.
+  unfold transf_cminor_program.
+  unfold time, print, apply_partial, apply_total.
+
+  destruct (SimplExpr.transl_program p); [|inversion Htrans].
+  destruct (SimplLocals.transf_program p0); [|inversion Htrans].
+  destruct (Cshmgen.transl_program p1); [|inversion Htrans].
+  destruct (Cminorgen.transl_program p2); [|inversion Htrans].
+  destruct (Selection.sel_program p3); [|inversion Htrans].
+  destruct (RTLgen.transl_program p4); [|inversion Htrans].
+  exists p5. clear -Htrans.
+
+  unfold Compiler.transf_rtl_program in Htrans.
+  unfold Compiler.time, Compiler.apply_partial, Compiler.apply_total, Compiler.print in Htrans.
+  repeat simplify_match.
+
+  unfold Compiler.total_if, Compiler.partial_if in *.
+  exists p7. split; auto.
+  repeat simplify_res.
+  split.
+  - assert (Hr1: rtc optimize_rtl_program p5 p17).
+    { destruct (Compopts.optim_tailcalls tt).
+      - econs 3; econs 1; [econs 1 | econs 2; eauto].
+      - econs 1. econs 2. eauto. }
+    assert (Hr2: rtc optimize_rtl_program p17 p9).
+    { destruct (Compopts.optim_CSE tt).
+      - destruct (Compopts.optim_constprop tt).
+        + econs 3. econs 1. econs 3.
+          econs 3. econs 1. econs 4.
+          econs 3. econs 1. econs 3.
+          econs 1. econs 5. eauto.
+        + econs 3. econs 1. econs 3.
+          econs 1. econs 5. eauto.
+      - destruct (Compopts.optim_constprop tt).
+        + econs 3. econs 1. econs 3.
+          econs 3. econs 1. econs 4.
+          econs 1. inv D9. econs 3.
+        + econs 1. inv D9. econs 3.
+    }
+    assert (Hr3: rtc optimize_rtl_program p9 p7).
+    { destruct (Compopts.optim_redundancy tt).
+      - econs 1. econs 6. eauto.
+      - inv D7. econs 2.
+    }
+    econs 3; econs 3; eauto.
+  - clear D7 D9 D17.
+    unfold transf_rtl_program.
+    unfold apply_partial, apply_total.
+    unfold time, print.
+
+    destruct (Allocation.transf_program p7); [|inv D5].
+    inv D5. rewrite -> D2.
+    rewrite -> D0. auto.
+Qed.
+
+Definition rtl_opt_tree := Tree.change_one optimize_rtl_program.
 
 Lemma rtl_opt_tree_destruct:
   forall tr tr' (ROPTT: rtl_opt_tree tr tr'),
@@ -391,14 +465,24 @@ Proof.
   (* Cminor *)
   unfold transf_cminor_program in TRANSF. clarify.
 
+  assert (Hcheck_helpers: SelectLong.check_helpers (Genv.globalenv cminorprog) = OK tt).
+  {
+    exploit Tree.Forall_reduce; [| |eauto|].
+    - eapply Selectionproof_sepcomp.link_program_check_helpers.
+    - clear -T. revert p5 T.
+      induction p; intros; inv T; econstructor; eauto.
+      monadInv Hpred. destruct x. auto.
+    - auto.
+  }
+
   eapply Tree.Forall2_implies in T; [|apply Selection_sepcomp_rel].
   eapply Tree.Forall2_reduce in T; eauto;
     [|eapply (@link_program_sepcomp_rel Language_Cminor Language_CminorSel id)]; simplify;
-    [|eapply Selection_sig; eauto
-     |eexists; split; auto; eapply Selectionproof_sepcomp.Hget_helpers_monotone; eauto].
+    [|eapply Selection_sig; eauto].
 
   destruct T as [cminorselprog [Hcminorselprog Hcminorselsim]].
-  apply Selectionproof_sepcomp.transl_program_correct in Hcminorselsim.
+  apply Selectionproof_sepcomp.transl_program_correct in Hcminorselsim;
+    eauto using Selectionproof.check_helpers_correct.
 
   eapply Tree.Forall2_reduce in TRANSF; eauto;
     [|eapply (transform_partial_program2_link_program Language_CminorSel Language_RTL)];
@@ -409,7 +493,7 @@ Proof.
 
 (* RTL *)
   exploit optimize_rtl_program_reduce_simulation.
-  eauto. apply Tree.Tree_Forall2_rtc_rel_rtc_tree_change_one. eauto.
+  eauto. apply Tree.Tree_Forall2_rtc_rel_rtc_change_one. eauto.
   intros. des.
   unfold transf_rtl_program in TRANSF1. clarify.
 
@@ -493,4 +577,3 @@ Proof.
   eapply ssr_well_behaved; eapply Cstrategy.semantics_strongly_receptive.
   exact x.
 Qed.
-

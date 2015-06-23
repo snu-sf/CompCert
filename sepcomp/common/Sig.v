@@ -100,7 +100,7 @@ Lemma Tailcall_sig:
     F_sig F_RTL f = F_sig F_RTL (Tailcall.transf_function f).
 Proof.
   intros. unfold Tailcall.transf_function.
-  destruct (zeq (RTL.fn_stacksize f) 0 && Compopts.eliminate_tailcalls tt); auto.
+  destruct (zeq (RTL.fn_stacksize f)); auto.
 Qed.
 
 Lemma RTLgen_sig:
@@ -114,8 +114,8 @@ Proof.
 Qed.
 
 Lemma Selection_sig:
-  forall hf ge (f1 : F_Cminor) (f2 : F_CminorSel),
-    Selection.sel_function hf ge f1 = OK f2 -> F_sig F_Cminor f1 = F_sig F_CminorSel f2.
+  forall ge (f1 : F_Cminor) (f2 : F_CminorSel),
+    Selection.sel_function ge f1 = OK f2 -> F_sig F_Cminor f1 = F_sig F_CminorSel f2.
 Proof.
   intros. unfold Selection.sel_function in H. monadInv H. auto.
 Qed.
