@@ -226,7 +226,7 @@ Ltac simplify :=
          end;
   subst; auto.
 
-Theorem linker_correct
+Theorem linker_correct_det_forward
         ctree asmtree cprog
         (CLINK: Tree.reduce (link_program Language_C) ctree = Some cprog)
         (TRANSF: Tree.Forall2 (fun c a => transf_c_program c = OK a) ctree asmtree):
@@ -381,4 +381,43 @@ Proof.
   (* epilogue *)
   exists asmprog. eexists; auto.
   repeat (auto; try (eapply compose_forward_simulation; [|eauto; fail])).
+Qed.
+
+Theorem linker_correct_det_backward
+        ctree asmtree cprog
+        (CLINK: Tree.reduce (link_program Language_C) ctree = Some cprog)
+        (TRANSF: Tree.Forall2 (fun c a => transf_c_program c = OK a) ctree asmtree):
+  exists (asmprog:Asm.program)
+    (_:backward_simulation (atomic (Cstrategy.semantics cprog)) (Asm.semantics asmprog)),
+    Tree.reduce (link_program Language_Asm) asmtree = Some asmprog.
+Proof.
+  exploit linker_correct_det_forward; eauto.
+  intros. destruct H as [asmprog [fsim Hasm]].
+  exists asmprog.
+  eexists; auto.
+  apply forward_to_backward_simulation.
+  apply factor_forward_simulation. auto. eapply sd_traces. eapply Asm.semantics_determinate.
+  apply atomic_receptive. apply Cstrategy.semantics_strongly_receptive.
+  apply Asm.semantics_determinate.
+Qed.
+
+Theorem linker_correct
+        ctree asmtree cprog
+        (CLINK: Tree.reduce (link_program Language_C) ctree = Some cprog)
+        (TRANSF: Tree.Forall2 (fun c a => transf_c_program c = OK a) ctree asmtree):
+  exists (asmprog:Asm.program)
+    (_:backward_simulation (Csem.semantics cprog) (Asm.semantics asmprog)),
+    Tree.reduce (link_program Language_Asm) asmtree = Some asmprog.
+Proof.
+  exploit linker_correct_det_backward; eauto.
+  intros. destruct H as [asmprog [fsim Hasm]].
+  exists asmprog.
+  eexists; eauto.
+  apply compose_backward_simulation with (atomic (Cstrategy.semantics cprog)).
+  eapply sd_traces; eapply Asm.semantics_determinate.
+  apply factor_backward_simulation. 
+  apply Cstrategy.strategy_simulation.
+  apply Csem.semantics_single_events.
+  eapply ssr_well_behaved; eapply Cstrategy.semantics_strongly_receptive.
+  exact fsim.
 Qed.
