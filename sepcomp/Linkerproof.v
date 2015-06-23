@@ -47,7 +47,8 @@ Lemma SimplExpr_sepcomp_rel
   @sepcomp_rel
     Language_C Language_Clight
     (fun _ f tf => SimplExprspec.tr_function f tf)
-    (fun _ ef tef => ef = tef) (@OK _)
+    (fun _ ef tef => ef = tef)
+    (@OK _)
     cprog clightprog.
 Proof.
   destruct cprog as [defs ?], clightprog as [tdefs ?].
@@ -68,10 +69,8 @@ Lemma Selection_sepcomp_rel
       (Htrans: Selection.sel_program cminorprog = OK cminorselprog):
   @sepcomp_rel
     Language_Cminor Language_CminorSel
-    (fun p f tf =>
-         Selection.sel_function (Genv.globalenv p) f = OK tf)
-    (fun p ef tef =>
-         ef = tef)
+    (fun p f tf => Selection.sel_function (Genv.globalenv p) f = OK tf)
+    (fun p ef tef => ef = tef)
     (@OK _)
     cminorprog cminorselprog.
 Proof.
@@ -285,7 +284,7 @@ Proof.
   eapply Tree.Forall2_implies in T0; [|apply Selection_sepcomp_rel].
   eapply Tree.Forall2_reduce in T0; eauto;
     [|eapply (@link_program_sepcomp_rel Language_Cminor Language_CminorSel id)]; simplify;
-      [|eapply Selection_sig; eauto].
+    [|eapply Selection_sig; eauto].
 
   destruct T0 as [cminorselprog [Hcminorselprog Hcminorselsim]].
   apply Selectionproof_sepcomp.transl_program_correct in Hcminorselsim;
