@@ -59,9 +59,9 @@ Proof.
     destruct (peq i i0); simpl; auto.
 Qed.
 
-Lemma program_linkeq_fenv_le prog fprog
-      (Hlink: program_linkeq Language_RTL prog fprog):
-  PTree_le (funenv_program prog) (funenv_program fprog).
+Lemma program_linkeq_fenv_le sprog prog
+      (Hlink: program_linkeq Language_RTL sprog prog):
+  PTree_le (funenv_program sprog) (funenv_program prog).
 Proof.
   constructor. intros. rewrite ? funenv_program_spec in *.
   match goal with

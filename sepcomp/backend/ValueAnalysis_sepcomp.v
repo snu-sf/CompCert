@@ -25,18 +25,18 @@ Set Implicit Arguments.
 Ltac clarify := simpl in *; fold ident fundef in *.
 
 Lemma program_linkeq_romem_le
-      prog fprog
-      (Hlinkeq: program_linkeq Language_RTL prog fprog):
-  PTree_le (romem_for_program prog) (romem_for_program fprog).
+      sprog prog
+      (Hlinkeq: program_linkeq Language_RTL sprog prog):
+  PTree_le (romem_for_program sprog) (romem_for_program prog).
 Proof.
   unfold romem_for_program. rewrite <- ? fold_left_rev_right.
   constructor. intro b.
   destruct Hlinkeq as [Hdefs _]. specialize (Hdefs b).
   rewrite ? PTree_guespec in Hdefs.
   revert b Hdefs. clarify.
-  generalize (@rev (prod ident _) (prog_defs fprog)) as l2.
-  generalize (@rev (prod ident _) (prog_defs prog)) as l1.
-  clear prog fprog.
+  generalize (@rev (prod ident _) (prog_defs prog)) as l2.
+  generalize (@rev (prod ident _) (prog_defs sprog)) as l1.
+  clear sprog prog.
   induction l1; intros l2 b H ab Hab; simpl in *.
   { rewrite PTree.gempty in Hab. inv Hab. }
   destruct a. simpl in Hab.
@@ -563,7 +563,7 @@ End SOUNDNESS.
 Require Import Axioms.
 
 Theorem sound_initial:
-  forall prog st, initial_state prog st -> sound_state_ext prog st.
+  forall sprog st, initial_state sprog st -> sound_state_ext sprog st.
 Proof.
   destruct 1. 
   exploit initial_mem_matches; eauto. intros (bc & GE & BELOW & NOSTACK & RM & VALID).
