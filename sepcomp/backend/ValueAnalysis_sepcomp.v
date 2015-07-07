@@ -41,19 +41,18 @@ Proof.
   { rewrite PTree.gempty in Hab. inv Hab. }
   destruct a. simpl in Hab.
   destruct g.
-  { rewrite PTree.grspec in Hab.
+  - rewrite PTree.grspec in Hab.
     destruct (PTree.elt_eq b i); inv Hab. rewrite H1.
     apply IHl1; auto. intros.
     exploit H; eauto.
     simpl in *. destruct (peq b i); subst; try (contradict n; auto; fail).
     simpl in *. auto.
-  }
-  { match goal with
+  - match goal with
       | [H: (if ?b then _ else _) ! _ = _ |- _] =>
         destruct b eqn:Hb; InvBooleans
     end.
-    { rewrite PTree.gsspec in Hab. destruct (peq b i); subst.
-      { inv Hab. exploit H; eauto.
+    + rewrite PTree.gsspec in Hab. destruct (peq b i); subst.
+      * inv Hab. exploit H; eauto.
         { simpl. destruct (peq i i); subst; try (contradict n; auto; fail).
           simpl. eauto.
         }
@@ -61,36 +60,28 @@ Proof.
         inv Hsim. inv Hv.
         { revert Hdefs2. induction l2; simpl; intro X; inv X.
           destruct a. simpl in *. destruct (peq i i0); subst; simpl in *.
-          { inv H4. rewrite H2. rewrite H3. rewrite H1. simpl.
+          - inv H4. rewrite H2. rewrite H3. rewrite H1. simpl.
             rewrite PTree.gss. auto.
-          }
-          { destruct g.
-            { rewrite PTree.gro; auto. }
-            { match goal with
+          - destruct g.
+            + rewrite PTree.gro; auto.
+            + match goal with
                 | [|- (if ?b then _ else _) ! _ = _] =>
                   destruct b
               end.
-              { rewrite PTree.gso; auto. }
-              { rewrite PTree.gro; auto. }
-            }
-          }
+              * rewrite PTree.gso; auto.
+              * rewrite PTree.gro; auto.
         }
         { inv H0. clarify. rewrite Hinit in H1. inv H1. }
-      }
-      { apply IHl1; auto. intros.
+      * apply IHl1; auto. intros.
         exploit H; eauto.
         simpl in *. destruct (peq b i); subst; try (contradict n; auto; fail).
         simpl in *. auto.
-      }
-    }
-    { rewrite PTree.grspec in Hab.
+    + rewrite PTree.grspec in Hab.
       destruct (PTree.elt_eq b i); inv Hab. rewrite H1.
       apply IHl1; auto. intros.
       exploit H; eauto.
       simpl in *. destruct (peq b i); subst; try (contradict n; auto; fail).
       simpl in *. auto.
-    }
-  }
 Qed.
 
 (** ** Semantic invariant *)
@@ -103,7 +94,9 @@ Let ge : genv := Genv.globalenv prog.
 
 Section PAST.
 
-Variable (rm:romem).
+Variable sprog: program.
+
+Let rm := romem_for_program sprog.
 
 Inductive sound_stack: block_classification -> list stackframe -> mem -> block -> Prop :=
   | sound_stack_nil: forall bc m bound,
@@ -537,15 +530,15 @@ End PAST.
 Inductive sound_state_ext (st:state): Prop :=
 | sound_state_ext_intro
     (Hsound:
-       forall prm (Hprm: PTree_le prm (romem_for_program prog)),
-       sound_state prm st)
+       forall sprog (Hle: program_linkeq Language_RTL sprog prog),
+       sound_state sprog st)
 .
 
 Theorem sound_past_step:
   forall st t st', RTL.step ge st t st' -> sound_state_ext st -> sound_state_ext st'.
 Proof.
   intros. inv H0. constructor. intros.
-  specialize (Hsound prm Hprm). eapply sound_step; eauto.
+  specialize (Hsound sprog Hle). eapply sound_step; eauto.
 Qed.
 
 Theorem sound_past_star:
@@ -578,7 +571,8 @@ Proof.
   apply sound_call_state with bc. 
 - constructor. 
 - simpl; tauto. 
-- repeat intro. inv Hprm. exploit H5; eauto.
+- apply program_linkeq_romem_le in Hle. inv Hle.
+  repeat intro. exploit H3; eauto.
 - apply mmatch_inj_top with m0.
   replace (inj_of_bc bc) with (Mem.flat_inj (Mem.nextblock m0)).
   eapply Genv.initmem_inject; eauto.
@@ -596,41 +590,41 @@ Hint Resolve areg_sound aregs_sound: va.
 
 Lemma avalue_sound:
   forall prog s f sp pc e m r
-         prm (Hprm: PTree_le prm (romem_for_program prog)),
+         sprog (Hle: program_linkeq Language_RTL sprog prog),
   sound_state_ext prog (State s f (Vptr sp Int.zero) pc e m) ->
   exists bc,
-     vmatch bc e#r (avalue (analyze prm f)!!pc r)
+     vmatch bc e#r (avalue (analyze (romem_for_program sprog) f)!!pc r)
   /\ genv_match bc (Genv.globalenv prog)
   /\ bc sp = BCstack.
 Proof.
-  intros. inv H. specialize (Hsound prm Hprm). inv Hsound. exists bc; split; auto. rewrite AN. apply EM.
+  intros. inv H. specialize (Hsound _ Hle). inv Hsound. exists bc; split; auto. rewrite AN. apply EM.
 Qed. 
 
 Lemma aaddr_sound:
   forall prog s f sp pc e m r b ofs
-         prm (Hprm: PTree_le prm (romem_for_program prog)),
+         sprog (Hle: program_linkeq Language_RTL sprog prog),
   sound_state_ext prog (State s f (Vptr sp Int.zero) pc e m) ->
   e#r = Vptr b ofs ->
   exists bc,
-     pmatch bc b ofs (aaddr (analyze prm f)!!pc r)
+     pmatch bc b ofs (aaddr (analyze (romem_for_program sprog) f)!!pc r)
   /\ genv_match bc (Genv.globalenv prog)
   /\ bc sp = BCstack.
 Proof.
-  intros. inv H. specialize (Hsound prm Hprm). inv Hsound. exists bc; split; auto.
+  intros. inv H. specialize (Hsound _ Hle). inv Hsound. exists bc; split; auto.
   unfold aaddr; rewrite AN. apply match_aptr_of_aval. rewrite <- H0. apply EM.
 Qed. 
 
 Lemma aaddressing_sound:
   forall prog s f sp pc e m addr args b ofs
-         prm (Hprm: PTree_le prm (romem_for_program prog)),
+         sprog (Hle: program_linkeq Language_RTL sprog prog),
   sound_state_ext prog (State s f (Vptr sp Int.zero) pc e m) ->
   eval_addressing (Genv.globalenv prog) (Vptr sp Int.zero) addr e##args = Some (Vptr b ofs) ->
   exists bc,
-     pmatch bc b ofs (aaddressing (analyze prm f)!!pc addr args)
+     pmatch bc b ofs (aaddressing (analyze (romem_for_program sprog) f)!!pc addr args)
   /\ genv_match bc (Genv.globalenv prog)
   /\ bc sp = BCstack.
 Proof.
-  intros. inv H. specialize (Hsound prm Hprm). inv Hsound. exists bc; split; auto. 
+  intros. inv H. specialize (Hsound _ Hle). inv Hsound. exists bc; split; auto. 
   unfold aaddressing. rewrite AN. apply match_aptr_of_aval. 
   eapply eval_static_addressing_sound; eauto with va.
 Qed.

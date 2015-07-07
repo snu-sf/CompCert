@@ -433,7 +433,7 @@ Lemma match_states_succ:
   match_transl_states O (State s f sp pc rs m)
                  (State s' (transf_function (romem_for_program sprog) f) sp pc rs' m').
 Proof.
-  intros. inv H0. specialize (Hsound _ (program_linkeq_romem_le H)). inv Hsound. 
+  intros. inv H0. specialize (Hsound _ H). inv Hsound. 
   apply match_states_intro with (bc := bc) (ae := ae); auto. 
   constructor.
 Qed.
@@ -463,7 +463,7 @@ Lemma transf_step_correct_transl:
   (exists n2, exists s2', step tge s1' t s2' /\ match_states n2 s2 s2')
   \/ (exists n2, n2 < n1 /\ t = E0 /\ match_states n2 s2 s1')%nat.
 Proof.
-  induction 1; intros; inv MS; try (inv SS1; specialize (Hsound _ (program_linkeq_romem_le SPROG)); inv Hsound; rename bc into bct; rename bc0 into bc; rename bct into bc0; rename ae into aet; rename ae0 into ae; rename aet into ae0); try (inv PC; try congruence).
+  induction 1; intros; inv MS; try (inv SS1; specialize (Hsound _ SPROG); inv Hsound; rename bc into bct; rename bc0 into bc; rename bct into bc0; rename ae into aet; rename ae0 into ae; rename aet into ae0); try (inv PC; try congruence).
 
   (* Inop, preserved *)
   rename pc'0 into pc. TransfInstr; intros. 
@@ -657,7 +657,7 @@ Opaque builtin_strength_reduction.
   inv MFUN.
     (* transl *)
   assert (X: exists bc ae, ematch bc (init_regs args (fn_params f)) ae).
-  { inv SS2. specialize (Hsound _ (program_linkeq_romem_le SPROG)). inv Hsound. exists bc; exists ae; auto. }
+  { inv SS2. specialize (Hsound _ SPROG). inv Hsound. exists bc; exists ae; auto. }
   destruct X as (bc1 & ae1 & MATCH).
   simpl. unfold transf_function.
   left; exists O; econstructor; split.
@@ -686,7 +686,7 @@ Opaque builtin_strength_reduction.
   inv STACKS. inv H1.
     (* transl *)
   assert (X: exists bc ae, ematch bc (rs#res <- vres) ae).
-  { inv SS2. specialize (Hsound _ (program_linkeq_romem_le H8)). inv Hsound. exists bc; exists ae; auto. }
+  { inv SS2. specialize (Hsound _ H8). inv Hsound. exists bc; exists ae; auto. }
   destruct X as (bc1 & ae1 & MATCH).
   left; exists O; econstructor; split.
   eapply exec_return; eauto. constructor.

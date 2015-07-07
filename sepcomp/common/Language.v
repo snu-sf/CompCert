@@ -18,11 +18,10 @@ Proof.
   decide equality.
   { destruct b, c.
     destruct (bool_dec cc_vararg cc_vararg0); [subst|].
-    { destruct (bool_dec cc_structret cc_structret0); [subst|].
-      { left. auto. }
-      { right. contradict n. inv n. auto. }
-    }
-    { right. contradict n. inv n. auto. }
+    - destruct (bool_dec cc_structret cc_structret0); [subst|].
+      + left. auto.
+      + right. contradict n. inv n. auto.
+    - right. contradict n. inv n. auto.
   }
   decide equality.
   { apply Ctypes.type_eq. }

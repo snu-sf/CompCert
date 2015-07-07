@@ -1145,7 +1145,7 @@ Proof.
   constructor. econstructor; eauto.
   eapply analysis_correct_1; eauto. simpl; auto. 
   unfold transfer; rewrite H.
-  inv SOUND. specialize (Hsound _ (program_linkeq_romem_le SPROG)). inv Hsound.
+  inv SOUND. specialize (Hsound _ SPROG). inv Hsound.
   eapply add_store_result_hold; eauto. 
   eapply kill_loads_after_store_holds; eauto.
 
@@ -1204,7 +1204,7 @@ Proof.
     simpl in H0. inv H0. 
     exists valu. 
     apply set_unknown_holds. 
-    inv SOUND. specialize (Hsound _ (program_linkeq_romem_le SPROG)). inv Hsound. eapply add_memcpy_holds; eauto. 
+    inv SOUND. specialize (Hsound _ SPROG). inv Hsound. eapply add_memcpy_holds; eauto. 
     eapply kill_loads_after_storebytes_holds; eauto. 
     eapply Mem.loadbytes_length; eauto. 
     simpl. apply Ple_refl. 
