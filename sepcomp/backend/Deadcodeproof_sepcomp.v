@@ -730,7 +730,7 @@ Ltac UseTransfer :=
   intros (ta & U & V). inv V; try discriminate.
   destruct ta; simpl in H1; try discriminate.
   exploit magree_load; eauto. 
-  exploit aaddressing_sound; eauto. apply program_linkeq_romem_le. eauto. intros (bc & A & B & C).
+  exploit aaddressing_sound; eauto. intros (bc & A & B & C).
   intros. apply nlive_add with bc i; assumption. 
   intros (tv & P & Q).
   econstructor; split.
@@ -752,7 +752,7 @@ Ltac UseTransfer :=
   destruct ta; simpl in H1; try discriminate.
   exploit magree_store_parallel. eauto. eauto. instantiate (1 := te#src). eauto with na.
   instantiate (1 := nlive ge sp0 nm). 
-  exploit aaddressing_sound; eauto. apply program_linkeq_romem_le. eauto. intros (bc & A & B & C).
+  exploit aaddressing_sound; eauto. intros (bc & A & B & C).
   intros. apply nlive_remove with bc b i; assumption. 
   intros (tm' & P & Q).
   econstructor; split.
@@ -767,7 +767,7 @@ Ltac UseTransfer :=
   eapply exec_Inop; eauto. 
   eapply match_succ_states; eauto. simpl; auto.
   eapply magree_store_left; eauto.
-  exploit aaddressing_sound; eauto. apply program_linkeq_romem_le. eauto. intros (bc & A & B & C).
+  exploit aaddressing_sound; eauto. intros (bc & A & B & C).
   intros. eapply nlive_contains; eauto. 
 
 - (* call *)
@@ -806,7 +806,7 @@ Ltac UseTransfer :=
     inv H2. 
   * exists (Val.load_result chunk v0); split; auto. constructor; auto. 
   * exploit magree_load; eauto. 
-    exploit aaddr_sound; eauto. apply program_linkeq_romem_le. eauto. intros (bc & A & B & C).
+    exploit aaddr_sound; eauto. intros (bc & A & B & C).
     intros. eapply nlive_add; eassumption. 
     intros (tv & P & Q). 
     exists tv; split; auto. constructor; auto. 
@@ -827,7 +827,7 @@ Ltac UseTransfer :=
     inv H2. 
   * exists (Val.load_result chunk v0); split; auto. constructor; auto. 
   * exploit magree_load; eauto.
-    inv SS. specialize (Hsound _ (program_linkeq_romem_le SPROG)). inv Hsound. intros. eapply nlive_add; eauto. constructor. apply GE. auto. 
+    inv SS. specialize (Hsound _ SPROG). inv Hsound. intros. eapply nlive_add; eauto. constructor. apply GE. auto. 
     intros (tv & P & Q). 
     exists tv; split; auto. constructor; auto. 
   }
@@ -871,7 +871,7 @@ Ltac UseTransfer :=
   set (adst := aaddr (vanalyze (romem_for_program sprog) f) # pc dst) in *.
   set (asrc := aaddr (vanalyze (romem_for_program sprog) f) # pc src) in *.
   exploit magree_loadbytes. eauto. eauto. 
-  exploit aaddr_sound. apply program_linkeq_romem_le. eauto. eauto. symmetry; eexact H2.
+  exploit aaddr_sound; eauto. 
   intros (bc & A & B & C).
   intros. eapply nlive_add; eassumption. 
   intros (tbytes & P & Q).
@@ -881,7 +881,7 @@ Ltac UseTransfer :=
   intros. apply incl_nmem_add; auto.
   eauto. 
   instantiate (1 := nlive ge sp0 nm). 
-  exploit aaddr_sound. apply program_linkeq_romem_le. eauto. eauto. symmetry; eexact H1.
+  exploit aaddr_sound. eauto. eauto. symmetry; eexact H1.
   intros (bc & A & B & C).
   intros. eapply nlive_remove; eauto.
   erewrite Mem.loadbytes_length in H10 by eauto. 
@@ -906,7 +906,7 @@ Ltac UseTransfer :=
   eapply match_succ_states; eauto. simpl; auto.
   apply eagree_set_undef; auto.
   eapply magree_storebytes_left; eauto.
-  exploit aaddr_sound. apply program_linkeq_romem_le. eauto. eauto. symmetry; eexact H1.
+  exploit aaddr_sound. eauto. eauto. symmetry; eexact H1.
   intros (bc & A & B & C).
   intros. eapply nlive_contains; eauto.
   erewrite Mem.loadbytes_length in H0 by eauto. 

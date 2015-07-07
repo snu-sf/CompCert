@@ -93,41 +93,30 @@ Proof.
   (try apply ident_eq).
 Defined.
 
+Ltac finishR1 :=
+  try match goal with
+        | [H: ~ _ |- _] => right; contradict H; inv H; auto
+      end.
+Ltac finishR2 := try (right; intro X; inv X; fail).
+
 Lemma globvar_linkable_dec (v1 v2:globvar vT): {globvar_linkable v1 v2} + {~ globvar_linkable v1 v2}.
 Proof.
   destruct v1 as [info1 init1 readonly1 volatile1].
   destruct v2 as [info2 init2 readonly2 volatile2].
-  destruct (bool_dec readonly1 readonly2); [subst|].
-  { destruct (bool_dec volatile1 volatile2); [subst|].
-    { destruct (v_dec info1 info2); [subst|].
-      { destruct (list_eq_dec init_data_dec init1 nil).
-        { left. constructor; simpl in *; auto. }
-        { right. intro X. inv X. simpl in *.
-          destruct Hinit; auto.
-        }
-      }
-      { right. contradict n. inv n. simpl in *.
-        destruct (v_dec info1 info2); auto.
-      }
-    }
-    { right. contradict n. inv n. auto. }
-  }
-  { right. contradict n. inv n. auto. }
+  destruct (bool_dec readonly1 readonly2); subst; finishR1.
+  destruct (bool_dec volatile1 volatile2); subst; finishR1.
+  destruct (v_dec info1 info2); subst; finishR1.
+  destruct (list_eq_dec init_data_dec init1 nil); subst; finishR1.
+  left. constructor; auto.
 Defined.
 
 Lemma globdef_linkable_dec (g1 g2:globdef fundefT vT): {globdef_linkable g1 g2} + {~ globdef_linkable g1 g2}.
 Proof.
-  destruct g1 as [f1|v1], g2 as [f2|v2].
-  { destruct (globfun_linkable_dec f1 f2).
-    { left. constructor. auto. }
-    { right. contradict n. inv n. auto. }
-  }
-  { right. intro X. inv X. }
-  { right. intro X. inv X. }
-  { destruct (globvar_linkable_dec v1 v2).
-    { left. constructor. auto. }
-    { right. contradict n. inv n. auto. }
-  }
+  destruct g1 as [f1|v1], g2 as [f2|v2]; finishR2.
+  - destruct (globfun_linkable_dec f1 f2); finishR1.
+    left. constructor. auto.
+  - destruct (globvar_linkable_dec v1 v2); finishR1.
+    left. constructor. auto.
 Defined.
 
 
