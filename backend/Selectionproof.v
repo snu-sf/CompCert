@@ -22,7 +22,6 @@ Require Import Memory.
 Require Import Events.
 Require Import Globalenvs.
 Require Import Smallstep.
-Require Import Language.
 Require Import Switch.
 Require Import Cminor.
 Require Import Op.
@@ -34,6 +33,7 @@ Require Import Selection.
 Require Import SelectOpproof.
 Require Import SelectDivproof.
 Require Import SelectLongproof.
+Require Import Language.
 Require Import MapsExtra.
 Require Import Linker.
 Require Import LinkerProp.

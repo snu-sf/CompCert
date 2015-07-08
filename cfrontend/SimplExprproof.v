@@ -21,7 +21,6 @@ Require Import Values.
 Require Import Memory.
 Require Import Events.
 Require Import Smallstep.
-Require Import Language.
 Require Import Globalenvs.
 Require Import Ctypes.
 Require Import Cop.
@@ -31,6 +30,7 @@ Require Import Cstrategy.
 Require Import Clight.
 Require Import SimplExpr.
 Require Import SimplExprspec.
+Require Import Language.
 Require Import Linksub.
 Require Import SepcompRel.
 
@@ -49,8 +49,6 @@ Hypothesis TRANSF:
 
 Let ge := Genv.globalenv prog.
 Let tge := Genv.globalenv tprog.
-
-(** Invariance properties. *)
 
 Let prog_match:
   match_program
@@ -81,9 +79,13 @@ Proof.
     destruct gv_src. constructor. auto.
 Qed.
 
+(** Invariance properties. *)
+
 Lemma symbols_preserved:
   forall (s: ident), Genv.find_symbol tge s = Genv.find_symbol ge s.
-Proof. intros. eapply Genv.find_symbol_match. eauto. auto. Qed.
+Proof.
+  intros. eapply Genv.find_symbol_match. eauto. auto. 
+Qed.
 
 Lemma function_ptr_translated:
   forall b f,
