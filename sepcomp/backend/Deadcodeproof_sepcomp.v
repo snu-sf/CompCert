@@ -677,53 +677,38 @@ Proof.
   intros. destruct (is_normal S1) eqn:NORMAL1.
   { (* is_normal *)
     destruct S1; try by inv NORMAL1.
-    exploit is_normal_step; eauto. intro. des. subst.
-    inv MS.
-    exploit is_normal_extends;
-      try apply symbols_preserved;
-      try apply varinfo_preserved;
-      eauto.
-    intro. des.
+    exploit is_normal_step; eauto. i; des. subst. inv MS.
+    exploit is_normal_extends; eauto using symbols_preserved, varinfo_preserved. i; des.
     exploit is_normal_step; try apply TSTEP; eauto.
-    intro. des. inv S2.
-    eexists. split.
-    eauto.
-    apply match_states_identical.
-    constructor; eauto.
+    i; des. inv S2.
+    esplits; eauto. apply match_states_identical. constructor; eauto.
   }
   inv MS. unfold is_normal in NORMAL1.
   destruct (fn_code f) ! pc as [[]|] eqn:OPCODE; try by inv NORMAL1; inv H; clarify.
   - (* Icall *)
     inv H; clarify.
-    exploit find_function_translated_identical; eauto.
-    intro. des.
-    eexists. split.
-    { eapply exec_Icall; eauto.
-      eapply match_fundef_sig. eauto.
-    }
-    econs; eauto; try constructor; eauto 10 using match_stackframes_identical, regset_lessdef_val_lessdef_list.
+    exploit find_function_translated_identical; eauto. i; des.
+    esplits; eauto using exec_Icall, match_fundef_sig.
+    econs; eauto; try constructor; eauto using match_stackframes_identical, regset_lessdef_val_lessdef_list.
   - (* Itailcall *)
     inv H; clarify.
-    exploit find_function_translated_identical; eauto.
-    intro. des.
+    exploit find_function_translated_identical; eauto. i; des.
     assert (X: { m1' | Mem.free tm sp 0 (fn_stacksize f) = Some m1'}).
-    apply Mem.range_perm_free. red; intros.
-    destruct (zlt ofs f.(fn_stacksize)).
-    eapply Mem.perm_extends; eauto.
-    eapply Mem.free_range_perm; eauto. omega.
+    { apply Mem.range_perm_free. red; intros.
+      destruct (zlt ofs f.(fn_stacksize)); try omega.
+      eapply Mem.perm_extends; eauto.
+      eapply Mem.free_range_perm; eauto.
+    }
     destruct X as [m1' FREE].
-    exploit Mem.free_parallel_extends; eauto.
-    intro. des.
+    exploit Mem.free_parallel_extends; eauto. i; des.
     rewrite FREE in H2. inv H2.
     eexists. split; eauto using exec_Itailcall, match_fundef_sig.
     econs; eauto using regset_lessdef_val_lessdef_list.
   - (* Ireturn *)
     inv H; clarify.
-    exploit Mem.free_parallel_extends; eauto.
-    intro. des.
+    exploit Mem.free_parallel_extends; eauto. i; des.
     eexists. split; eauto using exec_Ireturn.
-    econs; eauto.
-    destruct o; simpl; auto.
+    econs; eauto. destruct o; simpl; auto.
 Qed.
 
 Theorem step_simulation:

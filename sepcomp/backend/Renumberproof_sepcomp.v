@@ -231,36 +231,25 @@ Proof.
   intros. destruct (is_normal S1) eqn:NORMAL1.
   { (* is_normal *)
     destruct S1; try by inv NORMAL1.
-    exploit is_normal_step; eauto. intro. des. subst.
-    inv MS.
-    exploit is_normal_identical; eauto using symbols_preserved, varinfo_preserved.
-    intro. des.
-    eexists. split;eauto.
+    exploit is_normal_step; eauto. i;des. subst.
+    inv MS. exploit is_normal_identical; eauto using symbols_preserved, varinfo_preserved.
+    i; des. esplits; eauto.
     apply match_states_identical. econs; eauto.
   }
   inv MS. unfold is_normal in NORMAL1.
   destruct (fn_code f) ! pc as [[]|] eqn:OPCODE; try by inv NORMAL1; inv H; clarify.
   - (* Icall *)
     inv H; clarify.
-    exploit find_function_translated; eauto.
-    intro. des.
-    eexists. split; eauto using exec_Icall, match_fundef_sig.
-    econs; eauto.
-    constructor; eauto using match_frames_identical.
+    exploit find_function_translated; eauto. i; des.
+    esplits; eauto using exec_Icall, match_fundef_sig.
+    econs; eauto. constructor; eauto using match_frames_identical.
   - (* Itailcall *)
     inv H; clarify.
-    exploit find_function_translated; eauto.
-    intro. des.
-    eexists. split.
-    { eapply exec_Itailcall; eauto.
-      eapply match_fundef_sig. eauto.
-    }
-    econs; eauto.
+    exploit find_function_translated; eauto. i; des.
+    esplits; eauto using exec_Itailcall, match_fundef_sig. econs; eauto.
   - (* Ireturn *)
     inv H; clarify.
-    eexists. split.
-    { eapply exec_Ireturn; eauto. }
-    econs; eauto.
+    esplits; eauto using exec_Ireturn. econs; eauto.
 Qed.
 
 Lemma step_simulation:
