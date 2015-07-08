@@ -1,8 +1,8 @@
 Require Import Axioms.
 Require Import RelationClasses.
 Require String.
-Require Import Coqlib Coqlib_sepcomp.
-Require Import Maps Maps_sepcomp.
+Require Import Coqlib CoqlibExtra.
+Require Import Maps MapsExtra.
 Require Import Integers Floats Values AST Globalenvs.
 Require Import Errors Behaviors Smallstep.
 Require Import Language Linker.
@@ -418,7 +418,7 @@ Proof.
     exists (compose_forward_simulation Hrtlsim' Hrtlsim'0); eauto.
 Qed.
 
-Theorem linker_correct_det_forward
+Lemma linker_correct_determinate_forward
         ctree asmtree cprog
         (CLINK: Tree.reduce (link_program Language_C) ctree = Some cprog)
         (TRANSF: Tree.Forall2 compile_c_program ctree asmtree):
@@ -541,7 +541,7 @@ Proof.
   repeat (auto; try (eapply compose_forward_simulation; [|eauto; fail])).
 Qed.
 
-Theorem linker_correct_det_backward
+Lemma linker_correct_determinate
         ctree asmtree cprog
         (CLINK: Tree.reduce (link_program Language_C) ctree = Some cprog)
         (TRANSF: Tree.Forall2 compile_c_program ctree asmtree):
@@ -549,8 +549,8 @@ Theorem linker_correct_det_backward
     (_:backward_simulation (atomic (Cstrategy.semantics cprog)) (Asm.semantics asmprog)),
     Tree.reduce (link_program Language_Asm) asmtree = Some asmprog.
 Proof.
-  exploit linker_correct_det_forward; eauto.
-  intros. des. exists asmprog.
+  exploit linker_correct_determinate_forward; eauto.
+  intros [asmprog [Hsim Hasmprog]]. exists asmprog.
   eexists; auto.
   apply forward_to_backward_simulation.
   apply factor_forward_simulation. auto. eapply sd_traces. eapply Asm.semantics_determinate.
@@ -566,8 +566,8 @@ Theorem linker_correct
     (_:backward_simulation (Csem.semantics cprog) (Asm.semantics asmprog)),
     Tree.reduce (link_program Language_Asm) asmtree = Some asmprog.
 Proof.
-  exploit linker_correct_det_backward; eauto. intros. des.
-  exists asmprog.
+  exploit linker_correct_determinate; eauto.
+  intros [asmprog [Hsim Hasmprog]]. exists asmprog.
   eexists; eauto.
   apply compose_backward_simulation with (atomic (Cstrategy.semantics cprog)).
   eapply sd_traces; eapply Asm.semantics_determinate.
@@ -575,5 +575,5 @@ Proof.
   apply Cstrategy.strategy_simulation.
   apply Csem.semantics_single_events.
   eapply ssr_well_behaved; eapply Cstrategy.semantics_strongly_receptive.
-  exact x.
+  exact Hsim.
 Qed.

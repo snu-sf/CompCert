@@ -1,7 +1,7 @@
 Require Import RelationClasses.
 Require String.
-Require Import Coqlib Coqlib_sepcomp.
-Require Import Maps Maps_sepcomp.
+Require Import Coqlib CoqlibExtra.
+Require Import Maps MapsExtra.
 Require Import Integers Floats Values AST Globalenvs.
 Require Import Language Linker LinkerProp.
 
