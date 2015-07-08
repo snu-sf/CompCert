@@ -12,9 +12,7 @@ Require Import SepcompRel.
 
 Require SimplExprproof_sepcomp.
 Require Selectionproof_sepcomp.
-Require Tailcallproof_sepcomp.
 Require Inliningproof_sepcomp.
-Require Renumberproof_sepcomp.
 Require Constpropproof_sepcomp.
 Require CSEproof_sepcomp.
 Require Deadcodeproof_sepcomp.
@@ -226,7 +224,7 @@ Ltac simplify :=
          end;
   subst; auto.
 
-Theorem linker_correct_det_forward
+Lemma linker_correct_determinate_forward
         ctree asmtree cprog
         (CLINK: Tree.reduce (link_program Language_C) ctree = Some cprog)
         (TRANSF: Tree.Forall2 (fun c a => transf_c_program c = OK a) ctree asmtree):
@@ -300,11 +298,11 @@ Proof.
   (* RTL *)
   unfold transf_rtl_program in TRANSF. clarify.
 
-  eapply Tree.Forall2_implies in T19; [|apply Tailcall_sepcomp_rel].
-  eapply Tree.Forall2_reduce in T19; eauto; [|eapply (@link_program_sepcomp_rel Language_RTL Language_RTL id)]; simplify;
+  eapply Tree.Forall2_reduce in T19; eauto;
+    [|eapply transform_program_link_program];
     [|apply Tailcall_sig].
-  destruct T19 as [rtlprog1 [Hrtlprog1 Hrtlsim1]].
-  apply Tailcallproof_sepcomp.transf_program_correct in Hrtlsim1.
+  destruct T19 as [rtlprog1 [Hrtlprog1 Hrtlsim1]]. subst.
+  generalize (Tailcallproof.transf_program_correct rtlprog0) as Hrtlsim1. intro.
 
   eapply Tree.Forall2_implies in T17; [|apply Inlining_sepcomp_rel].
   eapply Tree.Forall2_reduce in T17; eauto; [|eapply (@link_program_sepcomp_rel Language_RTL Language_RTL id)]; simplify;
@@ -312,20 +310,20 @@ Proof.
   destruct T17 as [rtlprog2 [Hrtlprog2 Hrtlsim2]].
   apply Inliningproof_sepcomp.transf_program_correct in Hrtlsim2.
 
-  eapply Tree.Forall2_implies in T15; [|apply Renumber_sepcomp_rel].
-  eapply Tree.Forall2_reduce in T15; eauto; [|eapply (@link_program_sepcomp_rel Language_RTL Language_RTL id)]; simplify.
-  destruct T15 as [rtlprog3 [Hrtlprog3 Hrtlsim3]].
-  apply Renumberproof_sepcomp.transf_program_correct in Hrtlsim3.
+  eapply Tree.Forall2_reduce in T15; eauto;
+    [|eapply transform_program_link_program; auto].
+  destruct T15 as [rtlprog3 [Hrtlprog3 Hrtlsim3]]. subst.
+  generalize (Renumberproof.transf_program_correct rtlprog2) as Hrtlsim3. intro.
 
   eapply Tree.Forall2_implies in T13; [|apply Constprop_sepcomp_rel].
   eapply Tree.Forall2_reduce in T13; eauto; [|eapply (@link_program_sepcomp_rel Language_RTL Language_RTL id)]; simplify.
   destruct T13 as [rtlprog4 [Hrtlprog4 Hrtlsim4]].
   apply Constpropproof_sepcomp.transf_program_correct in Hrtlsim4.
 
-  eapply Tree.Forall2_implies in T11; [|apply Renumber_sepcomp_rel].
-  eapply Tree.Forall2_reduce in T11; eauto; [|eapply (@link_program_sepcomp_rel Language_RTL Language_RTL id)]; simplify.
-  destruct T11 as [rtlprog5 [Hrtlprog5 Hrtlsim5]].
-  apply Renumberproof_sepcomp.transf_program_correct in Hrtlsim5.
+  eapply Tree.Forall2_reduce in T11; eauto;
+    [|eapply transform_program_link_program; auto].
+  destruct T11 as [rtlprog5 [Hrtlprog5 Hrtlsim5]]. subst.
+  generalize (Renumberproof.transf_program_correct rtlprog4) as Hrtlsim5. intro.
 
   eapply Tree.Forall2_implies in T9; [|apply CSE_sepcomp_rel].
   eapply Tree.Forall2_reduce in T9; eauto; [|eapply (@link_program_sepcomp_rel Language_RTL Language_RTL id)]; simplify;
@@ -347,7 +345,7 @@ Proof.
   apply Allocproof.transf_program_correct in Hltlsim0.
 
   eapply Tree.Forall2_reduce in T3; eauto;
-    [|eapply (transform_program_link_program); auto].
+    [|eapply transform_program_link_program; auto].
   destruct T3 as [ltlprog1 [Hltlprog1 Hltlsim1]]. subst.
   generalize (Tunnelingproof.transf_program_correct ltlprog0) as Hltlsim1. intro.
 
@@ -359,7 +357,7 @@ Proof.
   apply Linearizeproof.transf_program_correct in Hlinearsim0.
 
   eapply Tree.Forall2_reduce in T1; eauto;
-    [|eapply (transform_program_link_program); auto].
+    [|eapply transform_program_link_program; auto].
   destruct T1 as [linearprog1 [Hlinearprog1 Hlinearsim1]]. subst.
   generalize (CleanupLabelsproof.transf_program_correct linearprog0) as Hlinearsim1. intro.
 
@@ -383,7 +381,7 @@ Proof.
   repeat (auto; try (eapply compose_forward_simulation; [|eauto; fail])).
 Qed.
 
-Theorem linker_correct_det_backward
+Lemma linker_correct_determinate
         ctree asmtree cprog
         (CLINK: Tree.reduce (link_program Language_C) ctree = Some cprog)
         (TRANSF: Tree.Forall2 (fun c a => transf_c_program c = OK a) ctree asmtree):
@@ -391,7 +389,7 @@ Theorem linker_correct_det_backward
     (_:backward_simulation (atomic (Cstrategy.semantics cprog)) (Asm.semantics asmprog)),
     Tree.reduce (link_program Language_Asm) asmtree = Some asmprog.
 Proof.
-  exploit linker_correct_det_forward; eauto.
+  exploit linker_correct_determinate_forward; eauto.
   intros. destruct H as [asmprog [fsim Hasm]].
   exists asmprog.
   eexists; auto.
@@ -409,7 +407,7 @@ Theorem linker_correct
     (_:backward_simulation (Csem.semantics cprog) (Asm.semantics asmprog)),
     Tree.reduce (link_program Language_Asm) asmtree = Some asmprog.
 Proof.
-  exploit linker_correct_det_backward; eauto.
+  exploit linker_correct_determinate; eauto.
   intros. destruct H as [asmprog [fsim Hasm]].
   exists asmprog.
   eexists; eauto.
