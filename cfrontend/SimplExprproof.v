@@ -31,7 +31,7 @@ Require Import Cstrategy.
 Require Import Clight.
 Require Import SimplExpr.
 Require Import SimplExprspec.
-Require Import Linkeq.
+Require Import Linksub.
 Require Import SepcompRel.
 
 Section PRESERVATION.

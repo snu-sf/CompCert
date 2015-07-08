@@ -29,7 +29,7 @@ Require Import Inlining.
 Require Import Inliningspec.
 Require Import RTL.
 Require Import MapsExtra.
-Require Import Linkeq.
+Require Import Linksub.
 Require Import SepcompRel.
 Require Import RTLExtra.
 Require Import sflib.
@@ -59,8 +59,8 @@ Proof.
     destruct (peq i i0); simpl; auto.
 Qed.
 
-Lemma program_linkeq_fenv_le sprog prog
-      (Hlink: program_linkeq Language_RTL sprog prog):
+Lemma program_linksub_fenv_le sprog prog
+      (Hlink: program_linksub Language_RTL sprog prog):
   PTree_le (funenv_program sprog) (funenv_program prog).
 Proof.
   constructor. intros. rewrite ? funenv_program_spec in *.
@@ -84,7 +84,7 @@ Qed.
 Inductive match_fundef prog: forall (fd fd':fundef), Prop :=
 | match_fundef_transl
     fd fd' sprog
-    (SPROG: program_linkeq Language_RTL sprog prog)
+    (SPROG: program_linksub Language_RTL sprog prog)
     (FD: transf_fundef (funenv_program sprog) fd = OK fd'):
     match_fundef prog fd fd'
 | match_fundef_identical
@@ -518,7 +518,7 @@ Inductive match_transl_stacks (F: meminj) (m m': mem) (bound1:block):
         (BELOW: Ple bound1 bound),
       match_transl_stacks F m m' bound1 nil nil bound
   | match_transl_stacks_cons: forall res f sp pc rs stk f' sp' rs' stk' bound ctx sprog
-        (SPROG: program_linkeq Language_RTL sprog prog)
+        (SPROG: program_linksub Language_RTL sprog prog)
         (MS: match_transl_stacks_inside F m m' bound1 stk stk' f' ctx sp' rs')
         (FB: tr_funbody (funenv_program sprog) f'.(fn_stacksize) ctx f f'.(fn_code))
         (AG: agree_regs F ctx rs rs')
@@ -552,7 +552,7 @@ with match_transl_stacks_inside (F: meminj) (m m': mem) (bound1:block):
         (DSTK: ctx.(dstk) = 0),
       match_transl_stacks_inside F m m' bound1 stk stk' f' ctx sp' rs'
   | match_transl_stacks_inside_inlined: forall res f sp pc rs stk stk' f' ctx sp' rs' ctx' sprog
-        (SPROG: program_linkeq Language_RTL sprog prog)
+        (SPROG: program_linksub Language_RTL sprog prog)
         (MS: match_transl_stacks_inside F m m' bound1 stk stk' f' ctx' sp' rs')
         (FB: tr_funbody (funenv_program sprog) f'.(fn_stacksize) ctx' f f'.(fn_code))
         (AG: agree_regs F ctx' rs rs')
@@ -1011,7 +1011,7 @@ Qed.
 
 Lemma match_transl_stacks_inside_inlined_tailcall:
   forall F m m' bound0 stk stk' f' ctx sp' rs' ctx' f sprog,
-  forall (SPROG: program_linkeq Language_RTL sprog prog),
+  forall (SPROG: program_linksub Language_RTL sprog prog),
   match_transl_stacks_inside F m m' bound0 stk stk' f' ctx sp' rs' ->
   context_below ctx ctx' ->
   context_stack_tailcall ctx f ctx' ->
@@ -1047,7 +1047,7 @@ Inductive match_identical_states: state -> state -> Prop :=
 
 Inductive match_states: state -> state -> Prop :=
   | match_transl_regular_states: forall bound0 stk1 stk2 f sp pc rs m stk1' stk2' f' sp' rs' m' F ctx sprog
-        (SPROG: program_linkeq Language_RTL sprog prog)
+        (SPROG: program_linksub Language_RTL sprog prog)
         (MSTK: match_stacks F m m' stk1 stk1' bound0)
         (MS: match_transl_stacks_inside F m m' bound0 stk2 stk2' f' ctx sp' rs')
         (FB: tr_funbody (funenv_program sprog) f'.(fn_stacksize) ctx f f'.(fn_code))
@@ -1068,7 +1068,7 @@ Inductive match_states: state -> state -> Prop :=
       match_states (Callstate stk fd args m)
                    (Callstate stk' fd' args' m')
   | match_transl_call_regular_states: forall bound0 stk1 stk2 f vargs m stk1' stk2' f' sp' rs' m' F ctx ctx' pc' pc1' rargs sprog
-        (SPROG: program_linkeq Language_RTL sprog prog)
+        (SPROG: program_linksub Language_RTL sprog prog)
         (MSTK: match_stacks F m m' stk1 stk1' bound0)
         (MS: match_transl_stacks_inside F m m' bound0 stk2 stk2' f' ctx sp' rs')
         (FB: tr_funbody (funenv_program sprog) f'.(fn_stacksize) ctx f f'.(fn_code))
@@ -1272,7 +1272,7 @@ Proof.
 (* inlined *)
   assert (fd = Internal f0).
     simpl in H0. destruct (Genv.find_symbol ge id) as [b|] eqn:?; try discriminate.
-    exploit (funenv_program_compat prog); eauto. destruct (program_linkeq_fenv_le _ _ SPROG). apply H1. eauto. intros. 
+    exploit (funenv_program_compat prog); eauto. destruct (program_linksub_fenv_le _ _ SPROG). apply H1. eauto. intros. 
     unfold ge in H0. congruence.
   subst fd.
   right; split. simpl; omega. split. auto. 
@@ -1335,7 +1335,7 @@ Proof.
 (* inlined *)
   assert (fd = Internal f0).
     simpl in H0. destruct (Genv.find_symbol ge id) as [b|] eqn:?; try discriminate.
-    exploit (funenv_program_compat prog); eauto. destruct (program_linkeq_fenv_le _ _ SPROG). apply H1. eauto. intros. 
+    exploit (funenv_program_compat prog); eauto. destruct (program_linksub_fenv_le _ _ SPROG). apply H1. eauto. intros. 
     unfold ge in H0. congruence.
   subst fd.
   right; split. simpl; omega. split. auto. 

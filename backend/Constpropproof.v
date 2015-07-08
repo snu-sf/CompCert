@@ -34,7 +34,7 @@ Require Import ValueAnalysis.
 Require Import ConstpropOp.
 Require Import Constprop.
 Require Import ConstpropOpproof.
-Require Import Linkeq.
+Require Import Linksub.
 Require Import SepcompRel.
 Require Import RTLExtra.
 Require Import sflib.
@@ -55,7 +55,7 @@ Let tge := Genv.globalenv tprog.
 
 Inductive match_fundef prog: forall (fd fd':fundef), Prop :=
 | match_fundef_transl fd fd' sprog
-    (SPROG: program_linkeq Language_RTL sprog prog)
+    (SPROG: program_linksub Language_RTL sprog prog)
     (FUN: transf_fundef (romem_for_program sprog) fd = fd'):
     match_fundef prog fd fd'
 | match_fundef_identical fd:
@@ -366,7 +366,7 @@ End BUILTIN_STRENGTH_REDUCTION.
 Inductive match_stackframes: stackframe -> stackframe -> Prop :=
    match_stackframe_intro:
       forall res sp pc rs f rs' sprog,
-      forall (SPROG: program_linkeq Language_RTL sprog prog),
+      forall (SPROG: program_linksub Language_RTL sprog prog),
       regs_lessdef rs rs' ->
     match_stackframes
         (Stackframe res f sp pc rs)
@@ -390,7 +390,7 @@ Inductive match_identical_states: state -> state -> Prop :=
 Inductive match_states: nat -> state -> state -> Prop :=
   | match_states_intro:
       forall s sp pc rs m f s' pc' rs' m' bc ae n sprog
-           (SPROG: program_linkeq Language_RTL sprog prog)
+           (SPROG: program_linksub Language_RTL sprog prog)
            (MATCH: ematch bc rs ae)
            (STACKS: list_forall2 match_stackframes s s')
            (PC: match_pc f ae n pc pc')
@@ -420,7 +420,7 @@ Inductive match_states: nat -> state -> state -> Prop :=
 
 Lemma match_states_succ:
   forall s f sp pc rs m s' rs' m' sprog,
-  forall (SPROG: program_linkeq Language_RTL sprog prog),
+  forall (SPROG: program_linksub Language_RTL sprog prog),
   sound_state_ext prog (State s f sp pc rs m) ->
   list_forall2 match_stackframes s s' ->
   regs_lessdef rs rs' ->

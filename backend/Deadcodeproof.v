@@ -35,7 +35,7 @@ Require Import ValueAnalysis.
 Require Import NeedDomain.
 Require Import NeedOp.
 Require Import Deadcode.
-Require Import Linkeq.
+Require Import Linksub.
 Require Import SepcompRel.
 Require Import RTLExtra.
 Require Import sflib.
@@ -371,7 +371,7 @@ Qed.
 
 Inductive match_fundef prog: forall (fd fd':fundef), Prop :=
 | match_fundef_transl fd fd' sprog
-    (SPROG: program_linkeq Language_RTL sprog prog)
+    (SPROG: program_linksub Language_RTL sprog prog)
     (FUN: transf_fundef (romem_for_program sprog) fd = OK fd'):
     match_fundef prog fd fd'
 | match_fundef_identical fd:
@@ -523,7 +523,7 @@ Qed.
 Inductive match_stackframes: stackframe -> stackframe -> Prop :=
   | match_stackframes_intro:
       forall res f sp pc e tf te an sprog
-        (SPROG: program_linkeq Language_RTL sprog prog)
+        (SPROG: program_linksub Language_RTL sprog prog)
         (FUN: transf_function (romem_for_program sprog) f = OK tf)
         (ANL: analyze (vanalyze (romem_for_program sprog) f) f = Some an)
         (RES: forall v tv,
@@ -549,7 +549,7 @@ Inductive match_identical_states: state -> state -> Prop :=
 Inductive match_states: state -> state -> Prop :=
   | match_regular_states:
       forall s f sp pc e m ts tf te tm an sprog
-        (SPROG: program_linkeq Language_RTL sprog prog)
+        (SPROG: program_linksub Language_RTL sprog prog)
         (STACKS: list_forall2 match_stackframes s ts)
         (FUN: transf_function (romem_for_program sprog) f = OK tf)
         (ANL: analyze (vanalyze (romem_for_program sprog) f) f = Some an)
@@ -591,7 +591,7 @@ Qed.
 
 Lemma match_succ_states:
   forall s f sp pc e m ts tf te tm an pc' instr ne nm sprog
-    (SPROG: program_linkeq Language_RTL sprog prog)
+    (SPROG: program_linksub Language_RTL sprog prog)
     (STACKS: list_forall2 match_stackframes s ts)
     (FUN: transf_function (romem_for_program sprog) f = OK tf)
     (ANL: analyze (vanalyze (romem_for_program sprog) f) f = Some an)

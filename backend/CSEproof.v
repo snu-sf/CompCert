@@ -35,7 +35,7 @@ Require Import CSEdomain.
 Require Import CombineOp.
 Require Import CombineOpproof.
 Require Import CSE.
-Require Import Linkeq.
+Require Import Linksub.
 Require Import SepcompRel.
 Require Import RTLExtra.
 Require Import sflib.
@@ -829,7 +829,7 @@ Let rm := romem_for_program prog.
 
 Inductive match_fundef prog: forall (fd fd':fundef), Prop :=
 | match_fundef_transl fd fd' sprog
-    (SPROG: program_linkeq Language_RTL sprog prog)
+    (SPROG: program_linksub Language_RTL sprog prog)
     (FUN: transf_fundef (romem_for_program sprog) fd = OK fd'):
     match_fundef prog fd fd'
 | match_fundef_identical fd:
@@ -960,7 +960,7 @@ Inductive match_stackframes: list stackframe -> list stackframe -> Prop :=
       match_stackframes nil nil
   | match_stackframes_cons:
       forall res sp pc rs f approx s rs' s' sprog
-           (SPROG: program_linkeq Language_RTL sprog prog)
+           (SPROG: program_linksub Language_RTL sprog prog)
            (ANALYZE: analyze f (vanalyze (romem_for_program sprog) f) = Some approx)
            (SAT: forall v m, exists valu, numbering_holds valu ge sp (rs#res <- v) m approx!!pc)
            (RLD: regs_lessdef rs rs')
@@ -988,7 +988,7 @@ Inductive match_identical_states: state -> state -> Prop :=
 Inductive match_states: state -> state -> Prop :=
   | match_states_intro:
       forall s sp pc rs m s' rs' m' f approx sprog
-             (SPROG: program_linkeq Language_RTL sprog prog)
+             (SPROG: program_linksub Language_RTL sprog prog)
              (ANALYZE: analyze f (vanalyze (romem_for_program sprog) f) = Some approx)
              (SAT: exists valu, numbering_holds valu ge sp rs m approx!!pc)
              (RLD: regs_lessdef rs rs')

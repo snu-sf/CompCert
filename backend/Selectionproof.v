@@ -37,7 +37,7 @@ Require Import SelectLongproof.
 Require Import MapsExtra.
 Require Import Linker.
 Require Import LinkerProp.
-Require Import Linkeq.
+Require Import Linksub.
 Require Import SepcompRel.
 Require Import CoqlibExtra.
 
@@ -65,7 +65,7 @@ Hypothesis TRANSF:
 Let prog_match:
   match_program
     (fun fd tfd =>
-       exists sprog, program_linkeq Language_Cminor sprog prog /\
+       exists sprog, program_linksub Language_Cminor sprog prog /\
        sel_fundef (Genv.globalenv sprog) fd = OK tfd)
     (fun info tinfo => info = tinfo)
     nil prog.(prog_main)
@@ -103,7 +103,7 @@ Lemma function_ptr_translated:
   forall (b: block) (f: Cminor.fundef),
   Genv.find_funct_ptr ge b = Some f ->
   exists tf, Genv.find_funct_ptr tge b = Some tf /\
-  exists sprog, program_linkeq Language_Cminor sprog prog /\
+  exists sprog, program_linksub Language_Cminor sprog prog /\
   sel_fundef (Genv.globalenv sprog) f = OK tf.
 Proof. intros. exploit Genv.find_funct_ptr_match; eauto. Qed.
 
@@ -112,7 +112,7 @@ Lemma functions_translated:
   Genv.find_funct ge v = Some f ->
   Val.lessdef v v' ->
   exists tf, Genv.find_funct tge v' = Some tf /\
-  exists sprog, program_linkeq Language_Cminor sprog prog /\
+  exists sprog, program_linksub Language_Cminor sprog prog /\
   sel_fundef (Genv.globalenv sprog) f = OK tf.
 Proof.
   intros. exploit Genv.find_funct_match; eauto.
@@ -403,7 +403,7 @@ Qed.
 
 Lemma classify_call_correct_ext:
   forall sp e m a v fd sprog
-  (SPROG: program_linkeq Language_Cminor sprog prog),
+  (SPROG: program_linksub Language_Cminor sprog prog),
   Cminor.eval_expr ge sp e m a v ->
   Genv.find_funct ge v = Some fd ->
   match classify_call (Genv.globalenv sprog) a with
@@ -777,7 +777,7 @@ Inductive match_cont: Cminor.cont -> CminorSel.cont -> Prop :=
       match_cont Cminor.Kstop Kstop
   | match_cont_seq: forall s s' k k' sprog,
       sel_stmt (Genv.globalenv sprog) s = OK s' ->
-      forall (SPROG: program_linkeq Language_Cminor sprog prog),
+      forall (SPROG: program_linksub Language_Cminor sprog prog),
       match_cont k k' ->
       match_cont (Cminor.Kseq s k) (Kseq s' k')
   | match_cont_block: forall k k',
@@ -785,7 +785,7 @@ Inductive match_cont: Cminor.cont -> CminorSel.cont -> Prop :=
       match_cont (Cminor.Kblock k) (Kblock k')
   | match_cont_call: forall id f sp e k f' e' k' sprog,
       sel_function (Genv.globalenv sprog) f = OK f' ->
-      forall (SPROG: program_linkeq Language_Cminor sprog prog),
+      forall (SPROG: program_linksub Language_Cminor sprog prog),
       match_cont k k' -> env_lessdef e e' ->
       match_cont (Cminor.Kcall id f sp e k) (Kcall id f' sp e' k').
 
@@ -793,8 +793,8 @@ Inductive match_states: Cminor.state -> CminorSel.state -> Prop :=
   | match_state: forall f f' s k s' k' sp e m e' m' sprog1 sprog2
         (TF: sel_function (Genv.globalenv sprog1) f = OK f')
         (TS: sel_stmt (Genv.globalenv sprog2) s = OK s')
-        (SPROG1: program_linkeq Language_Cminor sprog1 prog)
-        (SPROG2: program_linkeq Language_Cminor sprog2 prog)
+        (SPROG1: program_linksub Language_Cminor sprog1 prog)
+        (SPROG2: program_linksub Language_Cminor sprog2 prog)
         (MC: match_cont k k')
         (LD: env_lessdef e e')
         (ME: Mem.extends m m'),
@@ -803,7 +803,7 @@ Inductive match_states: Cminor.state -> CminorSel.state -> Prop :=
         (State f' s' k' sp e' m')
   | match_callstate: forall f f' args args' k k' m m' sprog
         (TF: sel_fundef (Genv.globalenv sprog) f = OK f')
-        (SPROG: program_linkeq Language_Cminor sprog prog)
+        (SPROG: program_linksub Language_Cminor sprog prog)
         (MC: match_cont k k')
         (LD: Val.lessdef_list args args')
         (ME: Mem.extends m m'),
@@ -819,7 +819,7 @@ Inductive match_states: Cminor.state -> CminorSel.state -> Prop :=
         (Returnstate v' k' m')
   | match_builtin_1: forall ef args args' optid f sp e k m al f' e' k' m' sprog
         (TF: sel_function (Genv.globalenv sprog) f = OK f')
-        (SPROG: program_linkeq Language_Cminor sprog prog)
+        (SPROG: program_linksub Language_Cminor sprog prog)
         (MC: match_cont k k')
         (LDA: Val.lessdef_list args args')
         (LDE: env_lessdef e e')
@@ -830,7 +830,7 @@ Inductive match_states: Cminor.state -> CminorSel.state -> Prop :=
         (State f' (Sbuiltin optid ef al) k' sp e' m')
   | match_builtin_2: forall v v' optid f sp e k m f' e' m' k' sprog
         (TF: sel_function (Genv.globalenv sprog) f = OK f')
-        (SPROG: program_linkeq Language_Cminor sprog prog)
+        (SPROG: program_linksub Language_Cminor sprog prog)
         (MC: match_cont k k')
         (LDV: Val.lessdef v v')
         (LDE: env_lessdef e e')
@@ -849,7 +849,7 @@ Remark find_label_commut:
   forall lbl s k s' k' sprog,
   match_cont k k' ->
   sel_stmt (Genv.globalenv sprog) s = OK s' ->
-  forall (SPROG: program_linkeq Language_Cminor sprog prog),
+  forall (SPROG: program_linksub Language_Cminor sprog prog),
   match Cminor.find_label lbl s k, find_label lbl s' k' with
   | None, None => True
   | Some(s1, k1), Some(s1', k1') => sel_stmt (Genv.globalenv sprog) s1 = OK s1' /\ match_cont k1 k1'

@@ -23,7 +23,7 @@ Require Import Op.
 Require Import Registers.
 Require Import RTL.
 Require Import Renumber.
-Require Import Linkeq.
+Require Import Linksub.
 Require Import SepcompRel.
 Require Import RTLExtra.
 Require Import sflib.
