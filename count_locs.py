@@ -20,7 +20,7 @@ if __name__ == "__main__":
     ["Linker",
      "Linkerproof",
      "common/Language",
-     "common/Linkeq",
+     "common/Linksub",
      "common/LinkerBasicproof",
      "common/LinkerProp",
      "common/SepcompRel",

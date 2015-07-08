@@ -124,7 +124,7 @@ PARSER=Cabs.v Parser.v
 
 # Putting everything together (in driver/)
 
-DRIVER=Compopts.v Compiler.v Compilerproof.v Complements.v Linker.v Linkerproof.v
+DRIVER=Compopts.v Compiler.v Complements.v Linker.v Linkerproof.v
 
 # All source files
 
