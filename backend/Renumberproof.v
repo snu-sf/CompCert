@@ -18,11 +18,11 @@ Require Import Postorder.
 Require Import Events.
 Require Import Globalenvs.
 Require Import Smallstep.
-Require Import Language.
 Require Import Op.
 Require Import Registers.
 Require Import RTL.
 Require Import Renumber.
+Require Import Language.
 Require Import Linksub.
 Require Import SepcompRel.
 Require Import RTLExtra.
@@ -378,12 +378,6 @@ Proof.
 Qed.
 
 End PRESERVATION.
-
-
-
- 
-
-  
 
 Lemma Renumber_sepcomp_rel
       rtlprog1 rtlprog2

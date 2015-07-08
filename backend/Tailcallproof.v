@@ -13,7 +13,6 @@
 (** Recognition of tail calls: correctness proof *)
 
 Require Import Coqlib.
-Require Import Compopts.
 Require Import Maps.
 Require Import AST.
 Require Import Integers.
@@ -23,11 +22,12 @@ Require Import Op.
 Require Import Events.
 Require Import Globalenvs.
 Require Import Smallstep.
-Require Import Language.
 Require Import Registers.
 Require Import RTL.
 Require Import Conventions.
 Require Import Tailcall.
+Require Import Compopts.
+Require Import Language.
 Require Import Linksub.
 Require Import SepcompRel.
 Require Import RTLExtra.
