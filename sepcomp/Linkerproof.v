@@ -550,7 +550,7 @@ Lemma linker_correct_determinate
     Tree.reduce (link_program Language_Asm) asmtree = Some asmprog.
 Proof.
   exploit linker_correct_determinate_forward; eauto.
-  intros. des. exists asmprog.
+  intros [asmprog [Hsim Hasmprog]]. exists asmprog.
   eexists; auto.
   apply forward_to_backward_simulation.
   apply factor_forward_simulation. auto. eapply sd_traces. eapply Asm.semantics_determinate.
@@ -566,8 +566,8 @@ Theorem linker_correct
     (_:backward_simulation (Csem.semantics cprog) (Asm.semantics asmprog)),
     Tree.reduce (link_program Language_Asm) asmtree = Some asmprog.
 Proof.
-  exploit linker_correct_determinate; eauto. intros. des.
-  exists asmprog.
+  exploit linker_correct_determinate; eauto.
+  intros [asmprog [Hsim Hasmprog]]. exists asmprog.
   eexists; eauto.
   apply compose_backward_simulation with (atomic (Cstrategy.semantics cprog)).
   eapply sd_traces; eapply Asm.semantics_determinate.
@@ -575,5 +575,5 @@ Proof.
   apply Cstrategy.strategy_simulation.
   apply Csem.semantics_single_events.
   eapply ssr_well_behaved; eapply Cstrategy.semantics_strongly_receptive.
-  exact x.
+  exact Hsim.
 Qed.
