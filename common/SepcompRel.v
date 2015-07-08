@@ -3,7 +3,7 @@ Require String.
 Require Import Coqlib CoqlibExtra.
 Require Import Maps MapsExtra.
 Require Import Integers Floats Values AST Globalenvs.
-Require Import Language Linker LinkerProp Linkeq.
+Require Import Language Linker LinkerProp Linksub.
 Require Import Errors.
 
 Set Implicit Arguments.
@@ -35,7 +35,7 @@ Hypothesis frel_sigT:
     transf_sigT (lang_src.(fT).(F_sig) f_src) = lang_tgt.(fT).(F_sig) f_tgt.
 Hypothesis efrel_mon:
   forall p1 p2 ef tef
-         (Hp: program_linkeq lang_src p1 p2)
+         (Hp: program_linksub lang_src p1 p2)
          (Hef1: efrel p1 ef tef),
     efrel p2 ef tef.
 Hypothesis efrel_fun:
@@ -76,8 +76,8 @@ Lemma linkable_grel_linkable
       (Hg: globdef_linkable lang_src g1 g2)
       (H1: grel p1 g1 tg1)
       (H2: grel p2 g2 tg2)
-      (Hp1: program_linkeq lang_src p1 p)
-      (Hp2: program_linkeq lang_src p2 p):
+      (Hp1: program_linksub lang_src p1 p)
+      (Hp2: program_linksub lang_src p2 p):
   globdef_linkable lang_tgt tg1 tg2.
 Proof.
   inv H1; inv H2; inv Hg; inv Hv; clarify.
@@ -107,7 +107,7 @@ Inductive sepcomp_rel: Prop :=
          (fun g_src g_tgt =>
             fst g_src = fst g_tgt /\
             exists p,
-              program_linkeq lang_src p prog_src /\
+              program_linksub lang_src p prog_src /\
               grel p (snd g_src) (snd g_tgt))
          prog_src.(prog_defs) prog_tgt.(prog_defs))
 .
@@ -162,8 +162,8 @@ Lemma link_program_sepcomp_rel
     link_program lang_tgt prog1_tgt prog2_tgt = Some prog_tgt /\
     sepcomp_rel prog_src prog_tgt.
 Proof.
-  exploit link_program_linkeq_l; eauto. intro Hle1.
-  exploit link_program_linkeq_r; eauto. intro Hle2.
+  exploit link_program_linksub_l; eauto. intro Hle1.
+  exploit link_program_linksub_r; eauto. intro Hle2.
   destruct prog1_src as [def1_src ?],
            prog2_src as [def2_src ?],
            prog_src as [def_src ?],
@@ -177,12 +177,12 @@ Proof.
   apply (list_forall2_PTree_unelements
            (fun g1 g2 =>
               exists p,
-                program_linkeq lang_src p {| prog_defs := def1_src; prog_main := prog_main1 |} /\
+                program_linksub lang_src p {| prog_defs := def1_src; prog_main := prog_main1 |} /\
                 grel p g1 g2)) in Hdefs.
   apply (list_forall2_PTree_unelements
            (fun g1 g2 =>
               exists p,
-                program_linkeq lang_src p {| prog_defs := def2_src; prog_main := prog_main1 |} /\
+                program_linksub lang_src p {| prog_defs := def2_src; prog_main := prog_main1 |} /\
                 grel p g1 g2)) in Hdefs0.
   unfold link_globdef_list in *.
   revert Hdefs Hdefs0 Hdef_src.
@@ -201,7 +201,7 @@ Proof.
       (@PTree_rel_PTree_elements _ _
          (fun g1 g2 =>
             exists p,
-              program_linkeq lang_src p {| prog_defs := PTree.elements defs_src; prog_main := prog_main1 |} /\
+              program_linksub lang_src p {| prog_defs := PTree.elements defs_src; prog_main := prog_main1 |} /\
               grel p g1 g2)).
     constructor. intro.
     eapply gtlink_globdefs in Hdefs_src. instantiate (1 := i) in Hdefs_src.
@@ -363,7 +363,7 @@ Let prog_match:
   match_program
     (fun fd tfd =>
        exists prog_src,
-         program_linkeq lang_src prog_src p /\
+         program_linksub lang_src prog_src p /\
          transf_fundefT prog_src fd = OK tfd)
     (fun info tinfo => transf_vT info = OK tinfo)
     nil p.(prog_main)
@@ -397,7 +397,7 @@ Theorem find_funct_ptr_transf_partial2:
   exists f',
   Genv.find_funct_ptr (Genv.globalenv p') b = Some f' /\ 
   exists prog_src,
-    program_linkeq lang_src prog_src p /\
+    program_linksub lang_src prog_src p /\
     transf_fundefT prog_src f = OK f'.
 Proof.
   intros. 
@@ -410,7 +410,7 @@ Theorem find_funct_ptr_rev_transf_partial2:
   Genv.find_funct_ptr (Genv.globalenv p') b = Some tf ->
   exists f, Genv.find_funct_ptr (Genv.globalenv p) b = Some f /\ 
   exists prog_src,
-    program_linkeq lang_src prog_src p /\
+    program_linksub lang_src prog_src p /\
     transf_fundefT prog_src f = OK tf.
 Proof.
   intros. 
@@ -425,7 +425,7 @@ Theorem find_funct_transf_partial2:
   exists f',
   Genv.find_funct (Genv.globalenv p') v = Some f' /\ 
   exists prog_src,
-    program_linkeq lang_src prog_src p /\
+    program_linksub lang_src prog_src p /\
     transf_fundefT prog_src f = OK f'.
 Proof.
   intros. 
@@ -438,7 +438,7 @@ Theorem find_funct_rev_transf_partial2:
   Genv.find_funct (Genv.globalenv p') v = Some tf ->
   exists f, Genv.find_funct (Genv.globalenv p) v = Some f /\ 
   exists prog_src,
-    program_linkeq lang_src prog_src p /\
+    program_linksub lang_src prog_src p /\
     transf_fundefT prog_src f = OK tf.
 Proof.
   intros. 
@@ -554,7 +554,7 @@ Theorem find_funct_ptr_transf_partial:
   exists f',
   Genv.find_funct_ptr (Genv.globalenv p') b = Some f' /\ 
   exists prog_src,
-    program_linkeq lang_src prog_src p /\
+    program_linksub lang_src prog_src p /\
     transf_fundefT prog_src f = OK f'.
 Proof (find_funct_ptr_transf_partial2 _ _ Hsepcomp_rel).
 
@@ -563,7 +563,7 @@ Theorem find_funct_ptr_rev_transf_partial:
   Genv.find_funct_ptr (Genv.globalenv p') b = Some tf ->
   exists f, Genv.find_funct_ptr (Genv.globalenv p) b = Some f /\ 
   exists prog_src,
-    program_linkeq lang_src prog_src p /\
+    program_linksub lang_src prog_src p /\
     transf_fundefT prog_src f = OK tf.
 Proof (find_funct_ptr_rev_transf_partial2 _ _ Hsepcomp_rel).
 
@@ -573,7 +573,7 @@ Theorem find_funct_transf_partial:
   exists f',
   Genv.find_funct (Genv.globalenv p') v = Some f' /\ 
   exists prog_src,
-    program_linkeq lang_src prog_src p /\
+    program_linksub lang_src prog_src p /\
     transf_fundefT prog_src f = OK f'.
 Proof (find_funct_transf_partial2 _ _ Hsepcomp_rel).
 
@@ -582,7 +582,7 @@ Theorem find_funct_rev_transf_partial:
   Genv.find_funct (Genv.globalenv p') v = Some tf ->
   exists f, Genv.find_funct (Genv.globalenv p) v = Some f /\ 
   exists prog_src,
-    program_linkeq lang_src prog_src p /\
+    program_linksub lang_src prog_src p /\
     transf_fundefT prog_src f = OK tf.
 Proof (find_funct_rev_transf_partial2 _ _ Hsepcomp_rel).
 
@@ -684,7 +684,7 @@ Let prog_match:
   match_program
     (fun fd tfd =>
        exists prog_src,
-         program_linkeq lang_src prog_src p /\
+         program_linksub lang_src prog_src p /\
          transf_fundefT prog_src fd = tfd)
     (fun info tinfo => info = tinfo)
     nil p.(prog_main)
@@ -717,7 +717,7 @@ Theorem find_funct_ptr_transf:
   forall (b: block) (f: fundefT_src),
   Genv.find_funct_ptr (Genv.globalenv p) b = Some f ->
   exists prog_src,
-    program_linkeq lang_src prog_src p /\
+    program_linksub lang_src prog_src p /\
     Genv.find_funct_ptr (Genv.globalenv tp) b = Some (transf_fundefT prog_src f).
 Proof.
   intros. 
@@ -731,7 +731,7 @@ Theorem find_funct_ptr_rev_transf:
   Genv.find_funct_ptr (Genv.globalenv tp) b = Some tf ->
   exists f, Genv.find_funct_ptr (Genv.globalenv p) b = Some f /\
             exists prog_src,
-              program_linkeq lang_src prog_src p /\
+              program_linksub lang_src prog_src p /\
               transf_fundefT prog_src f = tf.
 Proof.
   intros. 
@@ -744,7 +744,7 @@ Theorem find_funct_transf:
   forall (v: val) (f: fundefT_src),
   Genv.find_funct (Genv.globalenv p) v = Some f ->
   exists prog_src,
-    program_linkeq lang_src prog_src p /\
+    program_linksub lang_src prog_src p /\
     Genv.find_funct (Genv.globalenv tp) v = Some (transf_fundefT prog_src f).
 Proof.
   intros. 
@@ -758,7 +758,7 @@ Theorem find_funct_rev_transf:
   Genv.find_funct (Genv.globalenv tp) v = Some tf ->
   exists f, Genv.find_funct (Genv.globalenv p) v = Some f /\ 
             exists prog_src,
-              program_linkeq lang_src prog_src p /\
+              program_linksub lang_src prog_src p /\
               transf_fundefT prog_src f = tf.
 Proof.
   intros. 

@@ -35,7 +35,7 @@ Require Import ValueAnalysis.
 Require Import NeedDomain.
 Require Import NeedOp.
 Require Import Deadcode.
-Require Import Linkeq.
+Require Import Linksub.
 Require Import SepcompRel.
 
 (** * Relating the memory states *)
@@ -395,7 +395,7 @@ Lemma functions_translated:
   forall (v: val) (f: RTL.fundef),
   Genv.find_funct ge v = Some f ->
   exists tf, Genv.find_funct tge v = Some tf /\ 
-             exists sprog, program_linkeq Language_RTL sprog prog /\
+             exists sprog, program_linksub Language_RTL sprog prog /\
                            transf_fundef (romem_for_program sprog) f = OK tf.
 Proof.
   intros. exploit (find_funct_transf_partial _ _ TRANSF); eauto. simpl in *.
@@ -411,7 +411,7 @@ Lemma function_ptr_translated:
   Genv.find_funct_ptr ge b = Some f ->
   exists tf,
   Genv.find_funct_ptr tge b = Some tf /\ 
-             exists sprog, program_linkeq Language_RTL sprog prog /\
+             exists sprog, program_linksub Language_RTL sprog prog /\
                            transf_fundef (romem_for_program sprog) f = OK tf.
 Proof.
   intros. exploit (find_funct_ptr_transf_partial _ _ TRANSF); eauto. simpl in *.
@@ -477,7 +477,7 @@ Lemma find_function_translated:
   eagree rs trs (add_ros_need_all ros ne) ->
   exists tfd, find_function tge ros trs = Some tfd /\ 
               exists sprog,
-                program_linkeq Language_RTL sprog prog /\
+                program_linksub Language_RTL sprog prog /\
                 transf_fundef (romem_for_program sprog) fd = OK tfd.
 Proof.
   intros. destruct ros as [r|id]; simpl in *.
@@ -495,7 +495,7 @@ Inductive match_stackframes: stackframe -> stackframe -> Prop :=
       forall res f sp pc e tf te an sprog
         (FUN: transf_function (romem_for_program sprog) f = OK tf)
         (ANL: analyze (vanalyze (romem_for_program sprog) f) f = Some an)
-        (SPROG: program_linkeq Language_RTL sprog prog)
+        (SPROG: program_linksub Language_RTL sprog prog)
         (RES: forall v tv,
               Val.lessdef v tv ->
               eagree (e#res <- v) (te#res<- tv)
@@ -509,7 +509,7 @@ Inductive match_states: state -> state -> Prop :=
         (STACKS: list_forall2 match_stackframes s ts)
         (FUN: transf_function (romem_for_program sprog) f = OK tf)
         (ANL: analyze (vanalyze (romem_for_program sprog) f) f = Some an)
-        (SPROG: program_linkeq Language_RTL sprog prog)
+        (SPROG: program_linksub Language_RTL sprog prog)
         (ENV: eagree e te (fst (transfer f (vanalyze (romem_for_program sprog) f) pc an!!pc)))
         (MEM: magree m tm (nlive ge sp (snd (transfer f (vanalyze (romem_for_program sprog) f) pc an!!pc)))),
       match_states (State s f (Vptr sp Int.zero) pc e m)
@@ -518,7 +518,7 @@ Inductive match_states: state -> state -> Prop :=
       forall s f args m ts tf targs tm sprog
         (STACKS: list_forall2 match_stackframes s ts)
         (FUN: transf_fundef (romem_for_program sprog) f = OK tf)
-        (SPROG: program_linkeq Language_RTL sprog prog)
+        (SPROG: program_linksub Language_RTL sprog prog)
         (ARGS: Val.lessdef_list args targs)
         (MEM: Mem.extends m tm),
       match_states (Callstate s f args m)
@@ -549,7 +549,7 @@ Lemma match_succ_states:
     (STACKS: list_forall2 match_stackframes s ts)
     (FUN: transf_function (romem_for_program sprog) f = OK tf)
     (ANL: analyze (vanalyze (romem_for_program sprog) f) f = Some an)
-    (SPROG: program_linkeq Language_RTL sprog prog)
+    (SPROG: program_linksub Language_RTL sprog prog)
     (INSTR: f.(fn_code)!pc = Some instr)
     (SUCC: In pc' (successors_instr instr))
     (ANPC: an!!pc = (ne, nm))

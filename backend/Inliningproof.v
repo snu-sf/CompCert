@@ -29,7 +29,7 @@ Require Import Inlining.
 Require Import Inliningspec.
 Require Import RTL.
 Require Import MapsExtra.
-Require Import Linkeq.
+Require Import Linksub.
 Require Import SepcompRel.
 
 Lemma funenv_program_spec p i:
@@ -57,8 +57,8 @@ Proof.
     destruct (peq i i0); simpl; auto.
 Qed.
 
-Lemma program_linkeq_fenv_le sprog prog
-      (Hlink: program_linkeq Language_RTL sprog prog):
+Lemma program_linksub_fenv_le sprog prog
+      (Hlink: program_linksub Language_RTL sprog prog):
   PTree_le (funenv_program sprog) (funenv_program prog).
 Proof.
   constructor. intros. rewrite ? funenv_program_spec in *.
@@ -108,7 +108,7 @@ Lemma functions_translated:
   forall (v: val) (f: RTL.fundef),
   Genv.find_funct ge v = Some f ->
   exists f', Genv.find_funct tge v = Some f' /\ 
-             exists sprog, program_linkeq Language_RTL sprog prog /\
+             exists sprog, program_linksub Language_RTL sprog prog /\
                            transf_fundef (funenv_program sprog) f = OK f'.
 Proof.
   intros. exploit (find_funct_transf_partial _ _ TRANSF); eauto. simpl in *.
@@ -123,7 +123,7 @@ Lemma function_ptr_translated:
   forall (b: block) (f: RTL.fundef),
   Genv.find_funct_ptr ge b = Some f ->
   exists f', Genv.find_funct_ptr tge b = Some f' /\ 
-             exists sprog, program_linkeq Language_RTL sprog prog /\
+             exists sprog, program_linksub Language_RTL sprog prog /\
                            transf_fundef (funenv_program sprog) f = OK f'.
 Proof.
   intros. exploit (find_funct_ptr_transf_partial _ _ TRANSF); eauto. simpl in *.
@@ -452,7 +452,7 @@ Lemma find_function_agree:
   exists fd',
   find_function tge (sros ctx ros) rs' = Some fd' /\ 
   exists sprog,
-    program_linkeq Language_RTL sprog prog /\
+    program_linksub Language_RTL sprog prog /\
     transf_fundef (funenv_program sprog) fd = OK fd'.
 Proof.
   intros. destruct ros as [r | id]; simpl in *.
@@ -479,7 +479,7 @@ Inductive match_stacks (F: meminj) (m m': mem):
         (BELOW: Ple bound1 bound),
       match_stacks F m m' nil nil bound
   | match_stacks_cons: forall res f sp pc rs stk f' sp' rs' stk' bound ctx sprog
-        (SPROG: program_linkeq Language_RTL sprog prog)
+        (SPROG: program_linksub Language_RTL sprog prog)
         (MS: match_stacks_inside F m m' stk stk' f' ctx sp' rs')
         (FB: tr_funbody (funenv_program sprog) f'.(fn_stacksize) ctx f f'.(fn_code))
         (AG: agree_regs F ctx rs rs')
@@ -513,7 +513,7 @@ with match_stacks_inside (F: meminj) (m m': mem):
         (DSTK: ctx.(dstk) = 0),
       match_stacks_inside F m m' stk stk' f' ctx sp' rs'
   | match_stacks_inside_inlined: forall res f sp pc rs stk stk' f' ctx sp' rs' ctx' sprog
-        (SPROG: program_linkeq Language_RTL sprog prog)
+        (SPROG: program_linksub Language_RTL sprog prog)
         (MS: match_stacks_inside F m m' stk stk' f' ctx' sp' rs')
         (FB: tr_funbody (funenv_program sprog) f'.(fn_stacksize) ctx' f f'.(fn_code))
         (AG: agree_regs F ctx' rs rs')
@@ -832,7 +832,7 @@ Qed.
 
 Lemma match_stacks_inside_inlined_tailcall:
   forall F m m' stk stk' f' ctx sp' rs' ctx' f sprog,
-  forall (SPROG: program_linkeq Language_RTL sprog prog),
+  forall (SPROG: program_linksub Language_RTL sprog prog),
   match_stacks_inside F m m' stk stk' f' ctx sp' rs' ->
   context_below ctx ctx' ->
   context_stack_tailcall ctx f ctx' ->
@@ -858,7 +858,7 @@ Qed.
 
 Inductive match_states: state -> state -> Prop :=
   | match_regular_states: forall stk f sp pc rs m stk' f' sp' rs' m' F ctx sprog
-        (SPROG: program_linkeq Language_RTL sprog prog)
+        (SPROG: program_linksub Language_RTL sprog prog)
         (MS: match_stacks_inside F m m' stk stk' f' ctx sp' rs')
         (FB: tr_funbody (funenv_program sprog) f'.(fn_stacksize) ctx f f'.(fn_code))
         (AG: agree_regs F ctx rs rs')
@@ -871,7 +871,7 @@ Inductive match_states: state -> state -> Prop :=
       match_states (State stk f (Vptr sp Int.zero) pc rs m)
                    (State stk' f' (Vptr sp' Int.zero) (spc ctx pc) rs' m')
   | match_call_states: forall stk fd args m stk' fd' args' m' F sprog
-        (SPROG: program_linkeq Language_RTL sprog prog)
+        (SPROG: program_linksub Language_RTL sprog prog)
         (MS: match_stacks F m m' stk stk' (Mem.nextblock m'))
         (FD: transf_fundef (funenv_program sprog) fd = OK fd')
         (VINJ: val_list_inject F args args')
@@ -879,7 +879,7 @@ Inductive match_states: state -> state -> Prop :=
       match_states (Callstate stk fd args m)
                    (Callstate stk' fd' args' m')
   | match_call_regular_states: forall stk f vargs m stk' f' sp' rs' m' F ctx ctx' pc' pc1' rargs sprog
-        (SPROG: program_linkeq Language_RTL sprog prog)
+        (SPROG: program_linksub Language_RTL sprog prog)
         (MS: match_stacks_inside F m m' stk stk' f' ctx sp' rs')
         (FB: tr_funbody (funenv_program sprog) f'.(fn_stacksize) ctx f f'.(fn_code))
         (BELOW: context_below ctx' ctx)
@@ -1013,7 +1013,7 @@ Proof.
 (* inlined *)
   assert (fd = Internal f0).
     simpl in H0. destruct (Genv.find_symbol ge id) as [b|] eqn:?; try discriminate.
-    exploit (funenv_program_compat prog); eauto. destruct (program_linkeq_fenv_le _ _ SPROG). apply H1. eauto. intros. 
+    exploit (funenv_program_compat prog); eauto. destruct (program_linksub_fenv_le _ _ SPROG). apply H1. eauto. intros. 
     unfold ge in H0. congruence.
   subst fd.
   right; split. simpl; omega. split. auto. 
@@ -1067,7 +1067,7 @@ Proof.
 (* inlined *)
   assert (fd = Internal f0).
     simpl in H0. destruct (Genv.find_symbol ge id) as [b|] eqn:?; try discriminate.
-    exploit (funenv_program_compat prog); eauto. destruct (program_linkeq_fenv_le _ _ SPROG). apply H1. eauto. intros. 
+    exploit (funenv_program_compat prog); eauto. destruct (program_linksub_fenv_le _ _ SPROG). apply H1. eauto. intros. 
     unfold ge in H0. congruence.
   subst fd.
   right; split. simpl; omega. split. auto. 

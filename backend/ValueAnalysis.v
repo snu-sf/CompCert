@@ -29,7 +29,7 @@ Require Import ValueDomain.
 Require Import ValueAOp.
 Require Import Liveness.
 Require Language.
-Require Import Linkeq.
+Require Import Linksub.
 
 (** * The dataflow analysis *)
 
@@ -1417,7 +1417,7 @@ End PAST.
 Inductive sound_state_ext (st:state): Prop :=
 | sound_state_ext_intro
     (Hsound:
-       forall sprog (Hle: program_linkeq Language.Language_RTL sprog prog),
+       forall sprog (Hle: program_linksub Language.Language_RTL sprog prog),
        sound_state sprog st).
 
 Theorem sound_past_step:
@@ -1446,14 +1446,14 @@ End SOUNDNESS.
 
 Ltac clarify := simpl in *; fold ident fundef in *.
 
-Lemma program_linkeq_romem_le
+Lemma program_linksub_romem_le
       sprog prog
-      (Hlinkeq: program_linkeq Language.Language_RTL sprog prog):
+      (Hlinksub: program_linksub Language.Language_RTL sprog prog):
   PTree_le (romem_for_program sprog) (romem_for_program prog).
 Proof.
   unfold romem_for_program. rewrite <- ? fold_left_rev_right.
   constructor. intro b.
-  destruct Hlinkeq as [Hdefs _]. specialize (Hdefs b).
+  destruct Hlinksub as [Hdefs _]. specialize (Hdefs b).
   rewrite ? PTree_guespec in Hdefs.
   revert b Hdefs. clarify.
   generalize (@rev (prod ident _) (prog_defs prog)) as l2.
@@ -1848,7 +1848,7 @@ Proof.
   apply sound_call_state with bc. 
 - constructor. 
 - simpl; tauto. 
-- apply program_linkeq_romem_le in Hle. inv Hle.
+- apply program_linksub_romem_le in Hle. inv Hle.
   repeat intro. exploit H3; eauto.
 - apply mmatch_inj_top with m0.
   replace (inj_of_bc bc) with (Mem.flat_inj (Mem.nextblock m0)).
@@ -1873,7 +1873,7 @@ Definition avalue (a: VA.t) (r: reg) : aval :=
 
 Lemma avalue_sound:
   forall prog s f sp pc e m r
-         sprog (Hle: program_linkeq Language.Language_RTL sprog prog),
+         sprog (Hle: program_linksub Language.Language_RTL sprog prog),
   sound_state_ext prog (State s f (Vptr sp Int.zero) pc e m) ->
   exists bc,
      vmatch bc e#r (avalue (analyze (romem_for_program sprog) f)!!pc r)
@@ -1891,7 +1891,7 @@ Definition aaddr (a: VA.t) (r: reg) : aptr :=
 
 Lemma aaddr_sound:
   forall prog s f sp pc e m r b ofs
-         sprog (Hle: program_linkeq Language.Language_RTL sprog prog),
+         sprog (Hle: program_linksub Language.Language_RTL sprog prog),
   sound_state_ext prog (State s f (Vptr sp Int.zero) pc e m) ->
   e#r = Vptr b ofs ->
   exists bc,
@@ -1911,7 +1911,7 @@ Definition aaddressing (a: VA.t) (addr: addressing) (args: list reg) : aptr :=
 
 Lemma aaddressing_sound:
   forall prog s f sp pc e m addr args b ofs
-         sprog (Hle: program_linkeq Language.Language_RTL sprog prog),
+         sprog (Hle: program_linksub Language.Language_RTL sprog prog),
   sound_state_ext prog (State s f (Vptr sp Int.zero) pc e m) ->
   eval_addressing (Genv.globalenv prog) (Vptr sp Int.zero) addr e##args = Some (Vptr b ofs) ->
   exists bc,

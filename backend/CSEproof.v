@@ -35,7 +35,7 @@ Require Import CSEdomain.
 Require Import CombineOp.
 Require Import CombineOpproof.
 Require Import CSE.
-Require Import Linkeq.
+Require Import Linksub.
 Require Import SepcompRel.
 
 (** * Soundness of operations over value numberings *)
@@ -837,7 +837,7 @@ Lemma functions_translated:
   forall (v: val) (f: RTL.fundef),
   Genv.find_funct ge v = Some f ->
   exists tf, Genv.find_funct tge v = Some tf /\ 
-             exists sprog, program_linkeq Language_RTL sprog prog /\
+             exists sprog, program_linksub Language_RTL sprog prog /\
                            transf_fundef (romem_for_program sprog) f = OK tf.
 Proof.
   intros. exploit (find_funct_transf_partial _ _ TRANSF); eauto. simpl in *.
@@ -852,7 +852,7 @@ Lemma funct_ptr_translated:
   forall (b: block) (f: RTL.fundef),
   Genv.find_funct_ptr ge b = Some f ->
   exists tf, Genv.find_funct_ptr tge b = Some tf /\ 
-             exists sprog, program_linkeq Language_RTL sprog prog /\
+             exists sprog, program_linksub Language_RTL sprog prog /\
                            transf_fundef (romem_for_program sprog) f = OK tf.
 Proof.
   intros. exploit (find_funct_ptr_transf_partial _ _ TRANSF); eauto. simpl in *.
@@ -913,7 +913,7 @@ Lemma find_function_translated:
   find_function ge ros rs = Some fd ->
   regs_lessdef rs rs' ->
   exists tfd, find_function tge ros rs' = Some tfd /\ 
-              exists sprog, program_linkeq Language_RTL sprog prog /\
+              exists sprog, program_linksub Language_RTL sprog prog /\
                             transf_fundef (romem_for_program sprog) fd = OK tfd.
 Proof.
   unfold find_function; intros; destruct ros.
@@ -947,7 +947,7 @@ Inductive match_stackframes: list stackframe -> list stackframe -> Prop :=
   | match_stackframes_cons:
       forall res sp pc rs f approx s rs' s' sprog
            (ANALYZE: analyze f (vanalyze (romem_for_program sprog) f) = Some approx)
-           (SPROG: program_linkeq Language_RTL sprog prog)
+           (SPROG: program_linksub Language_RTL sprog prog)
            (SAT: forall v m, exists valu, numbering_holds valu ge sp (rs#res <- v) m approx!!pc)
            (RLD: regs_lessdef rs rs')
            (STACKS: match_stackframes s s'),
@@ -959,7 +959,7 @@ Inductive match_states: state -> state -> Prop :=
   | match_states_intro:
       forall s sp pc rs m s' rs' m' f approx sprog
              (ANALYZE: analyze f (vanalyze (romem_for_program sprog) f) = Some approx)
-             (SPROG: program_linkeq Language_RTL sprog prog)
+             (SPROG: program_linksub Language_RTL sprog prog)
              (SAT: exists valu, numbering_holds valu ge sp rs m approx!!pc)
              (RLD: regs_lessdef rs rs')
              (MEXT: Mem.extends m m')
@@ -970,7 +970,7 @@ Inductive match_states: state -> state -> Prop :=
       forall s f tf args m s' args' m' sprog,
       match_stackframes s s' ->
       transf_fundef (romem_for_program sprog) f = OK tf ->
-      forall (SPROG: program_linkeq Language_RTL sprog prog),
+      forall (SPROG: program_linksub Language_RTL sprog prog),
       Val.lessdef_list args args' ->
       Mem.extends m m' ->
       match_states (Callstate s f args m)
