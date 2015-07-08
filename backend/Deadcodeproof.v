@@ -396,13 +396,13 @@ Let tge := Genv.globalenv tprog.
 Lemma symbols_preserved:
   forall (s: ident), Genv.find_symbol tge s = Genv.find_symbol ge s.
 Proof.
-  (find_symbol_transf_partial_optionally _ _ TRANSF).
+  apply (find_symbol_transf_partial_optionally _ _ TRANSF).
 Qed.
 
 Lemma varinfo_preserved:
   forall b, Genv.find_var_info tge b = Genv.find_var_info ge b.
 Proof.
-  (find_var_info_transf_partial_optionally _ _ TRANSF).
+  apply (find_var_info_transf_partial_optionally _ _ TRANSF).
 Qed.
 
 Lemma functions_translated:
