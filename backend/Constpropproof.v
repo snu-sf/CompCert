@@ -73,7 +73,7 @@ Lemma functions_translated:
     Genv.find_funct tge v = Some (transf_fundef (romem_for_program sprog) f).
 Proof.  
   intros.
-exploit (find_funct_transf _ _ TRANSF); eauto. simpl in *.
+  exploit (find_funct_transf _ _ TRANSF); eauto. simpl in *.
   intros [sprog [Hsprog Hf]].
   eexists. split; eauto.
   destruct f; auto.
