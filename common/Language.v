@@ -3,8 +3,9 @@ Require String.
 Require Import Coqlib CoqlibExtra.
 Require Import Maps MapsExtra.
 Require Import Integers Floats Values AST Globalenvs.
-Require Import Errors Behaviors Compiler Smallstep.
+Require Import Errors Behaviors Smallstep.
 Require Import Memory.
+Require Import Csyntax Clight Csharpminor Cminor CminorSel RTL LTL Linear Mach Asm.
 
 Set Implicit Arguments.
 

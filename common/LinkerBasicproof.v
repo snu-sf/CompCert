@@ -3,7 +3,7 @@ Require String.
 Require Import Coqlib CoqlibExtra.
 Require Import Maps MapsExtra.
 Require Import Integers Floats Values AST Globalenvs.
-Require Import Errors Behaviors Compiler Smallstep.
+Require Import Errors Behaviors Smallstep.
 Require Import Language Linker LinkerProp.
 
 (** lemma on link_globdefs *)

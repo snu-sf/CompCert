@@ -22,47 +22,120 @@ Require Import Memory.
 Require Import Globalenvs.
 Require Import Events.
 Require Import Smallstep.
+Require Import Language.
 Require Import Op.
 Require Import Registers.
 Require Import Inlining.
 Require Import Inliningspec.
 Require Import RTL.
+Require Import MapsExtra.
+Require Import Linkeq.
+Require Import SepcompRel.
+
+Lemma funenv_program_spec p i:
+  (funenv_program p) ! i =
+  match find (fun id => peq i (fst id)) (rev p.(prog_defs)) with
+    | Some (_, Gfun (Internal f)) =>
+      if should_inline i f then Some f else None
+    | _ => None
+  end.
+Proof.
+  unfold funenv_program. rewrite <- fold_left_rev_right.
+  induction (rev (prog_defs p)); simpl.
+  { apply PTree.gempty. }
+  destruct a. simpl. destruct g; simpl.
+  - destruct f; simpl.
+    + destruct (should_inline i0 f) eqn:Hinline.
+      * rewrite PTree.gsspec. destruct (peq i i0); subst; simpl; auto.
+        rewrite Hinline. auto.
+      * rewrite PTree.grspec. unfold PTree.elt_eq.
+        destruct (peq i i0); subst; simpl; auto.
+        rewrite Hinline. auto.
+    + rewrite PTree.grspec. unfold PTree.elt_eq.
+      destruct (peq i i0); subst; simpl; auto.
+  - rewrite PTree.grspec. unfold PTree.elt_eq.
+    destruct (peq i i0); simpl; auto.
+Qed.
+
+Lemma program_linkeq_fenv_le sprog prog
+      (Hlink: program_linkeq Language_RTL sprog prog):
+  PTree_le (funenv_program sprog) (funenv_program prog).
+Proof.
+  constructor. intros. rewrite ? funenv_program_spec in *.
+  match goal with
+    | [H: context[find ?f ?l] |- _] => destruct (find f l) as [[]|] eqn:Hf; inv H
+  end.
+  destruct g; inv H0. destruct f; inv H1. destruct (should_inline b f) eqn:Hinline; inv H0.
+  destruct Hlink as [Hdefs Hmain]. exploit Hdefs; eauto.
+  { rewrite PTree_guespec. instantiate (2 := b).
+    unfold fundef, ident in *. simpl in *. rewrite Hf. simpl. eauto.
+  }
+  intros [def2 [Hdef2 Hle]]. inv Hle. inv Hv.
+  - rewrite PTree_guespec in Hdef2. unfold fundef, ident. simpl in *.
+    match goal with
+      | [|- context[find ?f ?l]] => destruct (find f l) as [[]|] eqn:Hf'; inv Hdef2
+    end.
+    rewrite Hinline. auto.
+  - inv H; simpl in *; inv H1.
+Qed.
 
 Section INLINING.
 
+Let transf_efT (p:program) (ef:external_function) := OK ef.
+
 Variable prog: program.
 Variable tprog: program.
-Hypothesis TRANSF: transf_program prog = OK tprog.
+Hypothesis TRANSF:
+  @sepcomp_rel
+    Language_RTL Language_RTL
+    (fun p f tf => Inlining.transf_function (funenv_program p) f = OK tf)
+    (fun p ef tef => transf_efT p ef = OK tef)
+    (@OK _)
+    prog tprog.
 Let ge := Genv.globalenv prog.
 Let tge := Genv.globalenv tprog.
 Let fenv := funenv_program prog.
 
 Lemma symbols_preserved:
   forall (s: ident), Genv.find_symbol tge s = Genv.find_symbol ge s.
-Proof.
-  intros. apply Genv.find_symbol_transf_partial with (transf_fundef fenv); auto.
-Qed.
+Proof (find_symbol_transf_partial _ _ TRANSF).
 
 Lemma varinfo_preserved:
   forall b, Genv.find_var_info tge b = Genv.find_var_info ge b.
-Proof.
-  intros. apply Genv.find_var_info_transf_partial with (transf_fundef fenv); auto.
-Qed.
+Proof (find_var_info_transf_partial _ _ TRANSF).
 
 Lemma functions_translated:
-  forall (v: val) (f: fundef),
+  forall (v: val) (f: RTL.fundef),
   Genv.find_funct ge v = Some f ->
-  exists f', Genv.find_funct tge v = Some f' /\ transf_fundef fenv f = OK f'.
-Proof (Genv.find_funct_transf_partial (transf_fundef fenv) _ TRANSF).
+  exists tf, Genv.find_funct tge v = Some tf /\ 
+             exists sprog, program_linkeq Language_RTL sprog prog /\
+                           transf_fundef (funenv_program sprog) f = OK tf.
+Proof.
+  intros. exploit (find_funct_transf_partial _ _ TRANSF); eauto. simpl in *.
+  intros [tf [Htf [sprog [Hsprog Hf]]]].
+  eexists. split; eauto. eexists. split; eauto.
+  destruct f; Errors.monadInv Hf; auto.
+  unfold transf_fundef. unfold transf_partial_fundef.
+  rewrite EQ. auto.
+Qed.
 
 Lemma function_ptr_translated:
-  forall (b: block) (f: fundef),
+  forall (b: block) (f: RTL.fundef),
   Genv.find_funct_ptr ge b = Some f ->
-  exists f', Genv.find_funct_ptr tge b = Some f' /\ transf_fundef fenv f = OK f'.
-Proof (Genv.find_funct_ptr_transf_partial (transf_fundef fenv) _ TRANSF).
+  exists tf, Genv.find_funct_ptr tge b = Some tf /\ 
+             exists sprog, program_linkeq Language_RTL sprog prog /\
+                           transf_fundef (funenv_program sprog) f = OK tf.
+Proof.
+  intros. exploit (find_funct_ptr_transf_partial _ _ TRANSF); eauto. simpl in *.
+  intros [tf [Htf [sprog [Hsprog Hf]]]].
+  eexists. split; eauto. eexists. split; eauto.
+  destruct f; Errors.monadInv Hf; auto.
+  unfold transf_fundef. unfold transf_partial_fundef.
+  rewrite EQ. auto.
+Qed.
 
 Lemma sig_function_translated:
-  forall f f', transf_fundef fenv f = OK f' -> funsig f' = funsig f.
+  forall fenv f f', transf_fundef fenv f = OK f' -> funsig f' = funsig f.
 Proof.
   intros. destruct f; Errors.monadInv H.
   exploit transf_function_spec; eauto. intros SP; inv SP. auto. 
@@ -377,7 +450,10 @@ Lemma find_function_agree:
   agree_regs F ctx rs rs' ->
   match_globalenvs F bound ->
   exists fd',
-  find_function tge (sros ctx ros) rs' = Some fd' /\ transf_fundef fenv fd = OK fd'.
+  find_function tge (sros ctx ros) rs' = Some fd' /\ 
+  exists sprog,
+    program_linkeq Language_RTL sprog prog /\
+    transf_fundef (funenv_program sprog) fd = OK fd'.
 Proof.
   intros. destruct ros as [r | id]; simpl in *.
   (* register *)
@@ -402,9 +478,10 @@ Inductive match_stacks (F: meminj) (m m': mem):
         (MG: match_globalenvs F bound1)
         (BELOW: Ple bound1 bound),
       match_stacks F m m' nil nil bound
-  | match_stacks_cons: forall res f sp pc rs stk f' sp' rs' stk' bound ctx
+  | match_stacks_cons: forall res f sp pc rs stk f' sp' rs' stk' bound ctx sprog
+        (SPROG: program_linkeq Language_RTL sprog prog)
         (MS: match_stacks_inside F m m' stk stk' f' ctx sp' rs')
-        (FB: tr_funbody fenv f'.(fn_stacksize) ctx f f'.(fn_code))
+        (FB: tr_funbody (funenv_program sprog) f'.(fn_stacksize) ctx f f'.(fn_code))
         (AG: agree_regs F ctx rs rs')
         (SP: F sp = Some(sp', ctx.(dstk)))
         (PRIV: range_private F m m' sp' (ctx.(dstk) + ctx.(mstk)) f'.(fn_stacksize))
@@ -435,9 +512,10 @@ with match_stacks_inside (F: meminj) (m m': mem):
         (RET: ctx.(retinfo) = None)
         (DSTK: ctx.(dstk) = 0),
       match_stacks_inside F m m' stk stk' f' ctx sp' rs'
-  | match_stacks_inside_inlined: forall res f sp pc rs stk stk' f' ctx sp' rs' ctx'
+  | match_stacks_inside_inlined: forall res f sp pc rs stk stk' f' ctx sp' rs' ctx' sprog
+        (SPROG: program_linkeq Language_RTL sprog prog)
         (MS: match_stacks_inside F m m' stk stk' f' ctx' sp' rs')
-        (FB: tr_funbody fenv f'.(fn_stacksize) ctx' f f'.(fn_code))
+        (FB: tr_funbody (funenv_program sprog) f'.(fn_stacksize) ctx' f f'.(fn_code))
         (AG: agree_regs F ctx' rs rs')
         (SP: F sp = Some(sp', ctx'.(dstk)))
         (PAD: range_private F m m' sp' (ctx'.(dstk) + ctx'.(mstk)) ctx.(dstk))
@@ -534,7 +612,7 @@ Proof.
   intros. apply IMAGE with delta. eapply INJ; eauto. eapply Plt_le_trans; eauto.
   auto. auto.
   (* cons *)
-  apply match_stacks_cons with (ctx := ctx); auto.
+  apply match_stacks_cons with (ctx := ctx) (sprog := sprog); auto.
   eapply match_stacks_inside_invariant; eauto.
   intros; eapply INJ; eauto; xomega. 
   intros; eapply PERM1; eauto; xomega.
@@ -560,7 +638,7 @@ Proof.
   intros; eapply PERM2; eauto; xomega.
   intros; eapply PERM3; eauto; xomega.
   (* inlined *)
-  apply match_stacks_inside_inlined with (ctx' := ctx'); auto. 
+  apply match_stacks_inside_inlined with (ctx' := ctx') (sprog := sprog); auto. 
   apply IHmatch_stacks_inside; auto.
   intros. apply RS. red in BELOW. xomega. 
   apply agree_regs_incr with F; auto. 
@@ -753,13 +831,14 @@ Proof.
 Qed.
 
 Lemma match_stacks_inside_inlined_tailcall:
-  forall F m m' stk stk' f' ctx sp' rs' ctx' f,
+  forall F m m' stk stk' f' ctx sp' rs' ctx' f sprog,
+  forall (SPROG: program_linkeq Language_RTL sprog prog),
   match_stacks_inside F m m' stk stk' f' ctx sp' rs' ->
   context_below ctx ctx' ->
   context_stack_tailcall ctx f ctx' ->
   ctx'.(retinfo) = ctx.(retinfo) ->
   range_private F m m' sp' ctx.(dstk) f'.(fn_stacksize) ->
-  tr_funbody fenv f'.(fn_stacksize) ctx' f f'.(fn_code) ->
+  tr_funbody (funenv_program sprog) f'.(fn_stacksize) ctx' f f'.(fn_code) ->
   match_stacks_inside F m m' stk stk' f' ctx' sp' rs'.
 Proof.
   intros. inv H.
@@ -778,9 +857,10 @@ Qed.
 (** ** Relating states *)
 
 Inductive match_states: state -> state -> Prop :=
-  | match_regular_states: forall stk f sp pc rs m stk' f' sp' rs' m' F ctx
+  | match_regular_states: forall stk f sp pc rs m stk' f' sp' rs' m' F ctx sprog
+        (SPROG: program_linkeq Language_RTL sprog prog)
         (MS: match_stacks_inside F m m' stk stk' f' ctx sp' rs')
-        (FB: tr_funbody fenv f'.(fn_stacksize) ctx f f'.(fn_code))
+        (FB: tr_funbody (funenv_program sprog) f'.(fn_stacksize) ctx f f'.(fn_code))
         (AG: agree_regs F ctx rs rs')
         (SP: F sp = Some(sp', ctx.(dstk)))
         (MINJ: Mem.inject F m m')
@@ -790,16 +870,18 @@ Inductive match_states: state -> state -> Prop :=
         (SSZ2: forall ofs, Mem.perm m' sp' ofs Max Nonempty -> 0 <= ofs <= f'.(fn_stacksize)),
       match_states (State stk f (Vptr sp Int.zero) pc rs m)
                    (State stk' f' (Vptr sp' Int.zero) (spc ctx pc) rs' m')
-  | match_call_states: forall stk fd args m stk' fd' args' m' F
+  | match_call_states: forall stk fd args m stk' fd' args' m' F sprog
+        (SPROG: program_linkeq Language_RTL sprog prog)
         (MS: match_stacks F m m' stk stk' (Mem.nextblock m'))
-        (FD: transf_fundef fenv fd = OK fd')
+        (FD: transf_fundef (funenv_program sprog) fd = OK fd')
         (VINJ: val_list_inject F args args')
         (MINJ: Mem.inject F m m'),
       match_states (Callstate stk fd args m)
                    (Callstate stk' fd' args' m')
-  | match_call_regular_states: forall stk f vargs m stk' f' sp' rs' m' F ctx ctx' pc' pc1' rargs
+  | match_call_regular_states: forall stk f vargs m stk' f' sp' rs' m' F ctx ctx' pc' pc1' rargs sprog
+        (SPROG: program_linkeq Language_RTL sprog prog)
         (MS: match_stacks_inside F m m' stk stk' f' ctx sp' rs')
-        (FB: tr_funbody fenv f'.(fn_stacksize) ctx f f'.(fn_code))
+        (FB: tr_funbody (funenv_program sprog) f'.(fn_stacksize) ctx f f'.(fn_code))
         (BELOW: context_below ctx' ctx)
         (NOP: f'.(fn_code)!pc' = Some(Inop pc1'))
         (MOVES: tr_moves f'.(fn_code) pc1' (sregs ctx' rargs) (sregs ctx f.(fn_params)) (spc ctx f.(fn_entrypoint)))
@@ -840,7 +922,7 @@ Definition measure (S: state) : nat :=
   end.
 
 Lemma tr_funbody_inv:
-  forall sz cts f c pc i,
+  forall fenv sz cts f c pc i,
   tr_funbody fenv sz cts f c -> f.(fn_code)!pc = Some i -> tr_instr fenv sz cts pc i c.
 Proof.
   intros. inv H. eauto. 
@@ -919,31 +1001,31 @@ Proof.
 
 (* call *)
   exploit match_stacks_inside_globalenvs; eauto. intros [bound G].
-  exploit find_function_agree; eauto. intros [fd' [A B]].
+  exploit find_function_agree; eauto. intros [fd' [A [sprog' [Hsprog' B]]]].
   exploit tr_funbody_inv; eauto. intros TR; inv TR.
 (* not inlined *)
   left; econstructor; split.
   eapply plus_one. eapply exec_Icall; eauto.
   eapply sig_function_translated; eauto.
   econstructor; eauto.
-  eapply match_stacks_cons; eauto. 
+  eapply match_stacks_cons; try apply FB; eauto. 
   eapply agree_val_regs; eauto. 
 (* inlined *)
   assert (fd = Internal f0).
     simpl in H0. destruct (Genv.find_symbol ge id) as [b|] eqn:?; try discriminate.
-    exploit (funenv_program_compat prog); eauto. intros. 
+    exploit (funenv_program_compat prog); eauto. destruct (program_linkeq_fenv_le _ _ SPROG). apply H1. eauto. intros. 
     unfold ge in H0. congruence.
   subst fd.
   right; split. simpl; omega. split. auto. 
-  econstructor; eauto. 
-  eapply match_stacks_inside_inlined; eauto.
+  econstructor; try apply H13; eauto. 
+  eapply match_stacks_inside_inlined; try apply FB; eauto.
   red; intros. apply PRIV. inv H13. destruct H16. xomega.
   apply agree_val_regs_gen; auto.
   red; intros; apply PRIV. destruct H16. omega. 
 
 (* tailcall *)
   exploit match_stacks_inside_globalenvs; eauto. intros [bound G].
-  exploit find_function_agree; eauto. intros [fd' [A B]].
+  exploit find_function_agree; eauto. intros [fd' [A [sprog' [Hsprog' B]]]].
   assert (PRIV': range_private F m' m'0 sp' (dstk ctx) f'.(fn_stacksize)).
     eapply range_private_free_left; eauto. inv FB. rewrite <- H4. auto. 
   exploit tr_funbody_inv; eauto. intros TR; inv TR.
@@ -985,12 +1067,12 @@ Proof.
 (* inlined *)
   assert (fd = Internal f0).
     simpl in H0. destruct (Genv.find_symbol ge id) as [b|] eqn:?; try discriminate.
-    exploit (funenv_program_compat prog); eauto. intros. 
+    exploit (funenv_program_compat prog); eauto. destruct (program_linkeq_fenv_le _ _ SPROG). apply H1. eauto. intros. 
     unfold ge in H0. congruence.
   subst fd.
   right; split. simpl; omega. split. auto. 
-  econstructor; eauto.
-  eapply match_stacks_inside_inlined_tailcall; eauto.
+  econstructor; try apply H8; eauto.
+  eapply match_stacks_inside_inlined_tailcall; try apply H8; eauto.
   eapply match_stacks_inside_invariant; eauto.
     intros. eapply Mem.perm_free_3; eauto.
   apply agree_val_regs_gen; auto.
@@ -1010,6 +1092,7 @@ Proof.
     eapply external_call_symbols_preserved; eauto. 
     exact symbols_preserved. exact varinfo_preserved.
   econstructor.
+    eauto.
     eapply match_stacks_inside_set_reg. 
     eapply match_stacks_inside_extcall with (F1 := F) (F2 := F1) (m1 := m) (m1' := m'0); eauto.
     intros; eapply external_call_max_perm; eauto. 
@@ -1082,7 +1165,7 @@ Proof.
   inv FB. rewrite H4 in PRIV. eapply range_private_free_left; eauto. 
 
 (* internal function, not inlined *)
-  assert (A: exists f', tr_function fenv f f' /\ fd' = Internal f'). 
+  assert (A: exists f', tr_function (funenv_program sprog) f f' /\ fd' = Internal f'). 
     Errors.monadInv FD. exists x. split; auto. eapply transf_function_spec; eauto. 
   destruct A as [f' [TR EQ]]. inversion TR; subst.
   exploit Mem.alloc_parallel_inject. eauto. eauto. apply Zle_refl. 
@@ -1090,7 +1173,7 @@ Proof.
   intros [F' [m1' [sp' [A [B [C [D E]]]]]]].
   left; econstructor; split.
   eapply plus_one. eapply exec_function_internal; eauto.
-  rewrite H5. econstructor.
+  rewrite H5. econstructor. eauto.
   instantiate (1 := F'). apply match_stacks_inside_base.
   assert (SP: sp' = Mem.nextblock m'0) by (eapply Mem.alloc_result; eauto).
   rewrite <- SP in MS0. 
@@ -1142,7 +1225,7 @@ Proof.
   exploit tr_moves_init_regs; eauto. intros [rs'' [P [Q R]]].
   left; econstructor; split. 
   eapply plus_left. eapply exec_Inop; eauto. eexact P. traceEq.
-  econstructor.
+  econstructor. eauto.
   eapply match_stacks_inside_alloc_left; eauto.
   eapply match_stacks_inside_invariant; eauto.
   omega.
@@ -1189,7 +1272,7 @@ Proof.
 *)
   left; econstructor; split.
   eapply plus_one. eapply exec_return.
-  eapply match_regular_states. 
+  eapply match_regular_states. eauto. 
   eapply match_stacks_inside_set_reg; eauto.
   auto. 
   apply agree_set_reg; auto.
@@ -1217,13 +1300,13 @@ Lemma transf_initial_states:
   forall st1, initial_state prog st1 -> exists st2, initial_state tprog st2 /\ match_states st1 st2.
 Proof.
   intros. inv H.
-  exploit function_ptr_translated; eauto. intros [tf [FIND TR]].
+  exploit function_ptr_translated; eauto. intros [tf [FIND [sprog [Hsprog TR]]]].
   exists (Callstate nil tf nil m0); split.
   econstructor; eauto.
-    unfold transf_program in TRANSF. eapply Genv.init_mem_transf_partial; eauto.
+    exploit (init_mem_transf_partial _ _ TRANSF); eauto.
     rewrite symbols_preserved. 
-    rewrite (transform_partial_program_main _ _ TRANSF).  auto.
-    rewrite <- H3. apply sig_function_translated; auto. 
+    inv TRANSF. unfold fundef in *. simpl in *. rewrite <- Hmain. unfold ge, ge0 in *. congruence.
+    rewrite <- H3. eapply sig_function_translated; eauto. 
   econstructor; eauto. 
   instantiate (1 := Mem.flat_inj (Mem.nextblock m0)). 
   apply match_stacks_nil with (Mem.nextblock m0).
@@ -1257,3 +1340,20 @@ Proof.
 Qed.
 
 End INLINING.
+
+Lemma Inlining_sepcomp_rel
+      rtlprog1 rtlprog2
+      (Htrans: Inlining.transf_program rtlprog1 = OK rtlprog2):
+  @sepcomp_rel
+    Language.Language_RTL Language.Language_RTL
+    (fun p f tf => Inlining.transf_function (Inlining.funenv_program p) f = OK tf)
+    (fun p ef tef => (fun _ ef => OK ef) p ef = OK tef)
+    (@OK _)
+    rtlprog1 rtlprog2.
+Proof.
+  apply transf_partial_sepcomp_rel.
+  unfold progT, RTL.program, RTL.fundef in *. simpl in *. rewrite <- Htrans.
+  unfold Inlining.transf_program. f_equal.
+  apply Axioms.functional_extensionality. intro fd.
+  destruct fd; auto.
+Qed.

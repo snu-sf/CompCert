@@ -29,6 +29,7 @@ Require Import Cminor.
 Require Import RTL.
 Require Import Asm.
 Require Import Compiler.
+Require Import Compilerproof.
 Require Import Errors.
 
 (** * Preservation of whole-program behaviors *)
