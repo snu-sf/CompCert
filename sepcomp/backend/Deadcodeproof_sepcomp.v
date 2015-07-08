@@ -383,7 +383,6 @@ Hypothesis TRANSF:
     prog tprog.
 Let ge := Genv.globalenv prog.
 Let tge := Genv.globalenv tprog.
-Let rm := romem_for_program prog.
 
 Lemma symbols_preserved:
   forall (s: ident), Genv.find_symbol tge s = Genv.find_symbol ge s.
@@ -427,7 +426,7 @@ Lemma sig_function_translated:
   forall sprog f tf, transf_fundef (romem_for_program sprog) f = OK tf -> funsig tf = funsig f.
 Proof.
   unfold transf_fundef; intros. destruct f; monadInv H; auto.
-  unfold transf_function in EQ.
+  unfold transf_function in EQ. 
   destruct (analyze (vanalyze (romem_for_program sprog) f) f); try discriminate. inv EQ; auto. 
 Qed.
 
@@ -435,7 +434,7 @@ Lemma stacksize_translated:
   forall rm f tf,
   transf_function rm f = OK tf -> tf.(fn_stacksize) = f.(fn_stacksize).
 Proof.
-  unfold transf_function; intros. destruct (analyze (vanalyze rm0 f) f); inv H; auto.
+  unfold transf_function; intros. destruct (analyze (vanalyze rm f) f); inv H; auto.
 Qed.
 
 Lemma transf_function_at:
@@ -492,9 +491,9 @@ Qed.
 Inductive match_stackframes: stackframe -> stackframe -> Prop :=
   | match_stackframes_intro:
       forall res f sp pc e tf te an sprog
-        (SPROG: program_linkeq Language_RTL sprog prog)
         (FUN: transf_function (romem_for_program sprog) f = OK tf)
         (ANL: analyze (vanalyze (romem_for_program sprog) f) f = Some an)
+        (SPROG: program_linkeq Language_RTL sprog prog)
         (RES: forall v tv,
               Val.lessdef v tv ->
               eagree (e#res <- v) (te#res<- tv)
@@ -505,19 +504,19 @@ Inductive match_stackframes: stackframe -> stackframe -> Prop :=
 Inductive match_states: state -> state -> Prop :=
   | match_regular_states:
       forall s f sp pc e m ts tf te tm an sprog
-        (SPROG: program_linkeq Language_RTL sprog prog)
         (STACKS: list_forall2 match_stackframes s ts)
         (FUN: transf_function (romem_for_program sprog) f = OK tf)
         (ANL: analyze (vanalyze (romem_for_program sprog) f) f = Some an)
+        (SPROG: program_linkeq Language_RTL sprog prog)
         (ENV: eagree e te (fst (transfer f (vanalyze (romem_for_program sprog) f) pc an!!pc)))
         (MEM: magree m tm (nlive ge sp (snd (transfer f (vanalyze (romem_for_program sprog) f) pc an!!pc)))),
       match_states (State s f (Vptr sp Int.zero) pc e m)
                    (State ts tf (Vptr sp Int.zero) pc te tm)
   | match_call_states:
       forall s f args m ts tf targs tm sprog
-        (SPROG: program_linkeq Language_RTL sprog prog)
         (STACKS: list_forall2 match_stackframes s ts)
         (FUN: transf_fundef (romem_for_program sprog) f = OK tf)
+        (SPROG: program_linkeq Language_RTL sprog prog)
         (ARGS: Val.lessdef_list args targs)
         (MEM: Mem.extends m tm),
       match_states (Callstate s f args m)
@@ -545,10 +544,10 @@ Qed.
 
 Lemma match_succ_states:
   forall s f sp pc e m ts tf te tm an pc' instr ne nm sprog
-    (SPROG: program_linkeq Language_RTL sprog prog)
     (STACKS: list_forall2 match_stackframes s ts)
     (FUN: transf_function (romem_for_program sprog) f = OK tf)
     (ANL: analyze (vanalyze (romem_for_program sprog) f) f = Some an)
+    (SPROG: program_linkeq Language_RTL sprog prog)
     (INSTR: f.(fn_code)!pc = Some instr)
     (SUCC: In pc' (successors_instr instr))
     (ANPC: an!!pc = (ne, nm))
@@ -775,8 +774,8 @@ Ltac UseTransfer :=
   exploit find_function_translated; eauto 2 with na. intros (tfd & A & sprog' & Hsprog' & B).
   econstructor; split.
   eapply exec_Icall; eauto. eapply sig_function_translated; eauto. 
-  econstructor. eauto. 
-  constructor; auto. econstructor; try apply FUN; eauto. 
+  econstructor; eauto. 
+  constructor; auto. econstructor; eauto. 
   intros.
   edestruct analyze_successors; eauto. simpl; eauto. 
   eapply eagree_ge; eauto. rewrite ANPC. simpl. 

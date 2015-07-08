@@ -51,7 +51,6 @@ Hypothesis TRANSF:
     prog tprog.
 Let ge := Genv.globalenv prog.
 Let tge := Genv.globalenv tprog.
-Let rm := romem_for_program prog.
 
 (** * Correctness of the code transformation *)
 
@@ -328,7 +327,7 @@ End BUILTIN_STRENGTH_REDUCTION.
 Inductive match_stackframes: stackframe -> stackframe -> Prop :=
    match_stackframe_intro:
       forall res sp pc rs f rs' sprog,
-      program_linkeq Language_RTL sprog prog ->
+      forall (SPROG: program_linkeq Language_RTL sprog prog),
       regs_lessdef rs rs' ->
     match_stackframes
         (Stackframe res f sp pc rs)
@@ -364,7 +363,7 @@ Inductive match_states: nat -> state -> state -> Prop :=
 
 Lemma match_states_succ:
   forall s f sp pc rs m s' rs' m' sprog,
-  program_linkeq Language_RTL sprog prog ->
+  forall (SPROG: program_linkeq Language_RTL sprog prog),
   sound_state_ext prog (State s f sp pc rs m) ->
   list_forall2 match_stackframes s s' ->
   regs_lessdef rs rs' ->
@@ -372,7 +371,7 @@ Lemma match_states_succ:
   match_states O (State s f sp pc rs m)
                  (State s' (transf_function (romem_for_program sprog) f) sp pc rs' m').
 Proof.
-  intros. inv H0. specialize (Hsound _ H). inv Hsound. 
+  intros. inv H. specialize (Hsound _ SPROG). inv Hsound. 
   apply match_states_intro with (bc := bc) (ae := ae); auto. 
   constructor.
 Qed.
@@ -609,7 +608,7 @@ Opaque builtin_strength_reduction.
 
   (* return *)
   assert (X: exists bc ae, ematch bc (rs#res <- vres) ae).
-  { inv H4. inv H1. inv SS2. specialize (Hsound _ H7). inv Hsound. exists bc; exists ae; auto. }
+  { inv H4. inv H1. inv SS2. specialize (Hsound _ SPROG). inv Hsound. exists bc; exists ae; auto. }
   destruct X as (bc1 & ae1 & MATCH).
   inv H4. inv H1. 
   left; exists O; econstructor; split.

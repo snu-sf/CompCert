@@ -947,8 +947,8 @@ Inductive match_stackframes: list stackframe -> list stackframe -> Prop :=
       match_stackframes nil nil
   | match_stackframes_cons:
       forall res sp pc rs f approx s rs' s' sprog
-           (SPROG: program_linkeq Language_RTL sprog prog)
            (ANALYZE: analyze f (vanalyze (romem_for_program sprog) f) = Some approx)
+           (SPROG: program_linkeq Language_RTL sprog prog)
            (SAT: forall v m, exists valu, numbering_holds valu ge sp (rs#res <- v) m approx!!pc)
            (RLD: regs_lessdef rs rs')
            (STACKS: match_stackframes s s'),
@@ -959,8 +959,8 @@ Inductive match_stackframes: list stackframe -> list stackframe -> Prop :=
 Inductive match_states: state -> state -> Prop :=
   | match_states_intro:
       forall s sp pc rs m s' rs' m' f approx sprog
-             (SPROG: program_linkeq Language_RTL sprog prog)
              (ANALYZE: analyze f (vanalyze (romem_for_program sprog) f) = Some approx)
+             (SPROG: program_linkeq Language_RTL sprog prog)
              (SAT: exists valu, numbering_holds valu ge sp rs m approx!!pc)
              (RLD: regs_lessdef rs rs')
              (MEXT: Mem.extends m m')
@@ -968,14 +968,14 @@ Inductive match_states: state -> state -> Prop :=
       match_states (State s f sp pc rs m)
                    (State s' (transf_function' f approx) sp pc rs' m')
   | match_states_call:
-      forall s f tf args m s' args' m' sprog,
-      program_linkeq Language_RTL sprog prog ->
+      forall s f f' args m s' args' m' sprog,
       match_stackframes s s' ->
-      transf_fundef (romem_for_program sprog) f = OK tf ->
+      transf_fundef (romem_for_program sprog) f = OK f' ->
+      forall (SPROG: program_linkeq Language_RTL sprog prog),
       Val.lessdef_list args args' ->
       Mem.extends m m' ->
       match_states (Callstate s f args m)
-                   (Callstate s' tf args' m')
+                   (Callstate s' f' args' m')
   | match_states_return:
       forall s s' v v' m m',
       match_stackframes s s' ->
@@ -1117,7 +1117,7 @@ Proof.
   eapply exec_Icall; eauto.
   eapply sig_preserved; eauto.
   econstructor; eauto. 
-  econstructor; try apply ANALYZE; eauto. 
+  econstructor; eauto. 
   intros. eapply analysis_correct_1; eauto. simpl; auto. 
   unfold transfer; rewrite H. 
   exists (fun _ => Vundef); apply empty_numbering_holds.
@@ -1206,7 +1206,7 @@ Proof.
   destruct or; simpl; auto. 
 
 - (* internal function *)
-  monadInv H7. unfold transf_function in EQ. 
+  monadInv H6. unfold transf_function in EQ. 
   destruct (analyze f (vanalyze (romem_for_program sprog) f)) as [approx|] eqn:?; inv EQ. 
   exploit Mem.alloc_extends; eauto. apply Zle_refl. apply Zle_refl. 
   intros (m'' & A & B).
@@ -1217,7 +1217,7 @@ Proof.
   apply init_regs_lessdef; auto.
 
 - (* external function *)
-  monadInv H7. 
+  monadInv H6. 
   exploit external_call_mem_extends; eauto.
   intros (v' & m1' & P & Q & R & S).
   econstructor; split.
