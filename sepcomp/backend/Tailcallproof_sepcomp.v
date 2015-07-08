@@ -718,7 +718,7 @@ Proof.
   assert (or = None) by congruence. subst or. 
   right. split. simpl. omega. split. auto. 
   constructor. auto.
-  simpl. constructor; auto.
+  simpl. constructor.
   eapply Mem.free_left_extends; eauto. 
 
 (* eliminated return Some *)
@@ -774,9 +774,8 @@ Proof.
   apply match_states_identical. constructor; auto. apply regset_set; auto. 
 (* identical *)
   left. econstructor; split.
-  apply exec_return.
-  constructor; auto.
-  apply regset_set; auto.
+  apply exec_return. 
+  constructor; auto. apply regset_set; auto.
 (* return instr in source program, eliminated because of tailcall *)
   right. split. unfold measure. simpl length. 
   change (S (length s) * (niter + 2))%nat
@@ -806,7 +805,7 @@ Lemma transf_final_states:
   forall st1 st2 r, 
   match_states st1 st2 -> final_state st1 r -> final_state st2 r.
 Proof.
-  intros. inv H0. inv H. inv H5. inv H3. constructor.
+  intros. inv H0. inv H. inv H5. inv H3. constructor. 
   inv MATCH.
 Qed.
 
