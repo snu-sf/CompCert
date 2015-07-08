@@ -90,14 +90,18 @@ Lemma function_ptr_translated:
   Genv.find_funct_ptr ge b = Some f ->
   exists tf,
   Genv.find_funct_ptr tge b = Some tf /\ tr_fundef f tf.
-Proof. intros. eapply Genv.find_funct_ptr_match; eauto. Qed.
+Proof.
+  intros. eapply Genv.find_funct_ptr_match; eauto.
+Qed.
 
 Lemma functions_translated:
   forall v f,
   Genv.find_funct ge v = Some f ->
   exists tf,
   Genv.find_funct tge v = Some tf /\ tr_fundef f tf.
-Proof. intros. eapply Genv.find_funct_match; eauto. Qed.
+Proof.
+  intros. eapply Genv.find_funct_match; eauto.
+Qed.
 
 Lemma varinfo_preserved:
   forall b, Genv.find_var_info tge b = Genv.find_var_info ge b.

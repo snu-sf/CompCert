@@ -71,8 +71,9 @@ Lemma functions_translated:
   exists sprog,
     program_linkeq Language_RTL sprog prog /\
     Genv.find_funct tge v = Some (transf_fundef (romem_for_program sprog) f).
-Proof.
-  intros. exploit (find_funct_transf _ _ TRANSF); eauto. simpl in *.
+Proof.  
+  intros.
+exploit (find_funct_transf _ _ TRANSF); eauto. simpl in *.
   intros [sprog [Hsprog Hf]].
   eexists. split; eauto.
   destruct f; auto.
@@ -84,8 +85,9 @@ Lemma function_ptr_translated:
   exists sprog,
     program_linkeq Language_RTL sprog prog /\
     Genv.find_funct_ptr tge b = Some (transf_fundef (romem_for_program sprog) f).
-Proof.
-  intros. exploit (find_funct_ptr_transf _ _ TRANSF); eauto. simpl in *.
+Proof.  
+  intros. 
+  exploit (find_funct_ptr_transf _ _ TRANSF); eauto. simpl in *.
   intros [sprog [Hsprog Hf]].
   eexists. split; eauto.
   destruct f; auto.
@@ -140,8 +142,7 @@ Proof.
   intros until rs'; intros GE EM FF RLD. destruct ros; simpl in *.
 - (* function pointer *)
   generalize (EM r); fold (areg ae r); intro VM. generalize (RLD r); intro LD.
-  assert (DEFAULT:
-            exists sprog,
+  assert (DEFAULT: exists sprog,
               program_linkeq Language_RTL sprog prog /\
               find_function tge (inl _ r) rs' = Some (transf_fundef (romem_for_program sprog) f)).
   {
@@ -371,7 +372,8 @@ Lemma match_states_succ:
   match_states O (State s f sp pc rs m)
                  (State s' (transf_function (romem_for_program sprog) f) sp pc rs' m').
 Proof.
-  intros. inv H. specialize (Hsound _ SPROG). inv Hsound. 
+  intros. inv H. 
+  specialize (Hsound _ SPROG). inv Hsound. 
   apply match_states_intro with (bc := bc) (ae := ae); auto. 
   constructor.
 Qed.
@@ -401,7 +403,8 @@ Lemma transf_step_correct:
   (exists n2, exists s2', step tge s1' t s2' /\ match_states n2 s2 s2')
   \/ (exists n2, n2 < n1 /\ t = E0 /\ match_states n2 s2 s1')%nat.
 Proof.
-  induction 1; intros; inv MS; try (inv SS1; specialize (Hsound _ SPROG); inv Hsound; rename bc into bct; rename bc0 into bc; rename bct into bc0; rename ae into aet; rename ae0 into ae; rename aet into ae0); try (inv PC; try congruence).
+  induction 1; intros; inv MS; try (inv SS1; specialize (Hsound _ SPROG); inv Hsound; rename bc into bct;
+  rename bc0 into bc; rename bct into bc0; rename ae into aet; rename ae0 into ae; rename aet into ae0); try (inv PC; try congruence).
 
   (* Inop, preserved *)
   rename pc'0 into pc. TransfInstr; intros. 

@@ -967,14 +967,14 @@ Inductive match_states: state -> state -> Prop :=
       match_states (State s f sp pc rs m)
                    (State s' (transf_function' f approx) sp pc rs' m')
   | match_states_call:
-      forall s f f' args m s' args' m' sprog,
+      forall s f tf args m s' args' m' sprog,
       match_stackframes s s' ->
-      transf_fundef (romem_for_program sprog) f = OK f' ->
+      transf_fundef (romem_for_program sprog) f = OK tf ->
       forall (SPROG: program_linkeq Language_RTL sprog prog),
       Val.lessdef_list args args' ->
       Mem.extends m m' ->
       match_states (Callstate s f args m)
-                   (Callstate s' f' args' m')
+                   (Callstate s' tf args' m')
   | match_states_return:
       forall s s' v v' m m',
       match_stackframes s s' ->

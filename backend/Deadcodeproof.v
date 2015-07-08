@@ -409,7 +409,8 @@ Qed.
 Lemma function_ptr_translated:
   forall (b: block) (f: RTL.fundef),
   Genv.find_funct_ptr ge b = Some f ->
-  exists tf, Genv.find_funct_ptr tge b = Some tf /\ 
+  exists tf,
+  Genv.find_funct_ptr tge b = Some tf /\ 
              exists sprog, program_linkeq Language_RTL sprog prog /\
                            transf_fundef (romem_for_program sprog) f = OK tf.
 Proof.
@@ -422,7 +423,9 @@ Proof.
 Qed.
 
 Lemma sig_function_translated:
-  forall sprog f tf, transf_fundef (romem_for_program sprog) f = OK tf -> funsig tf = funsig f.
+  forall sprog f tf,
+  transf_fundef (romem_for_program sprog) f = OK tf ->
+  funsig tf = funsig f.
 Proof.
   unfold transf_fundef; intros. destruct f; monadInv H; auto.
   unfold transf_function in EQ. 
@@ -1043,6 +1046,7 @@ Proof.
 Qed.
 
 End PRESERVATION.
+
 
 Lemma Deadcode_sepcomp_rel
       rtlprog1 rtlprog2

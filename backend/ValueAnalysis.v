@@ -1418,8 +1418,7 @@ Inductive sound_state_ext (st:state): Prop :=
 | sound_state_ext_intro
     (Hsound:
        forall sprog (Hle: program_linkeq Language.Language_RTL sprog prog),
-       sound_state sprog st)
-.
+       sound_state sprog st).
 
 Theorem sound_past_step:
   forall st t st', RTL.step ge st t st' -> sound_state_ext st -> sound_state_ext st'.
