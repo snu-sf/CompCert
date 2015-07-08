@@ -2226,7 +2226,7 @@ Proof.
   econstructor; split.
   econstructor.
   exploit Genv.init_mem_match; eauto.  
-  replace (prog_main tprog) with (prog_main prog); [|by inv TRANSF].
+  replace (prog_main tprog) with (prog_main prog); try (inv prog_match; auto; fail).
   rewrite symbols_preserved. eauto.
   exploit function_ptr_translated; eauto.
   rewrite <- H3. apply type_of_fundef_preserved. auto.
