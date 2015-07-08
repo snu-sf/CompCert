@@ -28,7 +28,7 @@ Require Import Registers.
 Require Import Inlining.
 Require Import Inliningspec.
 Require Import RTL.
-Require Import Maps_sepcomp.
+Require Import MapsExtra.
 Require Import Linkeq.
 Require Import SepcompRel.
 

@@ -1,5 +1,5 @@
 Require Import Equivalence EquivDec.
-Require Import Coqlib Coqlib_sepcomp.
+Require Import Coqlib CoqlibExtra.
 Require Import Maps.
 
 (* To avoid useless definitions of inductors in extracted code. *)

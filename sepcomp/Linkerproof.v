@@ -1,8 +1,8 @@
 Require Import Axioms.
 Require Import RelationClasses.
 Require String.
-Require Import Coqlib Coqlib_sepcomp.
-Require Import Maps Maps_sepcomp.
+Require Import Coqlib CoqlibExtra.
+Require Import Maps MapsExtra.
 Require Import Integers Floats Values AST Globalenvs.
 Require Import Errors Behaviors Compiler Smallstep.
 Require Import Language Linker.
@@ -390,8 +390,7 @@ Lemma linker_correct_determinate
     Tree.reduce (link_program Language_Asm) asmtree = Some asmprog.
 Proof.
   exploit linker_correct_determinate_forward; eauto.
-  intros. destruct H as [asmprog [fsim Hasm]].
-  exists asmprog.
+  intros [asmprog [Hsim Hasmprog]]. exists asmprog.
   eexists; auto.
   apply forward_to_backward_simulation.
   apply factor_forward_simulation. auto. eapply sd_traces. eapply Asm.semantics_determinate.
@@ -408,8 +407,7 @@ Theorem linker_correct
     Tree.reduce (link_program Language_Asm) asmtree = Some asmprog.
 Proof.
   exploit linker_correct_determinate; eauto.
-  intros. destruct H as [asmprog [fsim Hasm]].
-  exists asmprog.
+  intros [asmprog [Hsim Hasmprog]]. exists asmprog.
   eexists; eauto.
   apply compose_backward_simulation with (atomic (Cstrategy.semantics cprog)).
   eapply sd_traces; eapply Asm.semantics_determinate.
@@ -417,5 +415,5 @@ Proof.
   apply Cstrategy.strategy_simulation.
   apply Csem.semantics_single_events.
   eapply ssr_well_behaved; eapply Cstrategy.semantics_strongly_receptive.
-  exact fsim.
+  exact Hsim.
 Qed.

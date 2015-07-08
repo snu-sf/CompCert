@@ -34,12 +34,12 @@ Require Import Selection.
 Require Import SelectOpproof.
 Require Import SelectDivproof.
 Require Import SelectLongproof.
-Require Import Maps_sepcomp.
+Require Import MapsExtra.
 Require Import Linker.
 Require Import LinkerProp.
 Require Import Linkeq.
 Require Import SepcompRel.
-Require Import Coqlib_sepcomp.
+Require Import CoqlibExtra.
 
 Local Open Scope cminorsel_scope.
 Local Open Scope error_monad_scope.
