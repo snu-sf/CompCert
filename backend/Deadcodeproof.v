@@ -24,6 +24,7 @@ Require Import Memory.
 Require Import Globalenvs.
 Require Import Events.
 Require Import Smallstep.
+Require Import Language.
 Require Import Op.
 Require Import Registers.
 Require Import RTL.
@@ -34,6 +35,10 @@ Require Import ValueAnalysis.
 Require Import NeedDomain.
 Require Import NeedOp.
 Require Import Deadcode.
+Require Import Linkeq.
+Require Import SepcompRel.
+Require Import RTLExtra.
+Require Import sflib.
 
 (** * Relating the memory states *)
 
@@ -364,65 +369,91 @@ Qed.
 
 (** * Basic properties of the translation *)
 
+Inductive match_fundef prog: forall (fd fd':fundef), Prop :=
+| match_fundef_transl fd fd' sprog
+    (SPROG: program_linkeq Language_RTL sprog prog)
+    (FUN: transf_fundef (romem_for_program sprog) fd = OK fd'):
+    match_fundef prog fd fd'
+| match_fundef_identical fd:
+    match_fundef prog fd fd.
+
 Section PRESERVATION.
+
+Let transf_efT (p:program) (ef:external_function) := OK ef.
 
 Variable prog: program.
 Variable tprog: program.
-Hypothesis TRANSF: transf_program prog = OK tprog.
+Hypothesis TRANSF:
+  @sepcomp_rel
+    Language_RTL Language_RTL
+    (fun p f tf => transf_function (romem_for_program p) f = OK tf \/ f = tf)
+    (fun p ef tef => transf_efT p ef = OK tef)
+    (@OK _)
+    prog tprog.
 Let ge := Genv.globalenv prog.
 Let tge := Genv.globalenv tprog.
-Let rm := romem_for_program prog.
 
 Lemma symbols_preserved:
   forall (s: ident), Genv.find_symbol tge s = Genv.find_symbol ge s.
-Proof.
-  intro. unfold ge, tge.
-  apply Genv.find_symbol_transf_partial with (transf_fundef rm).
-  exact TRANSF.
-Qed.
+Proof (find_symbol_transf_partial_optionally _ _ TRANSF).
 
 Lemma varinfo_preserved:
   forall b, Genv.find_var_info tge b = Genv.find_var_info ge b.
-Proof.
-  intro. unfold ge, tge.
-  apply Genv.find_var_info_transf_partial with (transf_fundef rm).
-  exact TRANSF.
-Qed.
+Proof (find_var_info_transf_partial_optionally _ _ TRANSF).
 
 Lemma functions_translated:
   forall (v: val) (f: RTL.fundef),
   Genv.find_funct ge v = Some f ->
-  exists tf,
-  Genv.find_funct tge v = Some tf /\ transf_fundef rm f = OK tf.
-Proof (Genv.find_funct_transf_partial (transf_fundef rm) _ TRANSF).
+  exists tf, Genv.find_funct tge v = Some tf /\ match_fundef prog f tf.
+Proof.
+  intros. exploit (find_funct_transf_partial_optionally _ _ TRANSF); eauto. simpl in *.
+  intros [tf [Htf [[sprog [Hsprog Hf]]|Hf]]].
+  eexists. split; eauto. econstructor. eauto.
+  destruct f; monadInv Hf; auto.
+  unfold transf_fundef. unfold transf_partial_fundef.
+  rewrite EQ. auto.
+  subst. eexists. split; eauto. constructor.
+Qed.
 
 Lemma function_ptr_translated:
   forall (b: block) (f: RTL.fundef),
   Genv.find_funct_ptr ge b = Some f ->
-  exists tf,
-  Genv.find_funct_ptr tge b = Some tf /\ transf_fundef rm f = OK tf.
-Proof (Genv.find_funct_ptr_transf_partial (transf_fundef rm) _ TRANSF).
+  exists tf, Genv.find_funct_ptr tge b = Some tf /\ 
+             match_fundef prog f tf.
+Proof.
+  intros. exploit (find_funct_ptr_transf_partial_optionally _ _ TRANSF); eauto. simpl in *.
+  intros [tf [Htf [[sprog [Hsprog Hf]]|Hf]]].
+  eexists. split; eauto. econstructor. eauto.
+  destruct f; monadInv Hf; auto.
+  unfold transf_fundef. unfold transf_partial_fundef.
+  rewrite EQ. auto.
+  subst. eexists. split; eauto. constructor.
+Qed.
 
 Lemma sig_function_translated:
-  forall f tf,
-  transf_fundef rm f = OK tf ->
-  funsig tf = funsig f.
+  forall sprog f tf, transf_fundef (romem_for_program sprog) f = OK tf -> funsig tf = funsig f.
 Proof.
-  intros; destruct f; monadInv H.
+  unfold transf_fundef; intros. destruct f; monadInv H; auto.
   unfold transf_function in EQ. 
-  destruct (analyze (vanalyze rm f) f); inv EQ; auto. 
-  auto.
+  destruct (analyze (vanalyze (romem_for_program sprog) f) f); try discriminate. inv EQ; auto. 
+Qed.
+
+Lemma match_fundef_sig:
+  forall f1 f2 sprog (MATCHFD: match_fundef sprog f1 f2), funsig f2 = funsig f1.
+Proof.
+  intros. inv MATCHFD; auto.
+  eapply sig_function_translated; eauto.
 Qed.
 
 Lemma stacksize_translated:
-  forall f tf,
+  forall rm f tf,
   transf_function rm f = OK tf -> tf.(fn_stacksize) = f.(fn_stacksize).
 Proof.
   unfold transf_function; intros. destruct (analyze (vanalyze rm f) f); inv H; auto.
 Qed.
 
 Lemma transf_function_at:
-  forall f tf an pc instr,
+  forall rm f tf an pc instr,
   transf_function rm f = OK tf ->
   analyze (vanalyze rm f) f = Some an ->
   f.(fn_code)!pc = Some instr ->
@@ -457,7 +488,21 @@ Lemma find_function_translated:
   forall ros rs fd trs ne,
   find_function ge ros rs = Some fd ->
   eagree rs trs (add_ros_need_all ros ne) ->
-  exists tfd, find_function tge ros trs = Some tfd /\ transf_fundef rm fd = OK tfd.
+  exists tfd, find_function tge ros trs = Some tfd /\ match_fundef prog fd tfd.
+Proof.
+  intros. destruct ros as [r|id]; simpl in *.
+  - assert (LD: Val.lessdef rs#r trs#r) by eauto with na. inv LD.
+    apply functions_translated; auto.
+    rewrite <- H2 in H; discriminate.
+  - rewrite symbols_preserved. destruct (Genv.find_symbol ge id); try discriminate.
+    apply function_ptr_translated; auto.
+Qed.
+
+Lemma find_function_translated_identical:
+  forall ros rs fd trs,
+  find_function ge ros rs = Some fd ->
+  regset_lessdef rs trs ->
+  exists tfd, find_function tge ros trs = Some tfd /\ match_fundef prog fd tfd.
 Proof.
   intros. destruct ros as [r|id]; simpl in *.
 - assert (LD: Val.lessdef rs#r trs#r) by eauto with na. inv LD.
@@ -471,30 +516,45 @@ Qed.
 
 Inductive match_stackframes: stackframe -> stackframe -> Prop :=
   | match_stackframes_intro:
-      forall res f sp pc e tf te an
-        (FUN: transf_function rm f = OK tf)
-        (ANL: analyze (vanalyze rm f) f = Some an)
+      forall res f sp pc e tf te an sprog
+        (SPROG: program_linkeq Language_RTL sprog prog)
+        (FUN: transf_function (romem_for_program sprog) f = OK tf)
+        (ANL: analyze (vanalyze (romem_for_program sprog) f) f = Some an)
         (RES: forall v tv,
               Val.lessdef v tv ->
               eagree (e#res <- v) (te#res<- tv)
-                     (fst (transfer f (vanalyze rm f) pc an!!pc))),
+                     (fst (transfer f (vanalyze (romem_for_program sprog) f) pc an!!pc))),
       match_stackframes (Stackframe res f (Vptr sp Int.zero) pc e)
-                        (Stackframe res tf (Vptr sp Int.zero) pc te).
+                        (Stackframe res tf (Vptr sp Int.zero) pc te)
+  | match_stackframes_identical:
+      forall res f sp pc e te
+        (ENV: regset_lessdef e te),
+        match_stackframes (Stackframe res f (Vptr sp Int.zero) pc e) (Stackframe res f (Vptr sp Int.zero) pc te).
+
+Inductive match_identical_states: state -> state -> Prop :=
+  | match_identical_regular_states:
+      forall s f sp pc e m ts te tm
+        (STACKS: list_forall2 match_stackframes s ts)
+        (MEM : Mem.extends m tm)
+        (ENV: regset_lessdef e te),
+      match_identical_states (State s f (Vptr sp Int.zero) pc e m)
+                   (State ts f (Vptr sp Int.zero) pc te tm).
 
 Inductive match_states: state -> state -> Prop :=
   | match_regular_states:
-      forall s f sp pc e m ts tf te tm an
+      forall s f sp pc e m ts tf te tm an sprog
+        (SPROG: program_linkeq Language_RTL sprog prog)
         (STACKS: list_forall2 match_stackframes s ts)
-        (FUN: transf_function rm f = OK tf)
-        (ANL: analyze (vanalyze rm f) f = Some an)
-        (ENV: eagree e te (fst (transfer f (vanalyze rm f) pc an!!pc)))
-        (MEM: magree m tm (nlive ge sp (snd (transfer f (vanalyze rm f) pc an!!pc)))),
+        (FUN: transf_function (romem_for_program sprog) f = OK tf)
+        (ANL: analyze (vanalyze (romem_for_program sprog) f) f = Some an)
+        (ENV: eagree e te (fst (transfer f (vanalyze (romem_for_program sprog) f) pc an!!pc)))
+        (MEM: magree m tm (nlive ge sp (snd (transfer f (vanalyze (romem_for_program sprog) f) pc an!!pc)))),
       match_states (State s f (Vptr sp Int.zero) pc e m)
                    (State ts tf (Vptr sp Int.zero) pc te tm)
   | match_call_states:
       forall s f args m ts tf targs tm
         (STACKS: list_forall2 match_stackframes s ts)
-        (FUN: transf_fundef rm f = OK tf)
+        (FUN: match_fundef prog f tf)
         (ARGS: Val.lessdef_list args targs)
         (MEM: Mem.extends m tm),
       match_states (Callstate s f args m)
@@ -505,12 +565,15 @@ Inductive match_states: state -> state -> Prop :=
         (RES: Val.lessdef v tv)
         (MEM: Mem.extends m tm),
       match_states (Returnstate s v m)
-                   (Returnstate ts tv tm).
+                   (Returnstate ts tv tm)
+  | match_states_identical:
+      forall s s' (MATCH: match_identical_states s s'),
+        match_states s s'.
 
 (** [match_states] and CFG successors *)
 
 Lemma analyze_successors:
-  forall f an pc instr pc',
+  forall rm f an pc instr pc',
   analyze (vanalyze rm f) f = Some an ->
   f.(fn_code)!pc = Some instr ->
   In pc' (successors_instr instr) ->
@@ -521,10 +584,11 @@ Proof.
 Qed.
 
 Lemma match_succ_states:
-  forall s f sp pc e m ts tf te tm an pc' instr ne nm
+  forall s f sp pc e m ts tf te tm an pc' instr ne nm sprog
+    (SPROG: program_linkeq Language_RTL sprog prog)
     (STACKS: list_forall2 match_stackframes s ts)
-    (FUN: transf_function rm f = OK tf)
-    (ANL: analyze (vanalyze rm f) f = Some an)
+    (FUN: transf_function (romem_for_program sprog) f = OK tf)
+    (ANL: analyze (vanalyze (romem_for_program sprog) f) f = Some an)
     (INSTR: f.(fn_code)!pc = Some instr)
     (SUCC: In pc' (successors_instr instr))
     (ANPC: an!!pc = (ne, nm))
@@ -603,9 +667,52 @@ Qed.
 
 (** * The simulation diagram *)
 
+Theorem step_simulation_identical:
+  forall S1 t S2, step ge S1 t S2 ->
+  forall S1' (MS: match_identical_states S1 S1'),
+  sound_state_ext prog S1 ->
+  exists S2', step tge S1' t S2' /\ match_states S2 S2'.
+Proof.
+  intros. destruct (is_normal S1) eqn:NORMAL1.
+  { (* is_normal *)
+    destruct S1; try by inv NORMAL1.
+    exploit is_normal_step; eauto. i; des. subst. inv MS.
+    exploit is_normal_extends; eauto using symbols_preserved, varinfo_preserved. i; des.
+    exploit is_normal_step; try apply TSTEP; eauto.
+    i; des. inv S2.
+    esplits; eauto. apply match_states_identical. constructor; eauto.
+  }
+  inv MS. unfold is_normal in NORMAL1.
+  destruct (fn_code f) ! pc as [[]|] eqn:OPCODE; try by inv NORMAL1; inv H; clarify.
+  - (* Icall *)
+    inv H; clarify.
+    exploit find_function_translated_identical; eauto. i; des.
+    esplits; eauto using exec_Icall, match_fundef_sig.
+    econs; eauto; try constructor; eauto using match_stackframes_identical, regset_lessdef_val_lessdef_list.
+  - (* Itailcall *)
+    inv H; clarify.
+    exploit find_function_translated_identical; eauto. i; des.
+    assert (X: { m1' | Mem.free tm sp 0 (fn_stacksize f) = Some m1'}).
+    { apply Mem.range_perm_free. red; intros.
+      destruct (zlt ofs f.(fn_stacksize)); try omega.
+      eapply Mem.perm_extends; eauto.
+      eapply Mem.free_range_perm; eauto.
+    }
+    destruct X as [m1' FREE].
+    exploit Mem.free_parallel_extends; eauto. i; des.
+    rewrite FREE in H2. inv H2.
+    eexists. split; eauto using exec_Itailcall, match_fundef_sig.
+    econs; eauto using regset_lessdef_val_lessdef_list.
+  - (* Ireturn *)
+    inv H; clarify.
+    exploit Mem.free_parallel_extends; eauto. i; des.
+    eexists. split; eauto using exec_Ireturn.
+    econs; eauto. destruct o; simpl; auto.
+Qed.
+
 Theorem step_simulation:
   forall S1 t S2, step ge S1 t S2 ->
-  forall S1', match_states S1 S1' -> sound_state prog S1 ->
+  forall S1', match_states S1 S1' -> sound_state_ext prog S1 ->
   exists S2', step tge S1' t S2' /\ match_states S2 S2'.
 Proof.
 
@@ -614,7 +721,7 @@ Ltac TransfInstr :=
   | [INSTR: (fn_code _)!_ = Some _,
      FUN: transf_function _ _ = OK _,
      ANL: analyze _ _ = Some _ |- _ ] =>
-       generalize (transf_function_at _ _ _ _ _ FUN ANL INSTR);
+       generalize (transf_function_at _ _ _ _ _ _ FUN ANL INSTR);
        intro TI;
        unfold transf_instr in TI
   end.
@@ -628,8 +735,9 @@ Ltac UseTransfer :=
        rewrite INSTR in *;
        simpl in *
   end.
-
-  induction 1; intros S1' MS SS; inv MS.
+  intros s1 t s2 BACKUP_STEP. generalize BACKUP_STEP.
+  induction 1; intros S1' MS SS; inv MS;
+  try (by eauto using step_simulation_identical).
 
 - (* nop *)
   TransfInstr; UseTransfer.
@@ -719,7 +827,7 @@ Ltac UseTransfer :=
 
 - (* store *)
   TransfInstr; UseTransfer.
-  destruct (nmem_contains nm (aaddressing (vanalyze rm f) # pc addr args)
+  destruct (nmem_contains nm (aaddressing (vanalyze (romem_for_program sprog) f) # pc addr args)
              (size_chunk chunk)) eqn:CONTAINS.
 + (* preserved *)
   simpl in *. 
@@ -750,7 +858,7 @@ Ltac UseTransfer :=
   TransfInstr; UseTransfer.
   exploit find_function_translated; eauto 2 with na. intros (tfd & A & B).
   econstructor; split.
-  eapply exec_Icall; eauto. apply sig_function_translated; auto. 
+  eapply exec_Icall; eauto. inv B; auto. eapply sig_function_translated; eauto. 
   constructor. 
   constructor; auto. econstructor; eauto. 
   intros.
@@ -766,13 +874,13 @@ Ltac UseTransfer :=
   intros; eapply nlive_dead_stack; eauto. 
   intros (tm' & C & D). 
   econstructor; split.
-  eapply exec_Itailcall; eauto. apply sig_function_translated; auto. 
+  eapply exec_Itailcall; eauto. inv B; auto. eapply sig_function_translated; eauto. 
   erewrite stacksize_translated by eauto. eexact C.
   constructor; eauto 2 with na. eapply magree_extends; eauto. apply nlive_all.
 
 - (* builtin *)
   TransfInstr; UseTransfer. revert ENV MEM TI. 
-  functional induction (transfer_builtin (vanalyze rm f)#pc ef args res ne nm);
+  functional induction (transfer_builtin (vanalyze (romem_for_program sprog) f)#pc ef args res ne nm);
   simpl in *; intros.
 + (* volatile load *)
   assert (LD: Val.lessdef rs#a1 te#a1) by eauto 2 with na.
@@ -803,7 +911,7 @@ Ltac UseTransfer :=
     inv H2. 
   * exists (Val.load_result chunk v0); split; auto. constructor; auto. 
   * exploit magree_load; eauto.
-    inv SS. intros. eapply nlive_add; eauto. constructor. apply GE. auto. 
+    inv SS. specialize (Hsound _ SPROG). inv Hsound. intros. eapply nlive_add; eauto. constructor. apply GE. auto. 
     intros (tv & P & Q). 
     exists tv; split; auto. constructor; auto. 
   }
@@ -844,10 +952,10 @@ Ltac UseTransfer :=
 + (* memcpy *)
   rewrite e1 in TI.
   inv H0. 
-  set (adst := aaddr (vanalyze rm f) # pc dst) in *.
-  set (asrc := aaddr (vanalyze rm f) # pc src) in *.
+  set (adst := aaddr (vanalyze (romem_for_program sprog) f) # pc dst) in *.
+  set (asrc := aaddr (vanalyze (romem_for_program sprog) f) # pc src) in *.
   exploit magree_loadbytes. eauto. eauto. 
-  exploit aaddr_sound. eauto. symmetry; eexact H2.
+  exploit aaddr_sound; eauto. 
   intros (bc & A & B & C).
   intros. eapply nlive_add; eassumption. 
   intros (tbytes & P & Q).
@@ -857,7 +965,7 @@ Ltac UseTransfer :=
   intros. apply incl_nmem_add; auto.
   eauto. 
   instantiate (1 := nlive ge sp0 nm). 
-  exploit aaddr_sound. eauto. symmetry; eexact H1.
+  exploit aaddr_sound. eauto. eauto. symmetry; eexact H1.
   intros (bc & A & B & C).
   intros. eapply nlive_remove; eauto.
   erewrite Mem.loadbytes_length in H10 by eauto. 
@@ -875,14 +983,14 @@ Ltac UseTransfer :=
   apply eagree_update; eauto 3 with na.
 + (* memcpy eliminated *)
   rewrite e1 in TI. inv H0.
-  set (adst := aaddr (vanalyze rm f) # pc dst) in *.
-  set (asrc := aaddr (vanalyze rm f) # pc src) in *.
+  set (adst := aaddr (vanalyze (romem_for_program sprog) f) # pc dst) in *.
+  set (asrc := aaddr (vanalyze (romem_for_program sprog) f) # pc src) in *.
   econstructor; split.
   eapply exec_Inop; eauto. 
   eapply match_succ_states; eauto. simpl; auto.
   apply eagree_set_undef; auto.
   eapply magree_storebytes_left; eauto.
-  exploit aaddr_sound. eauto. symmetry; eexact H1.
+  exploit aaddr_sound. eauto. eauto. symmetry; eexact H1.
   intros (bc & A & B & C).
   intros. eapply nlive_contains; eauto.
   erewrite Mem.loadbytes_length in H0 by eauto. 
@@ -952,8 +1060,10 @@ Ltac UseTransfer :=
   eapply magree_extends; eauto. apply nlive_all.
 
 - (* internal function *)
-  monadInv FUN. generalize EQ. unfold transf_function. intros EQ'.
-  destruct (analyze (vanalyze rm f) f) as [an|] eqn:AN; inv EQ'.
+  inv FUN.
+  (* transl *)
+  monadInv FUN0. generalize EQ. unfold transf_function. intros EQ'.
+  destruct (analyze (vanalyze (romem_for_program sprog) f) f) as [an|] eqn:AN; inv EQ'.
   exploit Mem.alloc_extends; eauto. apply Zle_refl. apply Zle_refl.
   intros (tm' & A & B). 
   econstructor; split.
@@ -961,11 +1071,19 @@ Ltac UseTransfer :=
   simpl. econstructor; eauto. 
   apply eagree_init_regs; auto. 
   apply mextends_agree; auto. 
+  (* identical *)
+  exploit Mem.alloc_extends; eauto. apply Zle_refl. apply Zle_refl.
+  intros (tm' & A & B). 
+  econstructor; split.
+  econstructor; simpl; eauto.
+  apply match_states_identical.
+  eapply match_identical_regular_states; eauto.
+  apply regset_lessdef_init_regs. auto.
 
 - (* external function *)
   exploit external_call_mem_extends; eauto.
   intros (res' & tm' & A & B & C & D & E). 
-  simpl in FUN. inv FUN.
+  assert (tf = External ef) by (inv FUN; auto; inv FUN0; auto). subst.
   econstructor; split.
   econstructor; eauto.
   eapply external_call_symbols_preserved; eauto. 
@@ -974,9 +1092,16 @@ Ltac UseTransfer :=
 
 - (* return *)
   inv STACKS. inv H1. 
+  (* transl *)
   econstructor; split.
   constructor. 
   econstructor; eauto. apply mextends_agree; auto. 
+  (* identical *)
+  econstructor; split.
+  constructor.
+  apply match_states_identical.
+  econstructor; eauto.
+  apply regset_lessdef_set_reg; eauto.
 Qed.
 
 Lemma transf_initial_states:
@@ -987,10 +1112,11 @@ Proof.
   exploit function_ptr_translated; eauto. intros (tf & A & B).
   exists (Callstate nil tf nil m0); split.
   econstructor; eauto.
-  eapply Genv.init_mem_transf_partial; eauto.
-  rewrite (transform_partial_program_main _ _ TRANSF).
+  exploit (init_mem_transf_partial_optionally _ _ TRANSF); eauto.
+  replace (prog_main tprog) with (prog_main prog).
   rewrite symbols_preserved. eauto.
-  rewrite <- H3. apply sig_function_translated; auto.
+  inv TRANSF. auto.
+  rewrite <- H3. eapply match_fundef_sig; eauto.
   constructor. constructor. auto. constructor. apply Mem.extends_refl.
 Qed.
 
@@ -999,6 +1125,7 @@ Lemma transf_final_states:
   match_states st1 st2 -> final_state st1 r -> final_state st2 r.
 Proof.
   intros. inv H0. inv H. inv STACKS. inv RES. constructor. 
+  inv MATCH.
 Qed.
 
 (** * Semantic preservation *)
@@ -1008,17 +1135,34 @@ Theorem transf_program_correct:
 Proof.
   intros.
   apply forward_simulation_step with
-     (match_states := fun s1 s2 => sound_state prog s1 /\ match_states s1 s2).
+     (match_states := fun s1 s2 => sound_state_ext prog s1 /\ match_states s1 s2).
 - exact symbols_preserved.
 - simpl; intros. exploit transf_initial_states; eauto. intros [st2 [A B]].
   exists st2; intuition. eapply sound_initial; eauto. 
 - simpl; intros. destruct H. eapply transf_final_states; eauto. 
 - simpl; intros. destruct H0.
-  assert (sound_state prog s1') by (eapply sound_step; eauto).
+  assert (sound_state_ext prog s1') by (eapply sound_past_step; eauto).
   fold ge; fold tge. exploit step_simulation; eauto. intros [st2' [A B]].
   exists st2'; auto. 
 Qed.
 
 End PRESERVATION.
 
-
+Lemma Deadcode_sepcomp_rel
+      rtlprog1 rtlprog2
+      (Htrans: Deadcode.transf_program rtlprog1 = OK rtlprog2 \/ rtlprog1 = rtlprog2):
+  @sepcomp_rel
+    Language.Language_RTL Language.Language_RTL
+    (fun p f tf => Deadcode.transf_function (ValueAnalysis.romem_for_program p) f = OK tf \/ f = tf)
+    (fun p ef tef => (fun _ ef => OK ef) p ef = OK tef)
+    (@OK _)
+    rtlprog1 rtlprog2.
+Proof.
+  inv Htrans.
+  - apply transf_partial_optionally_sepcomp_rel.
+    unfold progT, RTL.program, RTL.fundef in *. simpl in *. rewrite <- H.
+    unfold Deadcode.transf_program. f_equal.
+    apply Axioms.functional_extensionality. intro fd.
+    destruct fd; auto.
+  - apply transf_partial_optionally_sepcomp_rel_identical. auto.
+Qed.

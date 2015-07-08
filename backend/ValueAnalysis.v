@@ -11,7 +11,7 @@
 (* *********************************************************************)
 
 Require Import Coqlib.
-Require Import Maps.
+Require Import Maps MapsExtra.
 Require Import Compopts.
 Require Import AST.
 Require Import Integers.
@@ -28,6 +28,8 @@ Require Import RTL.
 Require Import ValueDomain.
 Require Import ValueAOp.
 Require Import Liveness.
+Require Language.
+Require Import Linkeq.
 
 (** * The dataflow analysis *)
 
@@ -977,7 +979,11 @@ Variable prog: program.
 
 Let ge : genv := Genv.globalenv prog.
 
-Let rm := romem_for_program prog.
+Section PAST.
+
+Variable sprog: program.
+
+Let rm := romem_for_program sprog.
 
 Inductive sound_stack: block_classification -> list stackframe -> mem -> block -> Prop :=
   | sound_stack_nil: forall bc m bound,
@@ -1406,7 +1412,102 @@ Proof.
    eapply ematch_ge; eauto. apply ematch_update. auto. auto.
 Qed.
 
+End PAST.
+
+Inductive sound_state_ext (st:state): Prop :=
+| sound_state_ext_intro
+    (Hsound:
+       forall sprog (Hle: program_linkeq Language.Language_RTL sprog prog),
+       sound_state sprog st)
+.
+
+Theorem sound_past_step:
+  forall st t st', RTL.step ge st t st' -> sound_state_ext st -> sound_state_ext st'.
+Proof.
+  intros. inv H0. constructor. intros.
+  specialize (Hsound sprog Hle). eapply sound_step; eauto.
+Qed.
+
+Theorem sound_past_star:
+  forall st t st', Smallstep.star RTL.step ge st t st' -> sound_state_ext st -> sound_state_ext st'.
+Proof.
+  intros st t st' H. induction H; subst; auto.
+  intro X. apply IHstar. eapply sound_past_step; eauto.
+Qed.
+
+Theorem sound_past_plus:
+  forall st t st', Smallstep.plus RTL.step ge st t st' -> sound_state_ext st -> sound_state_ext st'.
+Proof.
+  intros st t st' H. destruct H. subst.
+  intro X. eapply sound_past_star; eauto.
+  eapply sound_past_step; eauto.
+Qed.
+
 End SOUNDNESS.
+
+Ltac clarify := simpl in *; fold ident fundef in *.
+
+Lemma program_linkeq_romem_le
+      sprog prog
+      (Hlinkeq: program_linkeq Language.Language_RTL sprog prog):
+  PTree_le (romem_for_program sprog) (romem_for_program prog).
+Proof.
+  unfold romem_for_program. rewrite <- ? fold_left_rev_right.
+  constructor. intro b.
+  destruct Hlinkeq as [Hdefs _]. specialize (Hdefs b).
+  rewrite ? PTree_guespec in Hdefs.
+  revert b Hdefs. clarify.
+  generalize (@rev (prod ident _) (prog_defs prog)) as l2.
+  generalize (@rev (prod ident _) (prog_defs sprog)) as l1.
+  clear sprog prog.
+  induction l1; intros l2 b H ab Hab; simpl in *.
+  { rewrite PTree.gempty in Hab. inv Hab. }
+  destruct a. simpl in Hab.
+  destruct g.
+  - rewrite PTree.grspec in Hab.
+    destruct (PTree.elt_eq b i); inv Hab. rewrite H1.
+    apply IHl1; auto. intros.
+    exploit H; eauto.
+    simpl in *. destruct (peq b i); subst; try (contradict n; auto; fail).
+    simpl in *. auto.
+  - match goal with
+      | [H: (if ?b then _ else _) ! _ = _ |- _] =>
+        destruct b eqn:Hb; InvBooleans
+    end.
+    + rewrite PTree.gsspec in Hab. destruct (peq b i); subst.
+      * inv Hab. exploit H; eauto.
+        { simpl. destruct (peq i i); subst; try (contradict n; auto; fail).
+          simpl. eauto.
+        }
+        intros [defs2 [Hdefs2 Hsim]].
+        inv Hsim. inv Hv.
+        { revert Hdefs2. induction l2; simpl; intro X; inv X.
+          destruct a. simpl in *. destruct (peq i i0); subst; simpl in *.
+          - inv H4. rewrite H2. rewrite H3. rewrite H1. simpl.
+            rewrite PTree.gss. auto.
+          - destruct g.
+            + rewrite PTree.gro; auto.
+            + match goal with
+                | [|- (if ?b then _ else _) ! _ = _] =>
+                  destruct b
+              end.
+              * rewrite PTree.gso; auto.
+              * rewrite PTree.gro; auto.
+        }
+        { inv H0. clarify. rewrite Hinit in H1. inv H1. }
+      * apply IHl1; auto. intros.
+        exploit H; eauto.
+        simpl in *. destruct (peq b i); subst; try (contradict n; auto; fail).
+        simpl in *. auto.
+    + rewrite PTree.grspec in Hab.
+      destruct (PTree.elt_eq b i); inv Hab. rewrite H1.
+      apply IHl1; auto. intros.
+      exploit H; eauto.
+      simpl in *. destruct (peq b i); subst; try (contradict n; auto; fail).
+      simpl in *. auto.
+Qed.
+
+(** ** Soundness of the initial memory abstraction *)
 
 (** ** Soundness of the initial memory abstraction *)
 
@@ -1740,14 +1841,16 @@ End INITIAL.
 Require Import Axioms.
 
 Theorem sound_initial:
-  forall prog st, initial_state prog st -> sound_state prog st.
+  forall sprog st, initial_state sprog st -> sound_state_ext sprog st.
 Proof.
   destruct 1. 
   exploit initial_mem_matches; eauto. intros (bc & GE & BELOW & NOSTACK & RM & VALID).
+  constructor. intros.
   apply sound_call_state with bc. 
 - constructor. 
 - simpl; tauto. 
-- exact RM.
+- apply program_linkeq_romem_le in Hle. inv Hle.
+  repeat intro. exploit H3; eauto.
 - apply mmatch_inj_top with m0.
   replace (inj_of_bc bc) with (Mem.flat_inj (Mem.nextblock m0)).
   eapply Genv.initmem_inject; eauto.
@@ -1770,14 +1873,15 @@ Definition avalue (a: VA.t) (r: reg) : aval :=
   end.
 
 Lemma avalue_sound:
-  forall prog s f sp pc e m r,
-  sound_state prog (State s f (Vptr sp Int.zero) pc e m) ->
+  forall prog s f sp pc e m r
+         sprog (Hle: program_linkeq Language.Language_RTL sprog prog),
+  sound_state_ext prog (State s f (Vptr sp Int.zero) pc e m) ->
   exists bc,
-     vmatch bc e#r (avalue (analyze (romem_for_program prog) f)!!pc r)
+     vmatch bc e#r (avalue (analyze (romem_for_program sprog) f)!!pc r)
   /\ genv_match bc (Genv.globalenv prog)
   /\ bc sp = BCstack.
 Proof.
-  intros. inv H. exists bc; split; auto. rewrite AN. apply EM.
+  intros. inv H. specialize (Hsound _ Hle). inv Hsound. exists bc; split; auto. rewrite AN. apply EM.
 Qed. 
 
 Definition aaddr (a: VA.t) (r: reg) : aptr :=
@@ -1787,15 +1891,16 @@ Definition aaddr (a: VA.t) (r: reg) : aptr :=
   end.
 
 Lemma aaddr_sound:
-  forall prog s f sp pc e m r b ofs,
-  sound_state prog (State s f (Vptr sp Int.zero) pc e m) ->
+  forall prog s f sp pc e m r b ofs
+         sprog (Hle: program_linkeq Language.Language_RTL sprog prog),
+  sound_state_ext prog (State s f (Vptr sp Int.zero) pc e m) ->
   e#r = Vptr b ofs ->
   exists bc,
-     pmatch bc b ofs (aaddr (analyze (romem_for_program prog) f)!!pc r)
+     pmatch bc b ofs (aaddr (analyze (romem_for_program sprog) f)!!pc r)
   /\ genv_match bc (Genv.globalenv prog)
   /\ bc sp = BCstack.
 Proof.
-  intros. inv H. exists bc; split; auto.
+  intros. inv H. specialize (Hsound _ Hle). inv Hsound. exists bc; split; auto.
   unfold aaddr; rewrite AN. apply match_aptr_of_aval. rewrite <- H0. apply EM.
 Qed. 
 
@@ -1806,15 +1911,16 @@ Definition aaddressing (a: VA.t) (addr: addressing) (args: list reg) : aptr :=
   end.
 
 Lemma aaddressing_sound:
-  forall prog s f sp pc e m addr args b ofs,
-  sound_state prog (State s f (Vptr sp Int.zero) pc e m) ->
+  forall prog s f sp pc e m addr args b ofs
+         sprog (Hle: program_linkeq Language.Language_RTL sprog prog),
+  sound_state_ext prog (State s f (Vptr sp Int.zero) pc e m) ->
   eval_addressing (Genv.globalenv prog) (Vptr sp Int.zero) addr e##args = Some (Vptr b ofs) ->
   exists bc,
-     pmatch bc b ofs (aaddressing (analyze (romem_for_program prog) f)!!pc addr args)
+     pmatch bc b ofs (aaddressing (analyze (romem_for_program sprog) f)!!pc addr args)
   /\ genv_match bc (Genv.globalenv prog)
   /\ bc sp = BCstack.
 Proof.
-  intros. inv H. exists bc; split; auto. 
+  intros. inv H. specialize (Hsound _ Hle). inv Hsound. exists bc; split; auto. 
   unfold aaddressing. rewrite AN. apply match_aptr_of_aval. 
   eapply eval_static_addressing_sound; eauto with va.
 Qed.

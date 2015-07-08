@@ -21,6 +21,7 @@ Require Import Values.
 Require Import Memory.
 Require Import Events.
 Require Import Smallstep.
+Require Import Language.
 Require Import Globalenvs.
 Require Import Ctypes.
 Require Import Cop.
@@ -30,55 +31,82 @@ Require Import Cstrategy.
 Require Import Clight.
 Require Import SimplExpr.
 Require Import SimplExprspec.
+Require Import Linkeq.
+Require Import SepcompRel.
 
 Section PRESERVATION.
 
 Variable prog: Csyntax.program.
 Variable tprog: Clight.program.
-Hypothesis TRANSL: transl_program prog = OK tprog.
+
+Hypothesis TRANSF:
+  @sepcomp_rel
+    Language_C Language_Clight
+    (fun _ f tf => tr_function f tf)
+    (fun _ ef tef => ef = tef)
+    (@OK _)
+    prog tprog.
 
 Let ge := Genv.globalenv prog.
 Let tge := Genv.globalenv tprog.
 
 (** Invariance properties. *)
 
+Let prog_match:
+  match_program
+    (fun fd tfd => tr_fundef fd tfd)
+    (fun info tinfo => info = tinfo)
+    nil prog.(prog_main)
+    prog tprog.
+Proof.
+  destruct prog as [defs ?], tprog as [tdefs ?].
+  inv TRANSF. simpl in *. subst. clear ge tge.
+  revert tdefs Hdefs. generalize defs at 1 as fdefs.
+  induction defs; intros fdefs tdefs Hdefs.
+  { inv Hdefs. constructor; auto. exists nil. split; auto. constructor. }
+  inv Hdefs. destruct a, b1, H1 as [? H1]. simpl in *. subst.
+  eapply IHdefs in H3. destruct H3 as [H3 ?]. split; [|auto].
+  destruct H3 as [? H3]. simpl in *. rewrite app_nil_r in *.
+  destruct H3 as [H3 ?]. subst.
+  eexists. rewrite app_nil_r. split; auto.
+  constructor; auto.
+  destruct H1 as [prog_src [Hprog_src H1]]. inv H1.
+  - apply match_glob_fun. auto.
+    destruct fd_src; inv Hf_src. destruct fd_tgt; inv Hf_tgt.
+    constructor. auto.
+  - apply match_glob_fun.
+    destruct fd_src; inv Hef_src. destruct fd_tgt; inv Hef_tgt.
+    constructor.
+  - unfold transf_globvar in Hv. monadInv Hv. inv EQ.
+    destruct gv_src. constructor. auto.
+Qed.
+
 Lemma symbols_preserved:
   forall (s: ident), Genv.find_symbol tge s = Genv.find_symbol ge s.
-Proof.
-  intros. eapply Genv.find_symbol_match. eapply transl_program_spec; eauto. 
-  simpl. tauto.
-Qed.
+Proof. intros. eapply Genv.find_symbol_match. eauto. auto. Qed.
 
 Lemma function_ptr_translated:
   forall b f,
   Genv.find_funct_ptr ge b = Some f ->
   exists tf,
   Genv.find_funct_ptr tge b = Some tf /\ tr_fundef f tf.
-Proof.
-  intros. eapply Genv.find_funct_ptr_match.
-  eapply transl_program_spec; eauto.
-  assumption.
-Qed.
+Proof. intros. eapply Genv.find_funct_ptr_match; eauto. Qed.
 
 Lemma functions_translated:
   forall v f,
   Genv.find_funct ge v = Some f ->
   exists tf,
   Genv.find_funct tge v = Some tf /\ tr_fundef f tf.
-Proof.
-  intros. eapply Genv.find_funct_match.
-  eapply transl_program_spec; eauto.
-  assumption.
-Qed.
+Proof. intros. eapply Genv.find_funct_match; eauto. Qed.
 
 Lemma varinfo_preserved:
   forall b, Genv.find_var_info tge b = Genv.find_var_info ge b.
 Proof.
   intros. destruct (Genv.find_var_info ge b) as [v|] eqn:V. 
-- exploit Genv.find_var_info_match. eapply transl_program_spec; eauto. eassumption. 
+- exploit Genv.find_var_info_match; eauto.
   intros [tv [A B]]. inv B. assumption.
 - destruct (Genv.find_var_info tge b) as [v'|] eqn:V'; auto.
-  exploit Genv.find_var_info_rev_match. eapply transl_program_spec; eauto. eassumption. 
+  exploit Genv.find_var_info_rev_match; eauto.
   simpl. destruct (plt b (Genv.genv_next (Genv.globalenv prog))); try tauto.
   intros [v [A B]]. inv B. fold ge in A. congruence.
 Qed.
@@ -2194,14 +2222,13 @@ Lemma transl_initial_states:
   exists S', Clight.initial_state tprog S' /\ match_states S S'.
 Proof.
   intros. inv H. 
-  exploit transl_program_spec; eauto. intros MP.
   exploit function_ptr_translated; eauto. intros [tf [FIND TR]].
   econstructor; split.
   econstructor.
   exploit Genv.init_mem_match; eauto.  
-  simpl. fold tge. rewrite symbols_preserved.
-  destruct MP as [A B]. rewrite B; eexact H1.
-  eexact FIND.
+  replace (prog_main tprog) with (prog_main prog); try (inv prog_match; auto; fail).
+  rewrite symbols_preserved. eauto.
+  exploit function_ptr_translated; eauto.
   rewrite <- H3. apply type_of_fundef_preserved. auto.
   constructor. auto. constructor.
 Qed.
@@ -2225,3 +2252,26 @@ Proof.
 Qed.
 
 End PRESERVATION.
+
+Lemma SimplExpr_sepcomp_rel
+      cprog clightprog
+      (Htrans: SimplExpr.transl_program cprog = OK clightprog):
+  @sepcomp_rel
+    Language.Language_C Language.Language_Clight
+    (fun _ f tf => SimplExprspec.tr_function f tf)
+    (fun _ ef tef => ef = tef)
+    (@OK _)
+    cprog clightprog.
+Proof.
+  destruct cprog as [defs ?], clightprog as [tdefs ?].
+  exploit SimplExprspec.transl_program_spec; eauto. clear Htrans.
+  intros [[tglob [Hmatch Htglob]] Hmain]. constructor; auto.
+  rewrite app_nil_r in *. simpl in *. subst.
+  eapply list_forall2_imply; eauto. intros. inv H1; simpl; split; auto.
+  - eexists. split; [reflexivity|].
+    inv H2.
+    + eapply (@grel_f Language.Language_C Language.Language_Clight); simpl; auto.
+    + eapply (@grel_ef Language.Language_C Language.Language_Clight); simpl; auto.
+  - eexists. split; [reflexivity|].
+    apply (@grel_gv Language.Language_C Language.Language_Clight). auto.
+Qed.

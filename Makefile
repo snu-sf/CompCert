@@ -67,12 +67,14 @@ FLOCQ=\
 LIB=Axioms.v Coqlib.v Intv.v Maps.v Heaps.v Lattice.v Ordered.v \
   Iteration.v Integers.v Archi.v Fappli_IEEE_extra.v Floats.v \
   Parmov.v UnionFind.v Wfsimpl.v \
-  Postorder.v FSetAVLplus.v IntvSets.v
+  Postorder.v FSetAVLplus.v IntvSets.v \
+  CoqlibExtra.v MapsExtra.v Tree.v
 
 # Parts common to the front-ends and the back-end (in common/)
 
 COMMON=Errors.v AST.v Events.v Globalenvs.v Memdata.v Memtype.v Memory.v \
-  Values.v Smallstep.v Behaviors.v Switch.v Determinism.v Unityping.v
+  Values.v Smallstep.v Behaviors.v Switch.v Determinism.v Unityping.v \
+  Language.v Linkeq.v LinkerBasicproof.v LinkerProp.v SepcompRel.v Sig.v 
 
 # Back-end modules (in backend/, $(ARCH)/, $(ARCH)/$(VARIANT))
 
@@ -99,7 +101,8 @@ BACKEND=\
   CleanupLabels.v CleanupLabelsproof.v \
   Mach.v \
   Bounds.v Stacklayout.v Stacking.v Stackingproof.v \
-  Asm.v Asmgen.v Asmgenproof0.v Asmgenproof1.v Asmgenproof.v
+  Asm.v Asmgen.v Asmgenproof0.v Asmgenproof1.v Asmgenproof.v \
+  RTLExtra.v
 
 # C front-end modules (in cfrontend/)
 
@@ -122,7 +125,7 @@ PARSER=Cabs.v Parser.v
 
 # Putting everything together (in driver/)
 
-DRIVER=Compopts.v Compiler.v Complements.v
+DRIVER=Compopts.v Compiler.v Compilerproof.v Complements.v CompilerExtra.v Linker.v Linkerproof.v
 
 # All source files
 
