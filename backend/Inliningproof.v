@@ -111,16 +111,20 @@ Let fenv := funenv_program prog.
 
 Lemma symbols_preserved:
   forall (s: ident), Genv.find_symbol tge s = Genv.find_symbol ge s.
-Proof (find_symbol_transf_partial_optionally _ _ TRANSF).
+Proof.
+  apply (find_symbol_transf_partial_optionally _ _ TRANSF).
+Qed.
 
 Lemma varinfo_preserved:
   forall b, Genv.find_var_info tge b = Genv.find_var_info ge b.
-Proof (find_var_info_transf_partial_optionally _ _ TRANSF).
+Proof.
+  apply (find_var_info_transf_partial_optionally _ _ TRANSF).
+Qed.
 
 Lemma functions_translated:
   forall (v: val) (f: RTL.fundef),
   Genv.find_funct ge v = Some f ->
-  exists tf, Genv.find_funct tge v = Some tf /\ match_fundef prog f tf.
+  exists f', Genv.find_funct tge v = Some f' /\ match_fundef prog f f'.
 Proof.
   intros. exploit (find_funct_transf_partial_optionally _ _ TRANSF); eauto. simpl in *.
   intros [tf [Htf [[sprog [Hsprog Hf]]|Hf]]].
@@ -134,7 +138,7 @@ Qed.
 Lemma function_ptr_translated:
   forall (b: block) (f: RTL.fundef),
   Genv.find_funct_ptr ge b = Some f ->
-  exists tf, Genv.find_funct_ptr tge b = Some tf /\ match_fundef prog f tf.
+  exists f', Genv.find_funct_ptr tge b = Some f' /\ match_fundef prog f f'.
 Proof.
   intros. exploit (find_funct_ptr_transf_partial_optionally _ _ TRANSF); eauto. simpl in *.
   intros [tf [Htf [[sprog [Hsprog Hf]]|Hf]]].
@@ -1039,8 +1043,7 @@ Inductive match_identical_states: state -> state -> Prop :=
         (BELOW: Mem.valid_block m' sp')
         (MINJ: Mem.inject F m m'),
       match_identical_states (State stk f (Vptr sp Int.zero) pc rs m)
-                             (State stk' f (Vptr sp' Int.zero) pc rs' m')
-.
+                             (State stk' f (Vptr sp' Int.zero) pc rs' m').
 
 Inductive match_states: state -> state -> Prop :=
   | match_transl_regular_states: forall bound0 stk1 stk2 f sp pc rs m stk1' stk2' f' sp' rs' m' F ctx sprog
@@ -1422,7 +1425,7 @@ Proof.
     intros. eapply Mem.perm_free_1; eauto. 
     intros. eapply Mem.perm_free_3; eauto.
   erewrite Mem.nextblock_free; eauto. red in VB; xomega.
-  destruct or; simpl.  apply agree_val_reg; auto. auto.
+  destruct or; simpl. apply agree_val_reg; auto. auto.
   eapply Mem.free_right_inject; eauto. eapply Mem.free_left_inject; eauto.
   (* show that no valid location points into the stack block being freed *)
   intros. inversion FB; subst.
@@ -1540,7 +1543,7 @@ Proof.
   exploit external_call_mem_inject; eauto. 
     eapply match_globalenvs_preserves_globals; eauto.
   intros [F1 [v1 [m1' [A [B [C [D [E [J K]]]]]]]]].
-  assert (fd' = External ef) by (inv FD; auto; inv FD0; auto). subst.
+  assert (fd' = External ef) by (inv FD; auto; inv FD0; auto). subst. 
   left; econstructor; split.
   eapply plus_one. eapply exec_function_external; eauto. 
     eapply external_call_symbols_preserved; eauto. 
@@ -1572,7 +1575,7 @@ Proof.
   apply match_transl_stacks_inside_set_reg; auto. 
   apply agree_set_reg; auto.
   unfold Mem.valid_block. xomega.
-  (*** untail ***)
+  (* untailcall case *)
   inv MS; try congruence.
   rewrite <- app_comm_cons in *. inv x.
   rewrite RET in RET0; inv RET0.
@@ -1618,7 +1621,7 @@ Lemma transf_initial_states:
   forall st1, initial_state prog st1 -> exists st2, initial_state tprog st2 /\ match_states st1 st2.
 Proof.
   intros. inv H.
-  exploit function_ptr_translated; eauto. intros [tf [FIND TF]].
+  exploit function_ptr_translated; eauto. intros [tf [FIND TR]].
   exists (Callstate nil tf nil m0); split.
   econstructor; eauto.
     exploit (init_mem_transf_partial_optionally _ _ TRANSF); eauto.

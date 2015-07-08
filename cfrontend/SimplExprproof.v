@@ -58,7 +58,7 @@ Let prog_match:
     (fun info tinfo => info = tinfo)
     nil prog.(prog_main)
     prog tprog.
-Proof.
+Proof. 
   destruct prog as [defs ?], tprog as [tdefs ?].
   inv TRANSF. simpl in *. subst. clear ge tge.
   revert tdefs Hdefs. generalize defs at 1 as fdefs.
@@ -79,25 +79,32 @@ Proof.
     constructor.
   - unfold transf_globvar in Hv. monadInv Hv. inv EQ.
     destruct gv_src. constructor. auto.
-Qed.
+Qed. 
 
 Lemma symbols_preserved:
   forall (s: ident), Genv.find_symbol tge s = Genv.find_symbol ge s.
-Proof. intros. eapply Genv.find_symbol_match. eauto. auto. Qed.
+Proof.
+  intros. eapply Genv.find_symbol_match. eauto.
+  simpl. tauto.
+Qed.
 
 Lemma function_ptr_translated:
   forall b f,
   Genv.find_funct_ptr ge b = Some f ->
   exists tf,
   Genv.find_funct_ptr tge b = Some tf /\ tr_fundef f tf.
-Proof. intros. eapply Genv.find_funct_ptr_match; eauto. Qed.
+Proof.
+  intros. eapply Genv.find_funct_ptr_match; eauto.
+Qed.
 
 Lemma functions_translated:
   forall v f,
   Genv.find_funct ge v = Some f ->
   exists tf,
   Genv.find_funct tge v = Some tf /\ tr_fundef f tf.
-Proof. intros. eapply Genv.find_funct_match; eauto. Qed.
+Proof.
+  intros. eapply Genv.find_funct_match; eauto.
+Qed.
 
 Lemma varinfo_preserved:
   forall b, Genv.find_var_info tge b = Genv.find_var_info ge b.
