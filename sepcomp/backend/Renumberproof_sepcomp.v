@@ -116,7 +116,9 @@ Qed.
 Lemma find_function_translated:
   forall ros rs fd,
   find_function ge ros rs = Some fd ->
-  exists tfd, find_function tge ros rs = Some tfd /\ (match_fundef fd tfd).
+  exists tfd,
+    <<TFD: find_function tge ros rs = Some tfd>> /\
+    <<MATCH: match_fundef fd tfd>>.
 Proof.
   unfold find_function; intros. destruct ros as [r|id]. 
   eapply functions_translated; eauto.
@@ -188,7 +190,7 @@ Proof.
 Qed.
   
 Inductive match_frames: RTL.stackframe -> RTL.stackframe -> Prop :=
-  | match_frames_transl: forall res f sp pc rs
+  | match_frames_intro: forall res f sp pc rs
         (REACH: reach f pc),
       match_frames (Stackframe res f sp pc rs)
                    (Stackframe res (transf_function f) sp (renum_pc (pnum f) pc) rs)
@@ -197,28 +199,29 @@ Inductive match_frames: RTL.stackframe -> RTL.stackframe -> Prop :=
                    (Stackframe res f sp pc rs).
 
 Inductive match_identical_states: RTL.state -> RTL.state -> Prop :=
-| match_identical_regular_states: forall stk f sp pc rs m stk'
+  | match_identical_regular_states: forall stk f sp pc rs m stk'
         (STACKS: list_forall2 match_frames stk stk'),
       match_identical_states (State stk f sp pc rs m)
                    (State stk' f sp pc rs m).
 
 Inductive match_states: RTL.state -> RTL.state -> Prop :=
-| match_regular_states: forall stk f sp pc rs m stk'
+  | match_regular_states: forall stk f sp pc rs m stk'
         (STACKS: list_forall2 match_frames stk stk')
         (REACH: reach f pc),
       match_states (State stk f sp pc rs m)
                    (State stk' (transf_function f) sp (renum_pc (pnum f) pc) rs m)
-| match_callstates: forall stk f f' args m stk'
+  | match_callstates: forall stk f args m stk' f'
         (FD: match_fundef f f')
         (STACKS: list_forall2 match_frames stk stk'),
       match_states (Callstate stk f args m)
                    (Callstate stk' f' args m)
-| match_returnstates: forall stk v m stk'
+  | match_returnstates: forall stk v m stk'
         (STACKS: list_forall2 match_frames stk stk'),
       match_states (Returnstate stk v m)
                    (Returnstate stk' v m)
-| match_states_identical: forall s s' (MATCH: match_identical_states s s'),
-                            match_states s s'.
+  | match_states_identical: forall s s'
+        (MATCH: match_identical_states s s'),
+      match_states s s'.
 
 Lemma step_simulation_identical:
   forall S1 t S2, RTL.step ge S1 t S2 ->
@@ -266,7 +269,6 @@ Lemma step_simulation:
   exists S2', RTL.step tge S1' t S2' /\ match_states S2 S2'.
 Proof.
   intros s1 t s2 BACKUP_STEP. generalize BACKUP_STEP.
-
   induction 1; intros S1' MS; inv MS;
   try (by eauto using step_simulation_identical); try TR_AT.
 
@@ -291,19 +293,17 @@ Proof.
   eapply exec_Istore; eauto.
   constructor; auto. eapply reach_succ; eauto. simpl; auto.
 (* call *)
-  exploit find_function_translated; eauto.
-  intros Htfd. destruct Htfd as [tfd [findtfd matchtfd]].
+  exploit find_function_translated; eauto. i. des.
   econstructor; split.
   eapply exec_Icall with (fd := tfd); eauto.
-  inv matchtfd; auto.
+    inv MATCH; auto.
     apply sig_preserved.
   constructor; auto. constructor; auto. constructor; auto. eapply reach_succ; eauto. simpl; auto.
 (* tailcall *)
-  exploit find_function_translated; eauto.
-  intros Htfd. destruct Htfd as [tfd [findtfd matchtfd]].
+  exploit find_function_translated; eauto. i. des.
   econstructor; split.
   eapply exec_Itailcall with (fd := tfd); eauto.
-  inv matchtfd; auto.
+    inv MATCH; auto.
     apply sig_preserved.
   constructor; auto.
 (* builtin *)
@@ -332,14 +332,13 @@ Proof.
   (* call translated *)
   simpl. econstructor; split.
   eapply exec_function_internal; eauto. 
-  constructor; auto. unfold reach. constructor.
+  constructor; auto. unfold reach. constructor. 
   (* call identical *)
   simpl. econstructor; split.
   eapply exec_function_internal; eauto.
   apply match_states_identical. constructor; auto.
 (* external function *)
-  assert (f' = AST.External ef); subst.
-  { inv FD; auto. }
+  assert (f' = AST.External ef) by (inv FD; auto). subst.
   econstructor; split.
   eapply exec_function_external; eauto.
     eapply external_call_symbols_preserved; eauto.
@@ -363,16 +362,13 @@ Lemma transf_initial_states:
   exists S2, RTL.initial_state tprog S2 /\ match_states S1 S2.
 Proof.
   intros. inv H.
-  exploit function_ptr_translated; eauto.
-  intros Htf. destruct Htf as [tf [findtf matchtf]].
+  exploit function_ptr_translated; eauto. i. des.
   econstructor; split.
   econstructor. 
     eapply (init_mem_transf_optionally _ _ TRANSF); eauto. 
-    replace (AST.prog_main tprog) with (AST.prog_main prog).
-    rewrite symbols_preserved. eauto.
-    inv TRANSF. auto.
-    eauto.    
-    inv matchtf; auto.
+    replace (AST.prog_main tprog) with (AST.prog_main prog); [|by inv TRANSF; auto].
+    rewrite symbols_preserved. eauto. 
+    eauto. inv H4; auto.
     rewrite <- H3; apply sig_preserved.
   constructor; auto. constructor.
 Qed.

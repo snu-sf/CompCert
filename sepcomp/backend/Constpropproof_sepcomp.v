@@ -53,7 +53,6 @@ Hypothesis TRANSF:
     prog tprog.
 Let ge := Genv.globalenv prog.
 Let tge := Genv.globalenv tprog.
-Let rm := romem_for_program prog.
 
 Inductive match_fundef prog: forall (fd fd':fundef), Prop :=
 | match_fundef_transl fd fd' sprog
@@ -178,9 +177,7 @@ Proof.
   intros until rs'; intros GE EM FF RLD. destruct ros; simpl in *.
 - (* function pointer *)
   generalize (EM r); fold (areg ae r); intro VM. generalize (RLD r); intro LD.
-  assert (DEFAULT:
-            exists tf,
-              find_function tge (inl _ r) rs' = Some tf /\ match_fundef prog f tf).
+  assert (DEFAULT: exists tf, find_function tge (inl _ r) rs' = Some tf /\ match_fundef prog f tf).
   {
     simpl. inv LD. apply functions_translated; auto. rewrite <- H0 in FF; discriminate. 
   }
@@ -362,19 +359,19 @@ End BUILTIN_STRENGTH_REDUCTION.
   between the final states [st1'] and [st2']. *)
 
 Inductive match_stackframes: stackframe -> stackframe -> Prop :=
-  | match_stackframes_transl:
+   match_stackframe_intro:
       forall res sp pc rs f rs' sprog,
-      program_linkeq Language_RTL sprog prog ->
+      forall (SPROG: program_linkeq Language_RTL sprog prog),
       regs_lessdef rs rs' ->
     match_stackframes
         (Stackframe res f sp pc rs)
         (Stackframe res (transf_function (romem_for_program sprog) f) sp pc rs')
-  | match_stackframes_identical:
+ | match_stackframe_identical:
       forall res sp pc rs rs' f
              (ENV: regset_lessdef rs rs'),
-        match_stackframes
-          (Stackframe res f sp pc rs)
-          (Stackframe res f sp pc rs').
+    match_stackframes
+        (Stackframe res f sp pc rs)
+        (Stackframe res f sp pc rs').
 
 Inductive match_identical_states: state -> state -> Prop :=
   match_identical_states_intro:
@@ -397,13 +394,13 @@ Inductive match_states: nat -> state -> state -> Prop :=
       match_states n (State s f sp pc rs m)
                     (State s' (transf_function (romem_for_program sprog) f) sp pc' rs' m')
   | match_states_call:
-      forall s f args m s' args' m' tf
+      forall s f args m s' args' m' f'
            (STACKS: list_forall2 match_stackframes s s')
            (ARGS: Val.lessdef_list args args')
-           (MFUN: match_fundef prog f tf)
+           (MFUN: match_fundef prog f f')
            (MEM: Mem.extends m m'),
       match_states O (Callstate s f args m)
-                     (Callstate s' tf args' m')
+                     (Callstate s' f' args' m')
   | match_states_return:
       forall s v m s' v' m'
            (STACKS: list_forall2 match_stackframes s s')
@@ -419,7 +416,7 @@ Inductive match_states: nat -> state -> state -> Prop :=
 
 Lemma match_states_succ:
   forall s f sp pc rs m s' rs' m' sprog,
-  program_linkeq Language_RTL sprog prog ->
+  forall (SPROG: program_linkeq Language_RTL sprog prog),
   sound_state_ext prog (State s f sp pc rs m) ->
   list_forall2 match_stackframes s s' ->
   regs_lessdef rs rs' ->
@@ -427,7 +424,7 @@ Lemma match_states_succ:
   match_states O (State s f sp pc rs m)
                  (State s' (transf_function (romem_for_program sprog) f) sp pc rs' m').
 Proof.
-  intros. inv H0. specialize (Hsound _ H). inv Hsound. 
+  intros. inv H. specialize (Hsound _ SPROG). inv Hsound. 
   apply match_states_intro with (bc := bc) (ae := ae); auto. 
   constructor.
 Qed.
@@ -549,7 +546,7 @@ Proof.
   (* constant is propagated *)
   exploit const_for_result_correct; eauto. intros (v' & A & B).
   left; econstructor; econstructor; split.
-  eapply exec_Iop; eauto.
+  eapply exec_Iop; eauto. 
   apply match_states_intro with bc ae'; auto.
   apply match_successor. 
   apply set_reg_lessdef; auto.
@@ -629,8 +626,7 @@ Proof.
   exploit transf_ros_correct; eauto. intros [tf [FIND' MATCHF']].
   TransfInstr; intro.
   left; econstructor; econstructor; split.
-  eapply exec_Icall; eauto.
-  eapply match_fundef_sig; eauto.
+  eapply exec_Icall; eauto. eapply match_fundef_sig; eauto.
   constructor; auto. constructor; auto.
   econstructor; eauto.
   apply regs_lessdef_regs; auto. 
@@ -641,7 +637,7 @@ Proof.
   TransfInstr; intro.
   left; econstructor; econstructor; split.
   eapply exec_Itailcall; eauto. eapply match_fundef_sig; eauto.
-  constructor; auto.
+  constructor; auto. 
   apply regs_lessdef_regs; auto. 
 
   (* Ibuiltin *)
@@ -733,8 +729,7 @@ Opaque builtin_strength_reduction.
   (* external function *)
   exploit external_call_mem_extends; eauto. 
   intros [v' [m2' [A [B [C D]]]]].
-  assert (tf = External ef); subst.
-  { inv MFUN; auto. }
+  assert (f' = External ef) by (inv MFUN; auto). subst.
   simpl. left; econstructor; econstructor; split.
   eapply exec_function_external; eauto.
   eapply external_call_symbols_preserved; eauto.
@@ -745,10 +740,10 @@ Opaque builtin_strength_reduction.
   inv STACKS. inv H1.
     (* transl *)
   assert (X: exists bc ae, ematch bc (rs#res <- vres) ae).
-  { inv SS2. specialize (Hsound _ H8). inv Hsound. exists bc; exists ae; auto. }
+  { inv SS2. specialize (Hsound _ SPROG). inv Hsound. exists bc; exists ae; auto. }
   destruct X as (bc1 & ae1 & MATCH).
   left; exists O; econstructor; split.
-  eapply exec_return; eauto.
+  eapply exec_return; eauto. 
   econstructor; eauto. constructor. apply set_reg_lessdef; auto. 
     (* identical *)
   left; exists O; econstructor; split.
@@ -756,18 +751,6 @@ Opaque builtin_strength_reduction.
   econstructor; eauto.
   apply regset_lessdef_set_reg; auto.
 Qed.
-
-(* Lemma transf_step_correct: *)
-(*   forall s1 t s2, *)
-(*   step ge s1 t s2 -> *)
-(*   forall n1 s1' (SS1: sound_state_ext prog s1) (SS2: sound_state_ext prog s2) (MS: match_states n1 s1 s1'), *)
-(*   (exists n2, exists s2', step tge s1' t s2' /\ match_states n2 s2 s2') *)
-(*   \/ (exists n2, n2 < n1 /\ t = E0 /\ match_states n2 s2 s1')%nat. *)
-(* Proof. *)
-(*   intros. inv MS. *)
-(*   - apply (transf_step_correct_transl s1); auto. *)
-(*   - left. apply (transf_step_correct_identical s1); auto. *)
-(* Qed. *)
 
 Lemma transf_initial_states:
   forall st1, initial_state prog st1 ->
@@ -778,9 +761,8 @@ Proof.
   exists O; exists (Callstate nil tf nil m0); split.
   econstructor; eauto.
   apply (init_mem_transf_optionally _ _ TRANSF); auto.
-  replace (prog_main tprog) with (prog_main prog).
+  replace (prog_main tprog) with (prog_main prog); [|by inv TRANSF].
   rewrite symbols_preserved. eauto.
-  inv TRANSF. auto.
   rewrite <- H3. eapply match_fundef_sig; eauto.
   constructor; auto. constructor. apply Mem.extends_refl.
 Qed.
