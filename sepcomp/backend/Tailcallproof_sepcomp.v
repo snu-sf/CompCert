@@ -259,7 +259,7 @@ Inductive match_fundef: forall (fd fd':fundef), Prop :=
 
 Lemma symbols_preserved:
   forall (s: ident), Genv.find_symbol tge s = Genv.find_symbol ge s.
-Proof (find_symbol_transf_optionally _ _ TRANSF). 
+Proof (find_symbol_transf_optionally _ _ TRANSF).
 
 Lemma varinfo_preserved:
   forall b, Genv.find_var_info tge b = Genv.find_var_info ge b.
@@ -268,8 +268,9 @@ Proof (find_var_info_transf_optionally _ _ TRANSF).
 Lemma functions_translated:
   forall (v: val) (f: RTL.fundef),
   Genv.find_funct ge v = Some f ->
-  exists tf, match_fundef f tf /\
-             Genv.find_funct tge v = Some tf.
+  exists tf,
+    <<TF: Genv.find_funct tge v = Some tf>> /\
+    <<MATCH: match_fundef f tf>>.
 Proof.
   generalize (find_funct_transf_optionally _ _ TRANSF).
   intros H1 v f. specialize (H1 v f).
@@ -289,8 +290,9 @@ Qed.
 Lemma funct_ptr_translated:
   forall (b: block) (f: RTL.fundef),
   Genv.find_funct_ptr ge b = Some f ->
-  exists tf, match_fundef f tf /\
-             Genv.find_funct_ptr tge b = Some tf.
+  exists tf,
+    <<TF: Genv.find_funct_ptr tge b = Some tf>> /\
+    <<MATCH: match_fundef f tf>>.
 Proof.
   generalize (find_funct_ptr_transf_optionally _ _ TRANSF).
   intros H1 v f. specialize (H1 v f).
@@ -333,8 +335,9 @@ Lemma find_function_translated:
   forall ros rs rs' f,
   find_function ge ros rs = Some f ->
   regset_lessdef rs rs' ->
-  exists tf, match_fundef f tf /\
-             find_function tge ros rs' = Some tf.
+  exists tf,
+    <<TF: find_function tge ros rs' = Some tf>> /\
+    <<MATCH: match_fundef f tf>>.
 Proof.
   intros until f; destruct ros; simpl.
   intros.
@@ -384,12 +387,6 @@ to a frame that was eliminated by the transformation. *)
 Inductive match_stackframes: list stackframe -> list stackframe -> Prop :=
   | match_stackframes_nil:
       match_stackframes nil nil
-  | match_identical_stackframes_normal: forall stk stk' res sp pc rs rs' f,
-      match_stackframes stk stk' ->
-      regset_lessdef rs rs' ->
-      match_stackframes
-        (Stackframe res f (Vptr sp Int.zero) pc rs :: stk)
-        (Stackframe res f (Vptr sp Int.zero) pc rs' :: stk')
   | match_stackframes_normal: forall stk stk' res sp pc rs rs' f,
       match_stackframes stk stk' ->
       regset_lessdef rs rs' ->
@@ -402,13 +399,18 @@ Inductive match_stackframes: list stackframe -> list stackframe -> Prop :=
       f.(fn_stacksize) = 0 ->
       match_stackframes
         (Stackframe res f (Vptr sp Int.zero) pc rs :: stk)
-        stk'.
+        stk'
+  | match_stackframes_identical: forall stk stk' res sp pc rs rs' f,
+      match_stackframes stk stk' ->
+      regset_lessdef rs rs' ->
+      match_stackframes
+        (Stackframe res f (Vptr sp Int.zero) pc rs :: stk)
+        (Stackframe res f (Vptr sp Int.zero) pc rs' :: stk').
 
 (** Here is the invariant relating two states.  The first three
   cases are standard.  Note the ``less defined than'' conditions
   over values and register states, and the corresponding ``extends''
   relation over memory states. *)
-
 
 Inductive match_identical_states: state -> state -> Prop :=
   | match_identical_states_normal:
@@ -428,13 +430,13 @@ Inductive match_states: state -> state -> Prop :=
       match_states (State s f (Vptr sp Int.zero) pc rs m)
                    (State s' (transf_function f) (Vptr sp Int.zero) pc rs' m')
   | match_states_call:
-      forall s f args m s' args' m' tf,
+      forall s f args m s' f' args' m',
       match_stackframes s s' ->
       Val.lessdef_list args args' ->
       Mem.extends m m' ->
-      match_fundef f tf ->
+      match_fundef f f' ->
       match_states (Callstate s f args m)
-                   (Callstate s' tf args' m')
+                   (Callstate s' f' args' m')
   | match_states_return:
       forall s v m s' v' m',
       match_stackframes s s' ->
@@ -516,7 +518,7 @@ Proof.
     exploit find_function_translated; eauto. i; des.
     left. esplits; eauto using exec_Icall, match_fundef_sig.
     econs; eauto using regset_lessdef_val_lessdef_list.
-    constructor; auto.
+    constructor 4; auto.
   - (* Itailcall *)
     inv H; clarify.
     exploit find_function_translated; eauto. i; des.
@@ -528,7 +530,7 @@ Proof.
     }
     destruct X as [m1' FREE].
     exploit Mem.free_parallel_extends; eauto. i; des.
-    rewrite FREE in H1. inv H1.
+    rewrite FREE in H. inv H.
     left. esplits; eauto using exec_Itailcall, match_fundef_sig.
     econs; eauto using regset_lessdef_val_lessdef_list.
   - (* Ireturn *)
@@ -596,21 +598,19 @@ Proof.
   econstructor; eauto.
 
 (* call *)
-  exploit find_function_translated; eauto. intro FIND'.  
-  inv FIND'. des.
-  inv H1.
+  exploit find_function_translated; eauto. i. des. inv MATCH.
   (* transl *)
   TransfInstr.
 (* call turned tailcall *)
   assert ({ m'' | Mem.free m' sp0 0 (fn_stacksize (transf_function f)) = Some m''}).
-    apply Mem.range_perm_free. rewrite stacksize_preserved. rewrite H8. 
+    apply Mem.range_perm_free. rewrite stacksize_preserved. rewrite H7. 
     red; intros; omegaContradiction.
   destruct X as [m'' FREE].
   left. exists (Callstate s' (transf_fundef fd) (rs'##args) m''); split.
   eapply exec_Itailcall; eauto. apply sig_preserved. 
   constructor. eapply match_stackframes_tail; eauto. apply regset_get_list; auto.
   eapply Mem.free_right_extends; eauto.
-  rewrite stacksize_preserved. rewrite H8. intros. omegaContradiction.
+  rewrite stacksize_preserved. rewrite H7. intros. omegaContradiction.
   constructor; auto.
 (* call that remains a call *)
   left. exists (Callstate (Stackframe res (transf_function f) (Vptr sp0 Int.zero) pc' rs' :: s')
@@ -618,30 +618,28 @@ Proof.
   eapply exec_Icall; eauto. apply sig_preserved. 
   constructor. constructor; auto. apply regset_get_list; auto. auto. 
   constructor; auto.
-    (* identical *)
+  (* identical *)
   TransfInstr.
 (* call turned tailcall *)
   assert ({ m'' | Mem.free m' sp0 0 (fn_stacksize (transf_function f)) = Some m''}).
-    apply Mem.range_perm_free. rewrite stacksize_preserved. rewrite H8.
+    apply Mem.range_perm_free. rewrite stacksize_preserved. rewrite H7.
     red; intros; omegaContradiction.
   destruct X as [m'' FREE].
-  left. exists (Callstate s' x (rs'##args) m''); split.
+  left. exists (Callstate s' tf (rs'##args) m''); split.
   eapply exec_Itailcall; eauto.
   constructor. eapply match_stackframes_tail; eauto. apply regset_get_list; auto.
   eapply Mem.free_right_extends; eauto.
-  rewrite stacksize_preserved. rewrite H8. intros. omegaContradiction.
+  rewrite stacksize_preserved. rewrite H7. intros. omegaContradiction.
   apply match_fundef_identical; auto.
 (* call that remains a call *)
   left. exists (Callstate (Stackframe res (transf_function f) (Vptr sp0 Int.zero) pc' rs' :: s')
-                          x (rs'##args) m'); split.
+                          tf (rs'##args) m'); split.
   eapply exec_Icall; eauto.
   constructor. constructor; auto. apply regset_get_list; auto. auto.
   apply match_fundef_identical; auto.
 
 (* tailcall *) 
-  exploit find_function_translated; eauto. intro FIND'.
-  inv FIND'. des.
-  inv H1.
+  exploit find_function_translated; eauto. i. des. inv MATCH.
   (* transl *)
   exploit Mem.free_parallel_extends; eauto. intros [m'1 [FREE EXT]].
   TransfInstr.
@@ -653,7 +651,7 @@ Proof.
   (* identical *)
   exploit Mem.free_parallel_extends; eauto. intros [m'1 [FREE EXT]].
   TransfInstr.
-  left. exists (Callstate s' x (rs'##args) m'1); split.
+  left. exists (Callstate s' tf (rs'##args) m'1); split.
   eapply exec_Itailcall; eauto.
   rewrite stacksize_preserved; auto.
   constructor. auto.  apply regset_get_list; auto. auto. 
@@ -735,8 +733,7 @@ Proof.
   apply regset_init_regs. auto. 
 
 (* external call *)
-  assert (tf = External ef); subst.
-  { inv H8; auto. }
+  assert (f' = External ef) by (inv H8; auto). subst.
   exploit external_call_mem_extends; eauto.
   intros [res' [m2' [A [B [C D]]]]].
   left. exists (Returnstate s' res' m2'); split.
@@ -750,11 +747,7 @@ Proof.
 (* synchronous return in both programs *)
   left. econstructor; split. 
   apply exec_return. 
-  apply match_states_identical. constructor; auto. apply regset_set; auto. 
-(* identical *)
-  left. econstructor; split.
-  apply exec_return. 
-  constructor; auto. apply regset_set; auto.
+  constructor; auto. apply regset_set; auto. 
 (* return instr in source program, eliminated because of tailcall *)
   right. split. unfold measure. simpl length. 
   change (S (length s) * (niter + 2))%nat
@@ -763,6 +756,10 @@ Proof.
   split. auto. 
   econstructor; eauto.
   rewrite Regmap.gss. auto. 
+(* identical *)
+  left. econstructor; split.
+  apply exec_return. 
+  constructor; auto. econs; eauto. apply regset_set; auto.
 Qed.
 
 Lemma transf_initial_states:
@@ -770,7 +767,7 @@ Lemma transf_initial_states:
   exists st2, initial_state tprog st2 /\ match_states st1 st2.
 Proof.
   intros. inv H. 
-  exploit funct_ptr_translated; eauto. intros [tf [MATCHFD FIND]].
+  exploit funct_ptr_translated; eauto. i. des.
   exists (Callstate nil tf nil m0); split.
   econstructor; eauto. apply (init_mem_transf_optionally _ _ TRANSF). auto.
   replace (prog_main tprog) with (prog_main prog).
