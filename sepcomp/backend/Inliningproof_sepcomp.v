@@ -614,9 +614,9 @@ Lemma match_transl_stacks_bound:
   match_transl_stacks F m m' bound0 stk stk' bound1.
 Proof.
   intros. inv H.
-  - apply match_transl_stacks_nil. xomega.
-  - eapply match_transl_stacks_cons; eauto. xomega.
-  - eapply match_transl_stacks_untailcall; eauto. xomega.
+  apply match_transl_stacks_nil. xomega.
+  eapply match_transl_stacks_cons; eauto. xomega.
+  eapply match_transl_stacks_untailcall; eauto. xomega.
 Qed. 
 
 Lemma match_transl_stacks_bounds:
