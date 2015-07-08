@@ -832,7 +832,7 @@ Qed.
 
 Lemma match_stacks_inside_inlined_tailcall:
   forall F m m' stk stk' f' ctx sp' rs' ctx' f sprog,
-  program_linkeq Language_RTL sprog prog ->
+  forall (SPROG: program_linkeq Language_RTL sprog prog),
   match_stacks_inside F m m' stk stk' f' ctx sp' rs' ->
   context_below ctx ctx' ->
   context_stack_tailcall ctx f ctx' ->
@@ -841,14 +841,14 @@ Lemma match_stacks_inside_inlined_tailcall:
   tr_funbody (funenv_program sprog) f'.(fn_stacksize) ctx' f f'.(fn_code) ->
   match_stacks_inside F m m' stk stk' f' ctx' sp' rs'.
 Proof.
-  intros. inv H0.
+  intros. inv H.
   (* base *)
   eapply match_stacks_inside_base; eauto. congruence. 
-  rewrite H2. rewrite DSTK. apply align_unchanged. apply min_alignment_pos. apply Zdivide_0.
+  rewrite H1. rewrite DSTK. apply align_unchanged. apply min_alignment_pos. apply Zdivide_0.
   (* inlined *)
-  assert (dstk ctx <= dstk ctx'). rewrite H2. apply align_le. apply min_alignment_pos.
+  assert (dstk ctx <= dstk ctx'). rewrite H1. apply align_le. apply min_alignment_pos.
   eapply match_stacks_inside_inlined; eauto. 
-  red; intros. destruct (zlt ofs (dstk ctx)). apply PAD; omega. apply H4. inv H5. xomega. 
+  red; intros. destruct (zlt ofs (dstk ctx)). apply PAD; omega. apply H3. inv H4. xomega. 
   congruence. 
   unfold context_below in *. xomega.
   unfold context_stack_call in *. omega. 
