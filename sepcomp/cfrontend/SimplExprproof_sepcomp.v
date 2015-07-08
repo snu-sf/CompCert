@@ -102,12 +102,13 @@ Proof. intros. eapply Genv.find_funct_match; eauto. Qed.
 Lemma varinfo_preserved:
   forall b, Genv.find_var_info tge b = Genv.find_var_info ge b.
 Proof.
-  intros. destruct (Genv.find_var_info ge b) as [v|] eqn:V.
-  - exploit Genv.find_var_info_match; eauto. intros [tv [A B]]. inv B. assumption.
-  - destruct (Genv.find_var_info tge b) as [v'|] eqn:V'; auto.
-    exploit Genv.find_var_info_rev_match; eauto.
-    simpl. destruct (plt b (Genv.genv_next (Genv.globalenv prog))); try tauto.
-    intros [v [A B]]. inv B. fold ge in A. congruence.
+  intros. destruct (Genv.find_var_info ge b) as [v|] eqn:V. 
+- exploit Genv.find_var_info_match; eauto.
+  intros [tv [A B]]. inv B. assumption.
+- destruct (Genv.find_var_info tge b) as [v'|] eqn:V'; auto.
+  exploit Genv.find_var_info_rev_match; eauto.
+  simpl. destruct (plt b (Genv.genv_next (Genv.globalenv prog))); try tauto.
+  intros [v [A B]]. inv B. fold ge in A. congruence.
 Qed.
 
 Lemma block_is_volatile_preserved:
@@ -2225,9 +2226,8 @@ Proof.
   econstructor; split.
   econstructor.
   exploit Genv.init_mem_match; eauto.  
-  replace (prog_main tprog) with (prog_main prog).
+  replace (prog_main tprog) with (prog_main prog); [|by inv TRANSF].
   rewrite symbols_preserved. eauto.
-  inv TRANSF. auto.
   exploit function_ptr_translated; eauto.
   rewrite <- H3. apply type_of_fundef_preserved. auto.
   constructor. auto. constructor.
