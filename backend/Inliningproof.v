@@ -107,9 +107,9 @@ Proof (find_var_info_transf_partial _ _ TRANSF).
 Lemma functions_translated:
   forall (v: val) (f: RTL.fundef),
   Genv.find_funct ge v = Some f ->
-  exists tf, Genv.find_funct tge v = Some tf /\ 
+  exists f', Genv.find_funct tge v = Some f' /\ 
              exists sprog, program_linkeq Language_RTL sprog prog /\
-                           transf_fundef (funenv_program sprog) f = OK tf.
+                           transf_fundef (funenv_program sprog) f = OK f'.
 Proof.
   intros. exploit (find_funct_transf_partial _ _ TRANSF); eauto. simpl in *.
   intros [tf [Htf [sprog [Hsprog Hf]]]].
@@ -122,9 +122,9 @@ Qed.
 Lemma function_ptr_translated:
   forall (b: block) (f: RTL.fundef),
   Genv.find_funct_ptr ge b = Some f ->
-  exists tf, Genv.find_funct_ptr tge b = Some tf /\ 
+  exists f', Genv.find_funct_ptr tge b = Some f' /\ 
              exists sprog, program_linkeq Language_RTL sprog prog /\
-                           transf_fundef (funenv_program sprog) f = OK tf.
+                           transf_fundef (funenv_program sprog) f = OK f'.
 Proof.
   intros. exploit (find_funct_ptr_transf_partial _ _ TRANSF); eauto. simpl in *.
   intros [tf [Htf [sprog [Hsprog Hf]]]].

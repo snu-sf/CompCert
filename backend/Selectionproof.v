@@ -44,6 +44,7 @@ Require Import CoqlibExtra.
 Local Open Scope cminorsel_scope.
 Local Open Scope error_monad_scope.
 
+
 (** * Correctness of the instruction selection functions for expressions *)
 
 Section PRESERVATION.
@@ -107,7 +108,9 @@ Lemma function_ptr_translated:
   exists tf, Genv.find_funct_ptr tge b = Some tf /\
   exists sprog, program_linkeq Language_Cminor sprog prog /\
   sel_fundef (Genv.globalenv sprog) f = OK tf.
-Proof. intros. exploit Genv.find_funct_ptr_match; eauto. Qed.
+Proof.  
+  intros. exploit Genv.find_funct_ptr_match; eauto.
+Qed.
 
 Lemma functions_translated:
   forall (v v': val) (f: Cminor.fundef),
@@ -116,7 +119,7 @@ Lemma functions_translated:
   exists tf, Genv.find_funct tge v' = Some tf /\
   exists sprog, program_linkeq Language_Cminor sprog prog /\
   sel_fundef (Genv.globalenv sprog) f = OK tf.
-Proof.
+Proof.  
   intros. exploit Genv.find_funct_match; eauto.
   intros [tf [Htf [sprog [Hsprog hf]]]].
   eexists; split; eauto.
