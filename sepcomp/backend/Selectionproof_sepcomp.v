@@ -150,7 +150,7 @@ Lemma helper_declared_preserved:
   forall id sg, helper_declared ge id sg -> helper_declared tge id sg.
 Proof.
   intros id sg (b & A & B).
-  exploit function_ptr_translated; eauto. simpl. intros (tf & P & Q). inv Q.
+  exploit function_ptr_translated; eauto. simpl. intros (tf & P & Q). inv Q. 
   inv H. inv H1.
   exists b; split; auto. rewrite symbols_preserved. auto.
 Qed.
@@ -380,7 +380,7 @@ Proof.
   }
 Qed.
 
-Lemma classify_call_correct_aux:
+Lemma classify_call_correct:
   forall sp e m a v fd,
   Cminor.eval_expr ge sp e m a v ->
   Genv.find_funct ge v = Some fd ->
@@ -403,7 +403,7 @@ Proof.
   auto.
 Qed.
 
-Lemma classify_call_correct:
+Lemma classify_call_correct_ext:
   forall sp e m a v fd sprog
   (SPROG: program_linkeq Language_Cminor sprog prog),
   Cminor.eval_expr ge sp e m a v ->
@@ -414,7 +414,7 @@ Lemma classify_call_correct:
   | Call_builtin ef => fd = External ef
   end.
 Proof.
-  intros. exploit classify_call_correct_aux; eauto.
+  intros. exploit classify_call_correct; eauto.
   unfold ge, tge in *. clear ge tge.
   unfold classify_call. destruct (expr_is_addrof_ident a) eqn:Hident; auto.
   destruct SPROG as [SPROG _]. unfold Cminor.fundef in *. simpl in *.
@@ -632,7 +632,7 @@ Proof.
   rewrite Int64.unsigned_repr. destruct (zlt (Int64.unsigned n0) n); auto. 
   unfold Int64.max_unsigned; omega.
 - intros until n; intros EVAL R RANGE.
-  exploit eval_subl. eexact EVAL. apply eval_longconst with (n := Int64.repr n).
+  exploit eval_subl.  eexact EVAL. apply eval_longconst with (n := Int64.repr n).
   intros (vb & A & B).
   inv R. simpl in B. inv B. econstructor; split; eauto. 
   replace ((Int64.unsigned n0 - n) mod Int64.modulus)
@@ -779,7 +779,7 @@ Inductive match_cont: Cminor.cont -> CminorSel.cont -> Prop :=
       match_cont Cminor.Kstop Kstop
   | match_cont_seq: forall s s' k k' sprog,
       sel_stmt (Genv.globalenv sprog) s = OK s' ->
-      program_linkeq Language_Cminor sprog prog ->
+      forall (SPROG: program_linkeq Language_Cminor sprog prog),
       match_cont k k' ->
       match_cont (Cminor.Kseq s k) (Kseq s' k')
   | match_cont_block: forall k k',
@@ -787,7 +787,7 @@ Inductive match_cont: Cminor.cont -> CminorSel.cont -> Prop :=
       match_cont (Cminor.Kblock k) (Kblock k')
   | match_cont_call: forall id f sp e k f' e' k' sprog,
       sel_function (Genv.globalenv sprog) f = OK f' ->
-      program_linkeq Language_Cminor sprog prog ->
+      forall (SPROG: program_linkeq Language_Cminor sprog prog),
       match_cont k k' -> env_lessdef e e' ->
       match_cont (Cminor.Kcall id f sp e k) (Kcall id f' sp e' k').
 
@@ -851,7 +851,7 @@ Remark find_label_commut:
   forall lbl s k s' k' sprog,
   match_cont k k' ->
   sel_stmt (Genv.globalenv sprog) s = OK s' ->
-  program_linkeq Language_Cminor sprog prog ->
+  forall (SPROG: program_linkeq Language_Cminor sprog prog),
   match Cminor.find_label lbl s k, find_label lbl s' k' with
   | None, None => True
   | Some(s1, k1), Some(s1', k1') => sel_stmt (Genv.globalenv sprog) s1 = OK s1' /\ match_cont k1 k1'
@@ -917,9 +917,8 @@ Proof.
   erewrite stackspace_function_translated; eauto. 
   constructor; auto.
 - (* assign *)
-  exploit sel_expr_correct; eauto.
+  exploit sel_expr_correct; eauto. intros [v' [A B]].
   unfold sel_function in TF.
-  intros [v' [A B]].
   left; econstructor; split.
   econstructor; eauto.
   econstructor; eauto. apply set_var_lessdef; auto.
@@ -932,19 +931,19 @@ Proof.
   econstructor; eauto.
 - (* Scall *)
   exploit sel_exprlist_correct; eauto. intros [vargs' [C D]].
-  exploit classify_call_correct; eauto. 
+  exploit classify_call_correct_ext; eauto. 
   simpl. fold Cminor.fundef.
   destruct (classify_call (Genv.globalenv sprog2) a) as [ | id | ef].
 + (* indirect *)
   exploit sel_expr_correct; eauto. intros [vf' [A B]].
-  exploit functions_translated; eauto. intros (fd' & U & sprog' & Hsprog' & V).
+  exploit functions_translated; eauto. intros (fd' & U & sprog' & SPROG' & V).
   left; econstructor; split.
   econstructor; eauto. econstructor; eauto. 
   eapply sig_function_translated; eauto.
   econstructor; eauto. econstructor; eauto.
 + (* direct *)
   intros [b [U V]]. 
-  exploit functions_translated; eauto. intros (fd' & X & sprog' & Hsprog' & Y).
+  exploit functions_translated; eauto. intros (fd' & X & sprog' & SPROG' & Y).
   left; econstructor; split.
   econstructor; eauto.
   subst vf. econstructor; eauto. rewrite symbols_preserved; eauto.
@@ -959,9 +958,9 @@ Proof.
   erewrite <- stackspace_function_translated in P by eauto.
   exploit sel_expr_correct; eauto. intros [vf' [A B]].
   exploit sel_exprlist_correct; eauto. intros [vargs' [C D]].
-  exploit functions_translated; eauto. intros [fd' [E [sprog' [Hsprog' F]]]].
+  exploit functions_translated; eauto. intros [fd' [E [sprog' [SPROG' F]]]].
   left; econstructor; split.
-  exploit classify_call_correct; try apply SPROG2; eauto. 
+  exploit classify_call_correct_ext; try apply SPROG2; eauto. 
   simpl in *. fold Cminor.fundef in *.
   destruct (classify_call (Genv.globalenv sprog2) a) as [ | id | ef]; intros. 
   econstructor; eauto. econstructor; eauto. eapply sig_function_translated; eauto.
@@ -1076,10 +1075,10 @@ Lemma sel_initial_states:
   exists R, initial_state tprog R /\ match_states S R.
 Proof.
   induction 1.
-  exploit function_ptr_translated; eauto. intros (f' & A & sprog & Hsprog & B).
+  exploit function_ptr_translated; eauto. intros (f' & A & sprog & SPROG & B).
   econstructor; split.
   econstructor.
-  exploit Genv.init_mem_match; eauto. 
+  exploit Genv.init_mem_match; eauto.
   replace (prog_main tprog) with (prog_main prog).
   rewrite symbols_preserved. eauto.
   inv TRANSF. auto.
