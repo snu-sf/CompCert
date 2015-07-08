@@ -68,11 +68,15 @@ Inductive match_fundef prog: forall (fd fd':fundef), Prop :=
 
 Lemma symbols_preserved:
   forall (s: ident), Genv.find_symbol tge s = Genv.find_symbol ge s.
-Proof (find_symbol_transf_optionally _ _ TRANSF).
+Proof.
+  apply (find_symbol_transf_optionally _ _ TRANSF).
+Qed.
 
 Lemma varinfo_preserved:
   forall b, Genv.find_var_info tge b = Genv.find_var_info ge b.
-Proof (find_var_info_transf_optionally _ _ TRANSF).
+Proof.
+  apply (find_var_info_transf_optionally _ _ TRANSF).
+Qed.
 
 Lemma functions_translated:
   forall (v: val) (f: fundef),
@@ -80,7 +84,8 @@ Lemma functions_translated:
   exists tf, Genv.find_funct tge v = Some tf /\
              match_fundef prog f tf.
 Proof.  
-  intros. exploit (find_funct_transf_optionally _ _ TRANSF); eauto. simpl in *.
+  intros.
+  exploit (find_funct_transf_optionally _ _ TRANSF); eauto. simpl in *.
   intros [tf [Htf [[sprog [Hsprog Hf]]|Hf]]].
   eexists. split; eauto.
   destruct f; auto.
@@ -95,8 +100,9 @@ Lemma function_ptr_translated:
   exists tf,
     Genv.find_funct_ptr tge b = Some tf /\
     match_fundef prog f tf.
-Proof.
-  intros. exploit (find_funct_ptr_transf_optionally _ _ TRANSF); eauto. simpl in *.
+Proof.  
+  intros. 
+  exploit (find_funct_ptr_transf_optionally _ _ TRANSF); eauto. simpl in *.
   intros [tf [Htf [[sprog [Hsprog Hf]]|Hf]]].
   eexists. split; eauto.
   destruct f; auto.
@@ -409,8 +415,7 @@ Inductive match_states: nat -> state -> state -> Prop :=
       match_states O (Returnstate s v m)
                      (Returnstate s' v' m')
   | match_states_identical:
-      forall s s'
-             (MATCH: match_identical_states s s'),
+      forall s s' (MATCH: match_identical_states s s'),
       match_states O s s'.
 
 Lemma match_states_succ:
@@ -423,7 +428,8 @@ Lemma match_states_succ:
   match_states O (State s f sp pc rs m)
                  (State s' (transf_function (romem_for_program sprog) f) sp pc rs' m').
 Proof.
-  intros. inv H. specialize (Hsound _ SPROG). inv Hsound. 
+  intros. inv H. 
+  specialize (Hsound _ SPROG). inv Hsound. 
   apply match_states_intro with (bc := bc) (ae := ae); auto. 
   constructor.
 Qed.

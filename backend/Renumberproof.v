@@ -219,8 +219,7 @@ Inductive match_states: RTL.state -> RTL.state -> Prop :=
         (STACKS: list_forall2 match_frames stk stk'),
       match_states (Returnstate stk v m)
                    (Returnstate stk' v m)
-  | match_states_identical: forall s s'
-        (MATCH: match_identical_states s s'),
+  | match_states_identical: forall s s' (MATCH: match_identical_states s s'),
       match_states s s'.
 
 Lemma step_simulation_identical:
@@ -260,7 +259,6 @@ Proof.
   intros s1 t s2 BACKUP_STEP. generalize BACKUP_STEP.
   induction 1; intros S1' MS; inv MS;
   try (by eauto using step_simulation_identical); try TR_AT.
-
 (* nop *)
   econstructor; split. eapply exec_Inop; eauto. 
   constructor; auto. eapply reach_succ; eauto. simpl; auto. 
@@ -357,7 +355,7 @@ Proof.
     eapply (init_mem_transf_optionally _ _ TRANSF); eauto. 
     replace (AST.prog_main tprog) with (AST.prog_main prog); [|by inv TRANSF; auto].
     rewrite symbols_preserved. eauto. 
-    eauto. inv H4; auto.
+    eauto. inv H4; auto. 
     rewrite <- H3; apply sig_preserved.
   constructor; auto. constructor.
 Qed.
@@ -380,6 +378,12 @@ Proof.
 Qed.
 
 End PRESERVATION.
+
+
+
+ 
+
+  
 
 Lemma Renumber_sepcomp_rel
       rtlprog1 rtlprog2

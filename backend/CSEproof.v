@@ -997,13 +997,13 @@ Inductive match_states: state -> state -> Prop :=
       match_states (State s f sp pc rs m)
                    (State s' (transf_function' f approx) sp pc rs' m')
   | match_states_call:
-      forall s f args m s' f' args' m',
+      forall s f args m s' tf args' m',
       match_stackframes s s' ->
-      match_fundef prog f f' ->
+      match_fundef prog f tf ->
       Val.lessdef_list args args' ->
       Mem.extends m m' ->
       match_states (Callstate s f args m)
-                   (Callstate s' f' args' m')
+                   (Callstate s' tf args' m')
   | match_states_return:
       forall s s' v v' m m',
       match_stackframes s s' ->
@@ -1187,12 +1187,13 @@ Proof.
   econstructor; eauto.
   eapply analysis_correct_1; eauto. simpl; auto. 
   unfold transfer; rewrite H.
-  inv SOUND. specialize (Hsound _ SPROG). inv Hsound.
+  inv SOUND.
+  specialize (Hsound _ SPROG). inv Hsound.
   eapply add_store_result_hold; eauto. 
   eapply kill_loads_after_store_holds; eauto.
 
 - (* Icall *)
-  exploit find_function_translated; eauto. intros [tf [FIND' TRANSF']].
+  exploit find_function_translated; eauto. intros [tf [FIND' TRANSF']]. 
   econstructor; split.
   eapply exec_Icall; eauto.
   eapply match_fundef_sig; eauto.
@@ -1306,7 +1307,7 @@ Proof.
   apply init_regs_lessdef. auto.
 
 - (* external function *)
-  assert (f' = External ef) by (inv H6; auto; inv FUN; auto). subst.
+  assert (tf = External ef) by (inv H6; auto; inv FUN; auto). subst.
   exploit external_call_mem_extends; eauto.
   intros (v' & m1' & P & Q & R & S).
   econstructor; split.

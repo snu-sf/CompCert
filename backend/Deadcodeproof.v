@@ -395,11 +395,15 @@ Let tge := Genv.globalenv tprog.
 
 Lemma symbols_preserved:
   forall (s: ident), Genv.find_symbol tge s = Genv.find_symbol ge s.
-Proof (find_symbol_transf_partial_optionally _ _ TRANSF).
+Proof.
+  (find_symbol_transf_partial_optionally _ _ TRANSF).
+Qed.
 
 Lemma varinfo_preserved:
   forall b, Genv.find_var_info tge b = Genv.find_var_info ge b.
-Proof (find_var_info_transf_partial_optionally _ _ TRANSF).
+Proof.
+  (find_var_info_transf_partial_optionally _ _ TRANSF).
+Qed.
 
 Lemma functions_translated:
   forall (v: val) (f: RTL.fundef),
@@ -431,7 +435,9 @@ Proof.
 Qed.
 
 Lemma sig_function_translated:
-  forall sprog f tf, transf_fundef (romem_for_program sprog) f = OK tf -> funsig tf = funsig f.
+  forall sprog f tf,
+  transf_fundef (romem_for_program sprog) f = OK tf ->
+  funsig tf = funsig f.
 Proof.
   unfold transf_fundef; intros. destruct f; monadInv H; auto.
   unfold transf_function in EQ. 
@@ -1147,6 +1153,7 @@ Proof.
 Qed.
 
 End PRESERVATION.
+
 
 Lemma Deadcode_sepcomp_rel
       rtlprog1 rtlprog2
