@@ -1,4 +1,4 @@
-(* *********************************************************************)
+* *********************************************************************)
 (*                                                                     *)
 (*              The Compcert verified compiler                         *)
 (*                                                                     *)
@@ -33,13 +33,13 @@ Require Import Selection.
 Require Import SelectOpproof.
 Require Import SelectDivproof.
 Require Import SelectLongproof.
-Require Import Language.
-Require Import MapsExtra.
-Require Import Linker.
-Require Import LinkerProp.
-Require Import Linksub.
-Require Import SepcompRel.
-Require Import CoqlibExtra.
+(* new *) Require Import Language.
+(* new *) Require Import MapsExtra.
+(* new *) Require Import Linker.
+(* new *) Require Import LinkerProp.
+(* new *) Require Import Linksub.
+(* new *) Require Import SepcompRel.
+(* new *) Require Import CoqlibExtra.
 
 Local Open Scope cminorsel_scope.
 Local Open Scope error_monad_scope.
@@ -49,7 +49,7 @@ Local Open Scope error_monad_scope.
 
 Section PRESERVATION.
 
-Let transf_efT (p:Cminor.program) (ef:external_function) := OK ef.
+(* new *) Let transf_efT (p:Cminor.program) (ef:external_function) := OK ef.
 
 Variable prog: Cminor.program.
 Variable tprog: CminorSel.program.
@@ -57,13 +57,13 @@ Let ge := Genv.globalenv prog.
 Let tge := Genv.globalenv tprog.
 Hypothesis HELPERS:
   forall name sg, In (name, sg) i64_helpers -> helper_declared ge name sg.
-Hypothesis TRANSF:
-  @sepcomp_rel
-    Language_Cminor Language_CminorSel
-    (fun p f tf => sel_function (Genv.globalenv p) f = OK tf)
-    (fun p ef tef => transf_efT p ef = OK tef)
-    (@OK _)
-    prog tprog.
+(* new *) Hypothesis TRANSF:
+(* new *)   @sepcomp_rel
+(* new *)     Language_Cminor Language_CminorSel
+(* new *)     (fun p f tf => sel_function (Genv.globalenv p) f = OK tf)
+(* new *)     (fun p ef tef => transf_efT p ef = OK tef)
+(* new *)     (@OK _)
+(* new *)     prog tprog.
 
 Lemma symbols_preserved:
   forall (s: ident), Genv.find_symbol tge s = Genv.find_symbol ge s.
@@ -1088,141 +1088,141 @@ Proof.
   apply sel_step_correct; auto.
 Qed.
 
-Lemma link_program_check_helper
-      idsig p1 p2 p
-      (LINK: link_program Language_Cminor p1 p2 = Some p)
-      (CHECK1: SelectLong.check_helper (Genv.globalenv p1) idsig = OK tt)
-      (CHECK2: SelectLong.check_helper (Genv.globalenv p2) idsig = OK tt):
-  SelectLong.check_helper (Genv.globalenv p) idsig = OK tt.
-Proof.
-  destruct idsig as [id sig]. simpl in *.
-  destruct (@Genv.find_symbol Cminor.fundef unit (Genv.globalenv p1) id) as [s1|] eqn:SYM1; try congruence.
-  destruct (@Genv.find_symbol Cminor.fundef unit (Genv.globalenv p2) id) as [s2|] eqn:SYM2; try congruence.
-  destruct (@Genv.find_funct_ptr Cminor.fundef unit (Genv.globalenv p1) s1) as [f1|] eqn:FUNC1; try congruence.
-  destruct (@Genv.find_funct_ptr Cminor.fundef unit (Genv.globalenv p2) s2) as [f2|] eqn:FUNC2; try congruence.
-  destruct f1 as [|[]]; try congruence.
-  destruct f2 as [|[]]; try congruence.
-  destruct (ident_eq name id); simpl in *; subst; try congruence.
-  destruct (signature_eq sg sig); simpl in *; subst; try congruence.
-  destruct (ident_eq name0 id); simpl in *; subst; try congruence.
-  destruct (signature_eq sg0 sig); simpl in *; subst; try congruence.
-  exploit find_symbol_spec; eauto.
-  instantiate (1 := p1). instantiate (1 := id).
-  simpl in *. fold Cminor.fundef in *. rewrite SYM1, FUNC1.
-  intro ID1.
-  exploit find_symbol_spec; eauto.
-  instantiate (1 := p2). instantiate (1 := id).
-  simpl in *. fold Cminor.fundef in *. rewrite SYM2, FUNC2.
-  intro ID2.
-  exploit find_symbol_spec; eauto.
-  instantiate (1 := p). instantiate (1 := id).
-  simpl in *. fold Cminor.fundef in *.
-  intro ID.
-  unfold link_program in LINK. simpl in *. fold Cminor.fundef in *.
-  destruct (Pos.eqb (prog_main p1) (prog_main p2)); try congruence.
-  destruct (link_globdef_list Language_Cminor (prog_defs p1) (prog_defs p2)) eqn:DEFS; inv LINK.
-  unfold link_globdef_list in DEFS. simpl in *. fold Cminor.fundef in *.
-  destruct (link_globdefs Language_Cminor (PTree_unelements (prog_defs p1)) (PTree_unelements (prog_defs p2))) eqn:DEFS'; inv DEFS.
-  exploit gtlink_globdefs; eauto. instantiate (1 := id). rewrite ? PTree_guespec.
-  revert ID1 ID2. simpl in *. fold Cminor.fundef in *. fold ident.
-  destruct
-    (@option_map (prod ident (globdef Cminor.fundef unit))
-                 (globdef Cminor.fundef unit) (@snd ident (globdef Cminor.fundef unit))
-                 (@find (prod ident (globdef Cminor.fundef unit))
-                        (fun id0 : prod ident (globdef Cminor.fundef unit) =>
-                           @proj_sumbool
-                             (@eq ident id (@fst ident (globdef Cminor.fundef unit) id0))
-                             (not
-                                (@eq ident id (@fst ident (globdef Cminor.fundef unit) id0)))
-                             (peq id (@fst ident (globdef Cminor.fundef unit) id0)))
-                        (@rev (prod ident (globdef Cminor.fundef unit))
-                              (@prog_defs Cminor.fundef unit p1)))); [|intros; exfalso; auto].
-  destruct
-    (@option_map (prod ident (globdef Cminor.fundef unit))
-                 (globdef Cminor.fundef unit) (@snd ident (globdef Cminor.fundef unit))
-                 (@find (prod ident (globdef Cminor.fundef unit))
-                        (fun id0 : prod ident (globdef Cminor.fundef unit) =>
-                           @proj_sumbool
-                             (@eq ident id (@fst ident (globdef Cminor.fundef unit) id0))
-                             (not
-                                (@eq ident id (@fst ident (globdef Cminor.fundef unit) id0)))
-                             (peq id (@fst ident (globdef Cminor.fundef unit) id0)))
-                        (@rev (prod ident (globdef Cminor.fundef unit))
-                              (@prog_defs Cminor.fundef unit p2)))); [|intros; exfalso; auto].
-  destruct g, g0; intros; try (exfalso; auto; fail).
-  destruct (t ! id) eqn:TID; [|exfalso; auto].
-  rewrite PTree_gespec in TID.
-  rewrite <- list_norepet_option_map_find in TID; [|apply PTree.elements_keys_norepet].
-  simpl in *. fold Cminor.fundef ident in *. rewrite TID in ID.
-  destruct (Genv.find_symbol (Genv.globalenv {| prog_defs := PTree.elements t; prog_main := prog_main p1 |}) id); [|exfalso; auto].
-  destruct g; [|destruct H as [[]|[]]; congruence].
-  destruct (Genv.find_funct_ptr (Genv.globalenv {| prog_defs := PTree.elements t; prog_main := prog_main p1 |}) b); [|exfalso; auto].
-  destruct (Genv.find_var_info (Genv.globalenv {| prog_defs := PTree.elements t; prog_main := prog_main p1 |}) b); [exfalso; auto|].
-  destruct (Genv.find_var_info (Genv.globalenv p1) s1); [exfalso; auto|].
-  destruct (Genv.find_var_info (Genv.globalenv p2) s2); [exfalso; auto|].
-  subst. destruct H as [[]|[]]; inv H0.
-  - destruct (ident_eq id id); [|congruence].
-    destruct (signature_eq sig sig); [|congruence].
-    auto.
-  - destruct (ident_eq id id); [|congruence].
-    destruct (signature_eq sig sig); [|congruence].
-    auto.
-Qed.
+(* new *) Lemma link_program_check_helper
+(* new *)       idsig p1 p2 p
+(* new *)       (LINK: link_program Language_Cminor p1 p2 = Some p)
+(* new *)       (CHECK1: SelectLong.check_helper (Genv.globalenv p1) idsig = OK tt)
+(* new *)       (CHECK2: SelectLong.check_helper (Genv.globalenv p2) idsig = OK tt):
+(* new *)   SelectLong.check_helper (Genv.globalenv p) idsig = OK tt.
+(* new *) Proof.
+(* new *)   destruct idsig as [id sig]. simpl in *.
+(* new *)   destruct (@Genv.find_symbol Cminor.fundef unit (Genv.globalenv p1) id) as [s1|] eqn:SYM1; try congruence.
+(* new *)   destruct (@Genv.find_symbol Cminor.fundef unit (Genv.globalenv p2) id) as [s2|] eqn:SYM2; try congruence.
+(* new *)   destruct (@Genv.find_funct_ptr Cminor.fundef unit (Genv.globalenv p1) s1) as [f1|] eqn:FUNC1; try congruence.
+(* new *)   destruct (@Genv.find_funct_ptr Cminor.fundef unit (Genv.globalenv p2) s2) as [f2|] eqn:FUNC2; try congruence.
+(* new *)   destruct f1 as [|[]]; try congruence.
+(* new *)   destruct f2 as [|[]]; try congruence.
+(* new *)   destruct (ident_eq name id); simpl in *; subst; try congruence.
+(* new *)   destruct (signature_eq sg sig); simpl in *; subst; try congruence.
+(* new *)   destruct (ident_eq name0 id); simpl in *; subst; try congruence.
+(* new *)   destruct (signature_eq sg0 sig); simpl in *; subst; try congruence.
+(* new *)   exploit find_symbol_spec; eauto.
+(* new *)   instantiate (1 := p1). instantiate (1 := id).
+(* new *)   simpl in *. fold Cminor.fundef in *. rewrite SYM1, FUNC1.
+(* new *)   intro ID1.
+(* new *)   exploit find_symbol_spec; eauto.
+(* new *)   instantiate (1 := p2). instantiate (1 := id).
+(* new *)   simpl in *. fold Cminor.fundef in *. rewrite SYM2, FUNC2.
+(* new *)   intro ID2.
+(* new *)   exploit find_symbol_spec; eauto.
+(* new *)   instantiate (1 := p). instantiate (1 := id).
+(* new *)   simpl in *. fold Cminor.fundef in *.
+(* new *)   intro ID.
+(* new *)   unfold link_program in LINK. simpl in *. fold Cminor.fundef in *.
+(* new *)   destruct (Pos.eqb (prog_main p1) (prog_main p2)); try congruence.
+(* new *)   destruct (link_globdef_list Language_Cminor (prog_defs p1) (prog_defs p2)) eqn:DEFS; inv LINK.
+(* new *)   unfold link_globdef_list in DEFS. simpl in *. fold Cminor.fundef in *.
+(* new *)   destruct (link_globdefs Language_Cminor (PTree_unelements (prog_defs p1)) (PTree_unelements (prog_defs p2))) eqn:DEFS'; inv DEFS.
+(* new *)   exploit gtlink_globdefs; eauto. instantiate (1 := id). rewrite ? PTree_guespec.
+(* new *)   revert ID1 ID2. simpl in *. fold Cminor.fundef in *. fold ident.
+(* new *)   destruct
+(* new *)     (@option_map (prod ident (globdef Cminor.fundef unit))
+(* new *)                  (globdef Cminor.fundef unit) (@snd ident (globdef Cminor.fundef unit))
+(* new *)                  (@find (prod ident (globdef Cminor.fundef unit))
+(* new *)                         (fun id0 : prod ident (globdef Cminor.fundef unit) =>
+(* new *)                            @proj_sumbool
+(* new *)                              (@eq ident id (@fst ident (globdef Cminor.fundef unit) id0))
+(* new *)                              (not
+(* new *)                                 (@eq ident id (@fst ident (globdef Cminor.fundef unit) id0)))
+(* new *)                              (peq id (@fst ident (globdef Cminor.fundef unit) id0)))
+(* new *)                         (@rev (prod ident (globdef Cminor.fundef unit))
+(* new *)                               (@prog_defs Cminor.fundef unit p1)))); [|intros; exfalso; auto].
+(* new *)   destruct
+(* new *)     (@option_map (prod ident (globdef Cminor.fundef unit))
+(* new *)                  (globdef Cminor.fundef unit) (@snd ident (globdef Cminor.fundef unit))
+(* new *)                  (@find (prod ident (globdef Cminor.fundef unit))
+(* new *)                         (fun id0 : prod ident (globdef Cminor.fundef unit) =>
+(* new *)                            @proj_sumbool
+(* new *)                              (@eq ident id (@fst ident (globdef Cminor.fundef unit) id0))
+(* new *)                              (not
+(* new *)                                 (@eq ident id (@fst ident (globdef Cminor.fundef unit) id0)))
+(* new *)                              (peq id (@fst ident (globdef Cminor.fundef unit) id0)))
+(* new *)                         (@rev (prod ident (globdef Cminor.fundef unit))
+(* new *)                               (@prog_defs Cminor.fundef unit p2)))); [|intros; exfalso; auto].
+(* new *)   destruct g, g0; intros; try (exfalso; auto; fail).
+(* new *)   destruct (t ! id) eqn:TID; [|exfalso; auto].
+(* new *)   rewrite PTree_gespec in TID.
+(* new *)   rewrite <- list_norepet_option_map_find in TID; [|apply PTree.elements_keys_norepet].
+(* new *)   simpl in *. fold Cminor.fundef ident in *. rewrite TID in ID.
+(* new *)   destruct (Genv.find_symbol (Genv.globalenv {| prog_defs := PTree.elements t; prog_main := prog_main p1 |}) id); [|exfalso; auto].
+(* new *)   destruct g; [|destruct H as [[]|[]]; congruence].
+(* new *)   destruct (Genv.find_funct_ptr (Genv.globalenv {| prog_defs := PTree.elements t; prog_main := prog_main p1 |}) b); [|exfalso; auto].
+(* new *)   destruct (Genv.find_var_info (Genv.globalenv {| prog_defs := PTree.elements t; prog_main := prog_main p1 |}) b); [exfalso; auto|].
+(* new *)   destruct (Genv.find_var_info (Genv.globalenv p1) s1); [exfalso; auto|].
+(* new *)   destruct (Genv.find_var_info (Genv.globalenv p2) s2); [exfalso; auto|].
+(* new *)   subst. destruct H as [[]|[]]; inv H0.
+(* new *)   - destruct (ident_eq id id); [|congruence].
+(* new *)     destruct (signature_eq sig sig); [|congruence].
+(* new *)     auto.
+(* new *)   - destruct (ident_eq id id); [|congruence].
+(* new *)     destruct (signature_eq sig sig); [|congruence].
+(* new *)     auto.
+(* new *) Qed.
 
-Lemma link_program_check_helpers
-      p1 p2 p
-      (LINK: link_program Language_Cminor p1 p2 = Some p)
-      (CHECK1: SelectLong.check_helpers (Genv.globalenv p1) = OK tt)
-      (CHECK2: SelectLong.check_helpers (Genv.globalenv p2) = OK tt):
-  SelectLong.check_helpers (Genv.globalenv p) = OK tt.
-Proof.
-  unfold SelectLong.check_helpers in *.
-  monadInv CHECK1. monadInv CHECK2.
-  apply mmap_inversion in EQ. apply mmap_inversion in EQ0.
-  revert x x0 EQ EQ0. induction SelectLong.i64_helpers; intros; auto.
-  inv EQ. inv EQ0. destruct b0, b1. simpl.
-  erewrite link_program_check_helper; eauto. simpl.
-  exploit IHl; eauto. simpl in *.
-  destruct (mmap (SelectLong.check_helper (Genv.globalenv p)) l); auto.
-Qed.
+(* new *) Lemma link_program_check_helpers
+(* new *)       p1 p2 p
+(* new *)       (LINK: link_program Language_Cminor p1 p2 = Some p)
+(* new *)       (CHECK1: SelectLong.check_helpers (Genv.globalenv p1) = OK tt)
+(* new *)       (CHECK2: SelectLong.check_helpers (Genv.globalenv p2) = OK tt):
+(* new *)   SelectLong.check_helpers (Genv.globalenv p) = OK tt.
+(* new *) Proof.
+(* new *)   unfold SelectLong.check_helpers in *.
+(* new *)   monadInv CHECK1. monadInv CHECK2.
+(* new *)   apply mmap_inversion in EQ. apply mmap_inversion in EQ0.
+(* new *)   revert x x0 EQ EQ0. induction SelectLong.i64_helpers; intros; auto.
+(* new *)   inv EQ. inv EQ0. destruct b0, b1. simpl.
+(* new *)   erewrite link_program_check_helper; eauto. simpl.
+(* new *)   exploit IHl; eauto. simpl in *.
+(* new *)   destruct (mmap (SelectLong.check_helper (Genv.globalenv p)) l); auto.
+(* new *) Qed.
 
-Lemma Selection_check_helpers
-      cminorprog cminorselprog
-      (Htrans: Selection.sel_program cminorprog = OK cminorselprog):
-  SelectLong.check_helpers (Genv.globalenv cminorprog) = OK tt.
-Proof. monadInv Htrans. destruct x; eauto. Qed.
+(* new *) Lemma Selection_check_helpers
+(* new *)       cminorprog cminorselprog
+(* new *)       (Htrans: Selection.sel_program cminorprog = OK cminorselprog):
+(* new *)   SelectLong.check_helpers (Genv.globalenv cminorprog) = OK tt.
+(* new *) Proof. monadInv Htrans. destruct x; eauto. Qed.
 
-Lemma Selection_sepcomp_rel
-      cminorprog cminorselprog
-      (Htrans: Selection.sel_program cminorprog = OK cminorselprog):
-  @sepcomp_rel
-    Language.Language_Cminor Language.Language_CminorSel
-    (fun p f tf => Selection.sel_function (Genv.globalenv p) f = OK tf)
-    (fun p ef tef => OK ef = OK tef)
-    (@OK _)
-    cminorprog cminorselprog.
-Proof.
-  monadInv Htrans.
-  destruct cminorprog as [defs ?], cminorselprog as [tdefs ?].
-  unfold transform_partial_program, transform_partial_program2 in EQ0. monadInv EQ0.
-  constructor; auto. simpl in *.
-  revert tdefs EQ EQ1. generalize defs at 1 2 4 as fdefs.
-  induction defs; simpl; intros fdefs tdefs Hhelpers Hdefs.
-  { inv Hdefs. constructor. }
-  destruct a. destruct g.
-  - match goal with
-      | [H: match ?x with OK _ => _ | Error _ => _ end = OK _ |- _] =>
-        destruct x as [tf|] eqn:Hf; [|inv H]
-    end.
-    monadInv Hdefs. constructor; simpl.
-    + split; auto. eexists. split; [reflexivity|].
-      destruct f; inv Hf.
-      * monadInv H0.
-        eapply (@grel_f Language.Language_Cminor Language.Language_CminorSel); simpl; auto.
-      * eapply (@grel_ef Language.Language_Cminor Language.Language_CminorSel); simpl; auto.
-    + apply IHdefs; auto.
-  - monadInv Hdefs. constructor; simpl.
-    + split; auto. eexists. split; [reflexivity|].
-      eapply (@grel_gv Language.Language_Cminor Language.Language_CminorSel); auto.
-    + apply IHdefs; auto.
-Qed.
+(* new *) Lemma Selection_sepcomp_rel
+(* new *)       cminorprog cminorselprog
+(* new *)       (Htrans: Selection.sel_program cminorprog = OK cminorselprog):
+(* new *)   @sepcomp_rel
+(* new *)     Language.Language_Cminor Language.Language_CminorSel
+(* new *)     (fun p f tf => Selection.sel_function (Genv.globalenv p) f = OK tf)
+(* new *)     (fun p ef tef => ef = tef)
+(* new *)     (@OK _)
+(* new *)     cminorprog cminorselprog.
+(* new *) Proof.
+(* new *)   monadInv Htrans.
+(* new *)   destruct cminorprog as [defs ?], cminorselprog as [tdefs ?].
+(* new *)   unfold transform_partial_program, transform_partial_program2 in EQ0. monadInv EQ0.
+(* new *)   constructor; auto. simpl in *.
+(* new *)   revert tdefs EQ EQ1. generalize defs at 1 2 4 as fdefs.
+(* new *)   induction defs; simpl; intros fdefs tdefs Hhelpers Hdefs.
+(* new *)   { inv Hdefs. constructor. }
+(* new *)   destruct a. destruct g.
+(* new *)   - match goal with
+(* new *)       | [H: match ?x with OK _ => _ | Error _ => _ end = OK _ |- _] =>
+(* new *)         destruct x as [tf|] eqn:Hf; [|inv H]
+(* new *)     end.
+(* new *)     monadInv Hdefs. constructor; simpl.
+(* new *)     + split; auto. eexists. split; [reflexivity|].
+(* new *)       destruct f; inv Hf.
+(* new *)       * monadInv H0.
+(* new *)         eapply (@grel_f Language.Language_Cminor Language.Language_CminorSel); simpl; auto.
+(* new *)       * eapply (@grel_ef Language.Language_Cminor Language.Language_CminorSel); simpl; auto.
+(* new *)     + apply IHdefs; auto.
+(* new *)   - monadInv Hdefs. constructor; simpl.
+(* new *)     + split; auto. eexists. split; [reflexivity|].
+(* new *)       eapply (@grel_gv Language.Language_Cminor Language.Language_CminorSel); auto.
+(* new *)     + apply IHdefs; auto.
+(* new *) Qed.

@@ -34,9 +34,9 @@ Require Import CSEdomain.
 Require Import CombineOp.
 Require Import CombineOpproof.
 Require Import CSE.
-Require Import Language.
-Require Import Linksub.
-Require Import SepcompRel.
+(* new *) Require Import Language.
+(* new *) Require Import Linksub.
+(* new *) Require Import SepcompRel.
 
 (** * Soundness of operations over value numberings *)
 
@@ -810,19 +810,20 @@ Qed.
 
 Section PRESERVATION.
 
-Let transf_efT (p:program) (ef:external_function) := OK ef.
+(* new *) Let transf_efT (p:program) (ef:external_function) := OK ef.
 
 Variable prog: program.
 Variable tprog : program.
-Hypothesis TRANSF:
-  @sepcomp_rel
-    Language_RTL Language_RTL
-    (fun p f tf => transf_function (romem_for_program p) f = OK tf)
-    (fun p ef tef => transf_efT p ef = OK tef)
-    (@OK _)
-    prog tprog.
+(* new *) Hypothesis TRANSF:
+(* new *)   @sepcomp_rel
+(* new *)     Language_RTL Language_RTL
+(* new *)     (fun p f tf => transf_function (romem_for_program p) f = OK tf)
+(* new *)     (fun p ef tef => transf_efT p ef = OK tef)
+(* new *)     (@OK _)
+(* new *)     prog tprog.
 Let ge := Genv.globalenv prog.
 Let tge := Genv.globalenv tprog.
+Let rm := romem_for_program prog.
 
 Lemma symbols_preserved:
   forall (s: ident), Genv.find_symbol tge s = Genv.find_symbol ge s.
@@ -1272,19 +1273,19 @@ Qed.
 
 End PRESERVATION.
 
-Lemma CSE_sepcomp_rel
-      rtlprog1 rtlprog2
-      (Htrans: CSE.transf_program rtlprog1 = OK rtlprog2):
-  @sepcomp_rel
-    Language.Language_RTL Language.Language_RTL
-    (fun p f tf => CSE.transf_function (romem_for_program p) f = OK tf)
-    (fun p ef tef => (fun _ ef => OK ef) p ef = OK tef)
-    (@OK _)
-    rtlprog1 rtlprog2.
-Proof.
-  apply transf_partial_sepcomp_rel.
-  unfold progT, RTL.program, RTL.fundef in *. simpl in *. rewrite <- Htrans.
-  unfold CSE.transf_program. f_equal.
-  apply Axioms.functional_extensionality. intro fd.
-  destruct fd; auto.
-Qed.
+(* new *) Lemma CSE_sepcomp_rel
+(* new *)       rtlprog1 rtlprog2
+(* new *)       (Htrans: CSE.transf_program rtlprog1 = OK rtlprog2):
+(* new *)   @sepcomp_rel
+(* new *)     Language.Language_RTL Language.Language_RTL
+(* new *)     (fun p f tf => CSE.transf_function (romem_for_program p) f = OK tf)
+(* new *)     (fun p ef tef => (fun _ ef => OK ef) p ef = OK tef)
+(* new *)     (@OK _)
+(* new *)     rtlprog1 rtlprog2.
+(* new *) Proof.
+(* new *)   apply transf_partial_sepcomp_rel.
+(* new *)   unfold progT, RTL.program, RTL.fundef in *. simpl in *. rewrite <- Htrans.
+(* new *)   unfold CSE.transf_program. f_equal.
+(* new *)   apply Axioms.functional_extensionality. intro fd.
+(* new *)   destruct fd; auto.
+(* new *) Qed.
