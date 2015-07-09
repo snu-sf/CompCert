@@ -1414,99 +1414,97 @@ Qed.
 
 End PAST.
 
-Inductive sound_state_ext (st:state): Prop :=
-| sound_state_ext_intro
-    (Hsound:
-       forall sprog (Hle: program_linksub Language.Language_RTL sprog prog),
-       sound_state sprog st).
+(* new *) Inductive sound_state_ext (st:state): Prop :=
+(* new *) | sound_state_ext_intro
+(* new *)     (Hsound:
+(* new *)        forall sprog (Hle: program_linksub Language.Language_RTL sprog prog),
+(* new *)        sound_state sprog st).
 
-Theorem sound_past_step:
-  forall st t st', RTL.step ge st t st' -> sound_state_ext st -> sound_state_ext st'.
-Proof.
-  intros. inv H0. constructor. intros.
-  specialize (Hsound sprog Hle). eapply sound_step; eauto.
-Qed.
+(* new *) Theorem sound_past_step:
+(* new *)   forall st t st', RTL.step ge st t st' -> sound_state_ext st -> sound_state_ext st'.
+(* new *) Proof.
+(* new *)   intros. inv H0. constructor. intros.
+(* new *)   specialize (Hsound sprog Hle). eapply sound_step; eauto.
+(* new *) Qed.
 
-Theorem sound_past_star:
-  forall st t st', Smallstep.star RTL.step ge st t st' -> sound_state_ext st -> sound_state_ext st'.
-Proof.
-  intros st t st' H. induction H; subst; auto.
-  intro X. apply IHstar. eapply sound_past_step; eauto.
-Qed.
+(* new *) Theorem sound_past_star:
+(* new *)   forall st t st', Smallstep.star RTL.step ge st t st' -> sound_state_ext st -> sound_state_ext st'.
+(* new *) Proof.
+(* new *)   intros st t st' H. induction H; subst; auto.
+(* new *)   intro X. apply IHstar. eapply sound_past_step; eauto.
+(* new *) Qed.
 
-Theorem sound_past_plus:
-  forall st t st', Smallstep.plus RTL.step ge st t st' -> sound_state_ext st -> sound_state_ext st'.
-Proof.
-  intros st t st' H. destruct H. subst.
-  intro X. eapply sound_past_star; eauto.
-  eapply sound_past_step; eauto.
-Qed.
+(* new *) Theorem sound_past_plus:
+(* new *)   forall st t st', Smallstep.plus RTL.step ge st t st' -> sound_state_ext st -> sound_state_ext st'.
+(* new *) Proof.
+(* new *)   intros st t st' H. destruct H. subst.
+(* new *)   intro X. eapply sound_past_star; eauto.
+(* new *)   eapply sound_past_step; eauto.
+(* new *) Qed.
 
 End SOUNDNESS.
 
-Ltac clarify := simpl in *; fold ident fundef in *.
+(* new *) Ltac clarify := simpl in *; fold ident fundef in *.
 
-Lemma program_linksub_romem_le
-      sprog prog
-      (Hlinksub: program_linksub Language.Language_RTL sprog prog):
-  PTree_le (romem_for_program sprog) (romem_for_program prog).
-Proof.
-  unfold romem_for_program. rewrite <- ? fold_left_rev_right.
-  constructor. intro b.
-  destruct Hlinksub as [Hdefs _]. specialize (Hdefs b).
-  rewrite ? PTree_guespec in Hdefs.
-  revert b Hdefs. clarify.
-  generalize (@rev (prod ident _) (prog_defs prog)) as l2.
-  generalize (@rev (prod ident _) (prog_defs sprog)) as l1.
-  clear sprog prog.
-  induction l1; intros l2 b H ab Hab; simpl in *.
-  { rewrite PTree.gempty in Hab. inv Hab. }
-  destruct a. simpl in Hab.
-  destruct g.
-  - rewrite PTree.grspec in Hab.
-    destruct (PTree.elt_eq b i); inv Hab. rewrite H1.
-    apply IHl1; auto. intros.
-    exploit H; eauto.
-    simpl in *. destruct (peq b i); subst; try (contradict n; auto; fail).
-    simpl in *. auto.
-  - match goal with
-      | [H: (if ?b then _ else _) ! _ = _ |- _] =>
-        destruct b eqn:Hb; InvBooleans
-    end.
-    + rewrite PTree.gsspec in Hab. destruct (peq b i); subst.
-      * inv Hab. exploit H; eauto.
-        { simpl. destruct (peq i i); subst; try (contradict n; auto; fail).
-          simpl. eauto.
-        }
-        intros [defs2 [Hdefs2 Hsim]].
-        inv Hsim. inv Hv.
-        { revert Hdefs2. induction l2; simpl; intro X; inv X.
-          destruct a. simpl in *. destruct (peq i i0); subst; simpl in *.
-          - inv H4. rewrite H2. rewrite H3. rewrite H1. simpl.
-            rewrite PTree.gss. auto.
-          - destruct g.
-            + rewrite PTree.gro; auto.
-            + match goal with
-                | [|- (if ?b then _ else _) ! _ = _] =>
-                  destruct b
-              end.
-              * rewrite PTree.gso; auto.
-              * rewrite PTree.gro; auto.
-        }
-        { inv H0. clarify. rewrite Hinit in H1. inv H1. }
-      * apply IHl1; auto. intros.
-        exploit H; eauto.
-        simpl in *. destruct (peq b i); subst; try (contradict n; auto; fail).
-        simpl in *. auto.
-    + rewrite PTree.grspec in Hab.
-      destruct (PTree.elt_eq b i); inv Hab. rewrite H1.
-      apply IHl1; auto. intros.
-      exploit H; eauto.
-      simpl in *. destruct (peq b i); subst; try (contradict n; auto; fail).
-      simpl in *. auto.
-Qed.
-
-(** ** Soundness of the initial memory abstraction *)
+(* new *) Lemma program_linksub_romem_le
+(* new *)       sprog prog
+(* new *)       (Hlinksub: program_linksub Language.Language_RTL sprog prog):
+(* new *)   PTree_le (romem_for_program sprog) (romem_for_program prog).
+(* new *) Proof.
+(* new *)   unfold romem_for_program. rewrite <- ? fold_left_rev_right.
+(* new *)   constructor. intro b.
+(* new *)   destruct Hlinksub as [Hdefs _]. specialize (Hdefs b).
+(* new *)   rewrite ? PTree_guespec in Hdefs.
+(* new *)   revert b Hdefs. clarify.
+(* new *)   generalize (@rev (prod ident _) (prog_defs prog)) as l2.
+(* new *)   generalize (@rev (prod ident _) (prog_defs sprog)) as l1.
+(* new *)   clear sprog prog.
+(* new *)   induction l1; intros l2 b H ab Hab; simpl in *.
+(* new *)   { rewrite PTree.gempty in Hab. inv Hab. }
+(* new *)   destruct a. simpl in Hab.
+(* new *)   destruct g.
+(* new *)   - rewrite PTree.grspec in Hab.
+(* new *)     destruct (PTree.elt_eq b i); inv Hab. rewrite H1.
+(* new *)     apply IHl1; auto. intros.
+(* new *)     exploit H; eauto.
+(* new *)     simpl in *. destruct (peq b i); subst; try (contradict n; auto; fail).
+(* new *)     simpl in *. auto.
+(* new *)   - match goal with
+(* new *)       | [H: (if ?b then _ else _) ! _ = _ |- _] =>
+(* new *)         destruct b eqn:Hb; InvBooleans
+(* new *)     end.
+(* new *)     + rewrite PTree.gsspec in Hab. destruct (peq b i); subst.
+(* new *)       * inv Hab. exploit H; eauto.
+(* new *)         { simpl. destruct (peq i i); subst; try (contradict n; auto; fail).
+(* new *)           simpl. eauto.
+(* new *)         }
+(* new *)         intros [defs2 [Hdefs2 Hsim]].
+(* new *)         inv Hsim. inv Hv.
+(* new *)         { revert Hdefs2. induction l2; simpl; intro X; inv X.
+(* new *)           destruct a. simpl in *. destruct (peq i i0); subst; simpl in *.
+(* new *)           - inv H4. rewrite H2. rewrite H3. rewrite H1. simpl.
+(* new *)             rewrite PTree.gss. auto.
+(* new *)           - destruct g.
+(* new *)             + rewrite PTree.gro; auto.
+(* new *)             + match goal with
+(* new *)                 | [|- (if ?b then _ else _) ! _ = _] =>
+(* new *)                   destruct b
+(* new *)               end.
+(* new *)               * rewrite PTree.gso; auto.
+(* new *)               * rewrite PTree.gro; auto.
+(* new *)         }
+(* new *)         { inv H0. clarify. rewrite Hinit in H1. inv H1. }
+(* new *)       * apply IHl1; auto. intros.
+(* new *)         exploit H; eauto.
+(* new *)         simpl in *. destruct (peq b i); subst; try (contradict n; auto; fail).
+(* new *)         simpl in *. auto.
+(* new *)     + rewrite PTree.grspec in Hab.
+(* new *)       destruct (PTree.elt_eq b i); inv Hab. rewrite H1.
+(* new *)       apply IHl1; auto. intros.
+(* new *)       exploit H; eauto.
+(* new *)       simpl in *. destruct (peq b i); subst; try (contradict n; auto; fail).
+(* new *)       simpl in *. auto.
+(* new *) Qed.
 
 (** ** Soundness of the initial memory abstraction *)
 
