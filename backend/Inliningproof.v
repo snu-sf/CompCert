@@ -478,10 +478,10 @@ Inductive match_stacks (F: meminj) (m m': mem):
         (BELOW: Ple bound1 bound),
       match_stacks F m m' nil nil bound
   | match_stacks_cons: forall res f sp pc rs stk f' sp' rs' stk' bound ctx sprog fenv
-        (SPROG: program_linksub Language_RTL sprog prog)
-        (FENV: fenv = funenv_program sprog)
         (MS: match_stacks_inside F m m' stk stk' f' ctx sp' rs')
         (FB: tr_funbody fenv f'.(fn_stacksize) ctx f f'.(fn_code))
+        (FENV: fenv = funenv_program sprog)
+        (SPROG: program_linksub Language_RTL sprog prog)
         (AG: agree_regs F ctx rs rs')
         (SP: F sp = Some(sp', ctx.(dstk)))
         (PRIV: range_private F m m' sp' (ctx.(dstk) + ctx.(mstk)) f'.(fn_stacksize))
@@ -513,10 +513,10 @@ with match_stacks_inside (F: meminj) (m m': mem):
         (DSTK: ctx.(dstk) = 0),
       match_stacks_inside F m m' stk stk' f' ctx sp' rs'
   | match_stacks_inside_inlined: forall res f sp pc rs stk stk' f' ctx sp' rs' ctx' sprog fenv
-        (SPROG: program_linksub Language_RTL sprog prog)
-        (FENV: fenv = funenv_program sprog)
         (MS: match_stacks_inside F m m' stk stk' f' ctx' sp' rs')
         (FB: tr_funbody fenv f'.(fn_stacksize) ctx' f f'.(fn_code))
+        (FENV: fenv = funenv_program sprog)
+        (SPROG: program_linksub Language_RTL sprog prog)
         (AG: agree_regs F ctx' rs rs')
         (SP: F sp = Some(sp', ctx'.(dstk)))
         (PAD: range_private F m m' sp' (ctx'.(dstk) + ctx'.(mstk)) ctx.(dstk))
@@ -833,14 +833,14 @@ Qed.
 
 Lemma match_stacks_inside_inlined_tailcall:
   forall F m m' stk stk' f' ctx sp' rs' ctx' f sprog fenv,
-  forall (SPROG: program_linksub Language_RTL sprog prog)
-         (FENV: fenv = funenv_program sprog),
   match_stacks_inside F m m' stk stk' f' ctx sp' rs' ->
   context_below ctx ctx' ->
   context_stack_tailcall ctx f ctx' ->
   ctx'.(retinfo) = ctx.(retinfo) ->
   range_private F m m' sp' ctx.(dstk) f'.(fn_stacksize) ->
   tr_funbody fenv f'.(fn_stacksize) ctx' f f'.(fn_code) ->
+  forall (FENV: fenv = funenv_program sprog)
+         (SPROG: program_linksub Language_RTL sprog prog),
   match_stacks_inside F m m' stk stk' f' ctx' sp' rs'.
 Proof.
   intros. inv H.
@@ -860,10 +860,10 @@ Qed.
 
 Inductive match_states: state -> state -> Prop :=
   | match_regular_states: forall stk f sp pc rs m stk' f' sp' rs' m' F ctx sprog fenv
-        (SPROG: program_linksub Language_RTL sprog prog)
-        (FENV: fenv = funenv_program sprog)
         (MS: match_stacks_inside F m m' stk stk' f' ctx sp' rs')
         (FB: tr_funbody fenv f'.(fn_stacksize) ctx f f'.(fn_code))
+        (FENV: fenv = funenv_program sprog)
+        (SPROG: program_linksub Language_RTL sprog prog)
         (AG: agree_regs F ctx rs rs')
         (SP: F sp = Some(sp', ctx.(dstk)))
         (MINJ: Mem.inject F m m')
@@ -874,20 +874,19 @@ Inductive match_states: state -> state -> Prop :=
       match_states (State stk f (Vptr sp Int.zero) pc rs m)
                    (State stk' f' (Vptr sp' Int.zero) (spc ctx pc) rs' m')
   | match_call_states: forall stk fd args m stk' fd' args' m' F sprog fenv
-        (SPROG: program_linksub Language_RTL sprog prog)
-        (FENV: fenv = funenv_program sprog)
         (MS: match_stacks F m m' stk stk' (Mem.nextblock m'))
         (FD: transf_fundef fenv fd = OK fd')
+        (FENV: fenv = funenv_program sprog)
+        (SPROG: program_linksub Language_RTL sprog prog)
         (VINJ: val_list_inject F args args')
         (MINJ: Mem.inject F m m'),
       match_states (Callstate stk fd args m)
                    (Callstate stk' fd' args' m')
   | match_call_regular_states: forall stk f vargs m stk' f' sp' rs' m' F ctx ctx' pc' pc1' rargs sprog fenv
-        (SPROG: program_linksub Language_RTL sprog prog)
-        (SPROG: program_linksub Language_RTL sprog prog)
-        (FENV: fenv = funenv_program sprog)
         (MS: match_stacks_inside F m m' stk stk' f' ctx sp' rs')
         (FB: tr_funbody fenv f'.(fn_stacksize) ctx f f'.(fn_code))
+        (FENV: fenv = funenv_program sprog)
+        (SPROG: program_linksub Language_RTL sprog prog)
         (BELOW: context_below ctx' ctx)
         (NOP: f'.(fn_code)!pc' = Some(Inop pc1'))
         (MOVES: tr_moves f'.(fn_code) pc1' (sregs ctx' rargs) (sregs ctx f.(fn_params)) (spc ctx f.(fn_entrypoint)))
@@ -1014,7 +1013,7 @@ Proof.
   eapply plus_one. eapply exec_Icall; eauto.
   eapply sig_function_translated; eauto.
   econstructor; eauto.
-  eapply match_stacks_cons; try apply SPROG; eauto. 
+  eapply match_stacks_cons; eauto. 
   eapply agree_val_regs; eauto. 
 (* inlined *)
   assert (fd = Internal f0).
@@ -1023,8 +1022,8 @@ Proof.
     unfold ge in H0. congruence.
   subst fd.
   right; split. simpl; omega. split. auto. 
-  econstructor; try apply SPROG; eauto. 
-  eapply match_stacks_inside_inlined; try apply SPROG; eauto.
+  econstructor; eauto. 
+  eapply match_stacks_inside_inlined; eauto.
   red; intros. apply PRIV. inv H13. destruct H16. xomega.
   apply agree_val_regs_gen; auto.
   red; intros; apply PRIV. destruct H16. omega. 
@@ -1077,8 +1076,8 @@ Proof.
     unfold ge in H0. congruence.
   subst fd.
   right; split. simpl; omega. split. auto. 
-  econstructor; try apply SPROG; eauto.
-  eapply match_stacks_inside_inlined_tailcall; try apply SPROG; eauto.
+  econstructor; eauto.
+  eapply match_stacks_inside_inlined_tailcall; eauto.
   eapply match_stacks_inside_invariant; eauto.
     intros. eapply Mem.perm_free_3; eauto.
   apply agree_val_regs_gen; auto.
@@ -1098,12 +1097,11 @@ Proof.
     eapply external_call_symbols_preserved; eauto. 
     exact symbols_preserved. exact varinfo_preserved.
   econstructor.
-    eauto. eauto.
     eapply match_stacks_inside_set_reg. 
     eapply match_stacks_inside_extcall with (F1 := F) (F2 := F1) (m1 := m) (m1' := m'0); eauto.
     intros; eapply external_call_max_perm; eauto. 
     intros; eapply external_call_max_perm; eauto. 
-  auto. 
+  eauto. eauto. eauto. 
   eapply agree_set_reg. eapply agree_regs_incr; eauto. auto. auto. 
   apply J; auto.
   auto. 
@@ -1180,7 +1178,6 @@ Proof.
   left; econstructor; split.
   eapply plus_one. eapply exec_function_internal; eauto.
   rewrite H5. econstructor.
-  eauto. eauto.
   instantiate (1 := F'). apply match_stacks_inside_base.
   assert (SP: sp' = Mem.nextblock m'0) by (eapply Mem.alloc_result; eauto).
   rewrite <- SP in MS0. 
@@ -1194,7 +1191,7 @@ Proof.
     intros. eapply Mem.perm_alloc_1; eauto. 
     intros. exploit Mem.perm_alloc_inv. eexact A. eauto. 
     rewrite dec_eq_false; auto.
-  auto. auto. auto. 
+  auto. auto. eauto. eauto. eauto. 
   rewrite H4. apply agree_regs_init_regs. eauto. auto. inv H0; auto. congruence. auto.
   eapply Mem.valid_new_block; eauto.
   red; intros. split.
@@ -1233,11 +1230,10 @@ Proof.
   left; econstructor; split. 
   eapply plus_left. eapply exec_Inop; eauto. eexact P. traceEq.
   econstructor.
-  eauto. eauto.
   eapply match_stacks_inside_alloc_left; eauto.
   eapply match_stacks_inside_invariant; eauto.
   omega.
-  auto.
+  eauto. eauto. eauto.
   apply agree_regs_incr with F; auto.
   auto. auto. auto.
   rewrite H2. eapply range_private_alloc_left; eauto.
@@ -1281,9 +1277,8 @@ Proof.
   left; econstructor; split.
   eapply plus_one. eapply exec_return.
   eapply match_regular_states. 
-  eauto. eauto.
   eapply match_stacks_inside_set_reg; eauto.
-  auto. 
+  eauto. eauto. eauto. 
   apply agree_set_reg; auto.
   auto. auto. auto.
   red; intros. destruct (zlt ofs (dstk ctx)). apply PAD; omega. apply PRIV; omega.
