@@ -106,7 +106,7 @@ Lemma function_ptr_translated:
   exists tf, Genv.find_funct_ptr tge b = Some tf /\
   exists sprog, program_linksub Language_Cminor sprog prog /\
   sel_fundef (Genv.globalenv sprog) f = OK tf.
-Proof.
+Proof.  
   intros. exploit Genv.find_funct_ptr_match; eauto.
 Qed.
 
@@ -1102,26 +1102,25 @@ Qed.
 
 Theorem transf_program_correct:
   forall prog tprog,
-    check_helpers (Genv.globalenv prog) = OK tt ->
-    (@sepcomp_rel
-    Language_Cminor Language_CminorSel
-    (fun p f tf =>
-       sel_function (Genv.globalenv p) f = OK tf)
-    (fun p ef tef =>
-       ef = tef)
-    (@OK _)
-    prog tprog) ->
-    forward_simulation (Cminor.semantics prog) (CminorSel.semantics tprog).
+  check_helpers (Genv.globalenv prog) = OK tt ->
+  (@sepcomp_rel
+  Language_Cminor Language_CminorSel
+  (fun p f tf =>
+     sel_function (Genv.globalenv p) f = OK tf)
+  (fun p ef tef =>
+     ef = tef)
+  (@OK _)
+  prog tprog) ->
+  forward_simulation (Cminor.semantics prog) (CminorSel.semantics tprog).
 Proof.
   intros. unfold sel_program in H. set (ge := Genv.globalenv prog) in *.
-  assert (HELPER_DEC:forall name sg, In (name, sg) i64_helpers -> helper_declared ge name sg). Focus 2.
-  (* assert (HELPER_DEC:forall name sg, In (name, sg) i64_helpers -> helper_declared ge name sg); eauto using check_helpers_correct. *)
+  assert (HELPER_DEC:forall name sg, In (name, sg) i64_helpers -> helper_declared ge name sg). eapply check_helpers_correct; eauto.
   destruct (check_helpers ge) eqn:CH; simpl in H; try discriminate.
   apply forward_simulation_opt with (match_states := match_states prog tprog) (measure := measure). 
   eapply symbols_preserved; eauto.
   apply sel_initial_states; auto.
   apply sel_final_states; auto.
-  apply sel_step_correct; auto. eapply check_helpers_correct; eauto.
+  apply sel_step_correct; auto.
 Qed.
 
 Lemma link_program_check_helper

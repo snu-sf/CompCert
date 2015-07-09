@@ -5,7 +5,7 @@ Require Import Maps MapsExtra.
 Require Import Integers Floats Values AST Globalenvs.
 Require Import Language Linker LinkerProp Linksub.
 Require Import Errors.
-Require Import sflib paconotation.
+Require Import sflib.
 
 Set Implicit Arguments.
 

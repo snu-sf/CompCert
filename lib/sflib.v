@@ -12,7 +12,7 @@
 
 Require Import Bool Arith ZArith String Program.
 Require Import Relations.
-Require Export paconotation.
+(* Require Export paconotation. *)
 (* Require Export newtac. *)
 
 Set Implicit Arguments.
@@ -935,3 +935,21 @@ Ltac ren H :=
 Notation rtc := (clos_refl_trans _). (* reflexive transitive closure *)
 Notation tc := (clos_trans _). (* transitive closure *)
 Hint Immediate rt_step Relation_Operators.rt_refl Relation_Operators.t_step.
+
+(* from paconotation *)
+
+Notation "p <0= q" :=
+  (forall (PR: p : Prop), q : Prop)
+  (at level 50, no associativity, only parsing).
+
+Notation "p <1= q" :=
+  (forall x0 (PR: p x0 : Prop), q x0 : Prop)
+  (at level 50, no associativity).
+
+Notation "p <2= q" :=
+  (forall x0 x1 (PR: p x0 x1 : Prop), q x0 x1 : Prop)
+  (at level 50, no associativity).
+
+Notation "p <3= q" :=
+  (forall x0 x1 x2 (PR: p x0 x1 x2 : Prop), q x0 x1 x2 : Prop)
+  (at level 50, no associativity).
