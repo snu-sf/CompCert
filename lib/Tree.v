@@ -138,4 +138,12 @@ Proof.
   simpl. rewrite H0, H2. eapply H; eauto.
 Qed.
 
+Lemma Forall2_Forall A B (P:A->Prop) (ta:Tree.t A) (tb:Tree.t B)
+      (H: Tree.Forall2 (fun a b => P a) ta tb):
+  Tree.Forall (fun a => P a) ta.
+Proof.
+  generalize dependent tb.
+  induction ta; intros; inv H; constructor; eauto.
+Qed.
+
 End Tree.
