@@ -1198,7 +1198,7 @@ Qed.
 (* new *)   @sepcomp_rel
 (* new *)     Language.Language_Cminor Language.Language_CminorSel
 (* new *)     (fun p f tf => Selection.sel_function (Genv.globalenv p) f = OK tf)
-(* new *)     (fun p ef tef => ef = tef)
+(* new *)     (fun p ef tef => OK ef = OK tef)
 (* new *)     (@OK _)
 (* new *)     cminorprog cminorselprog.
 (* new *) Proof.
