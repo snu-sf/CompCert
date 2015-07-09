@@ -23,7 +23,6 @@ Require Import Memory.
 Require Import Events.
 Require Import Globalenvs.
 Require Import Smallstep.
-Require Import Language.
 Require Import Op.
 Require Import Registers.
 Require Import RTL.
@@ -35,6 +34,7 @@ Require Import CSEdomain.
 Require Import CombineOp.
 Require Import CombineOpproof.
 Require Import CSE.
+Require Import Language.
 Require Import Linksub.
 Require Import SepcompRel.
 Require Import RTLExtra.

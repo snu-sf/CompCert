@@ -22,7 +22,6 @@ Require Import Events.
 Require Import Memory.
 Require Import Globalenvs.
 Require Import Smallstep.
-Require Import Language.
 Require Import Op.
 Require Import Registers.
 Require Import RTL.
@@ -34,6 +33,7 @@ Require Import ValueAnalysis.
 Require Import ConstpropOp.
 Require Import Constprop.
 Require Import ConstpropOpproof.
+Require Import Language.
 Require Import Linksub.
 Require Import SepcompRel.
 Require Import RTLExtra.
