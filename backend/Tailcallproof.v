@@ -240,22 +240,22 @@ Section PRESERVATION.
 
 Variable prog: program.
 Variable tprog: program.
-Hypothesis TRANSF:
-  @sepcomp_rel
-    Language_RTL Language_RTL
-    (fun p f tf => transf_function f = tf \/ f = tf)
-    (fun p ef tef => ef = tef)
-    (@Errors.OK _)
-    prog tprog.
+(* new *) Hypothesis TRANSF:
+(* new *)   @sepcomp_rel
+(* new *)     Language_RTL Language_RTL
+(* new *)     (fun p f tf => transf_function f = tf \/ f = tf)
+(* new *)     (fun p ef tef => ef = tef)
+(* new *)     (@Errors.OK _)
+(* new *)     prog tprog.
 Let ge := Genv.globalenv prog.
 Let tge := Genv.globalenv tprog.
 
-Inductive match_fundef: forall (fd fd':fundef), Prop :=
-| match_fundef_transl fd fd'
-    (FUN: transf_fundef fd = fd'):
-    match_fundef fd fd'
-| match_fundef_identical fd:
-    match_fundef fd fd.
+(* new *) Inductive match_fundef: forall (fd fd':fundef), Prop :=
+(* new *) | match_fundef_transl fd fd'
+(* new *)     (FUN: transf_fundef fd = fd'):
+(* new *)     match_fundef fd fd'
+(* new *) | match_fundef_identical fd:
+(* new *)     match_fundef fd fd.
 
 Lemma symbols_preserved:
   forall (s: ident), Genv.find_symbol tge s = Genv.find_symbol ge s.
@@ -802,20 +802,20 @@ Qed.
 End PRESERVATION.
 
 
-Lemma Tailcall_sepcomp_rel
-      rtlprog1 rtlprog2
-      (Htrans: Tailcall.transf_program rtlprog1 = rtlprog2 \/ rtlprog1 = rtlprog2):
-  @sepcomp_rel
-    Language.Language_RTL Language.Language_RTL
-    (fun p f tf => Tailcall.transf_function f = tf \/ f = tf)
-    (fun p ef tef => ef = tef)
-    (@Errors.OK _)
-    rtlprog1 rtlprog2.
-Proof.
-  inv Htrans.
-  - apply transf_program_optionally_sepcomp_rel.
-    unfold Tailcall.transf_program. f_equal.
-    apply Axioms.functional_extensionality. intro fd.
-    destruct fd; auto.
-  - apply transf_program_optionally_sepcomp_rel_identical; auto.
-Qed.
+(* new *) Lemma Tailcall_sepcomp_rel
+(* new *)       rtlprog1 rtlprog2
+(* new *)       (Htrans: Tailcall.transf_program rtlprog1 = rtlprog2 \/ rtlprog1 = rtlprog2):
+(* new *)   @sepcomp_rel
+(* new *)     Language.Language_RTL Language.Language_RTL
+(* new *)     (fun p f tf => Tailcall.transf_function f = tf \/ f = tf)
+(* new *)     (fun p ef tef => ef = tef)
+(* new *)     (@Errors.OK _)
+(* new *)     rtlprog1 rtlprog2.
+(* new *) Proof.
+(* new *)   inv Htrans.
+(* new *)   - apply transf_program_optionally_sepcomp_rel.
+(* new *)     unfold Tailcall.transf_program. f_equal.
+(* new *)     apply Axioms.functional_extensionality. intro fd.
+(* new *)     destruct fd; auto.
+(* new *)   - apply transf_program_optionally_sepcomp_rel_identical; auto.
+(* new *) Qed.

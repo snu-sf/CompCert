@@ -369,13 +369,13 @@ Qed.
 
 (** * Basic properties of the translation *)
 
-Inductive match_fundef prog: forall (fd fd':fundef), Prop :=
-| match_fundef_transl fd fd' sprog
-    (SPROG: program_linksub Language_RTL sprog prog)
-    (FUN: transf_fundef (romem_for_program sprog) fd = OK fd'):
-    match_fundef prog fd fd'
-| match_fundef_identical fd:
-    match_fundef prog fd fd.
+(* new *) Inductive match_fundef prog: forall (fd fd':fundef), Prop :=
+(* new *) | match_fundef_transl fd fd' sprog
+(* new *)     (SPROG: program_linksub Language_RTL sprog prog)
+(* new *)     (FUN: transf_fundef (romem_for_program sprog) fd = OK fd'):
+(* new *)     match_fundef prog fd fd'
+(* new *) | match_fundef_identical fd:
+(* new *)     match_fundef prog fd fd.
 
 Section PRESERVATION.
 
