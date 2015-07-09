@@ -49,6 +49,8 @@ Local Open Scope error_monad_scope.
 
 Section PRESERVATION.
 
+Let transf_efT (p:Cminor.program) (ef:external_function) := OK ef.
+
 Variable prog: Cminor.program.
 Variable tprog: CminorSel.program.
 Let ge := Genv.globalenv prog.
@@ -59,46 +61,13 @@ Hypothesis TRANSF:
   @sepcomp_rel
     Language_Cminor Language_CminorSel
     (fun p f tf => sel_function (Genv.globalenv p) f = OK tf)
-    (fun p ef tef => ef = tef)
+    (fun p ef tef => transf_efT p ef = OK tef)
     (@OK _)
     prog tprog.
 
-Let prog_match:
-  match_program
-    (fun fd tfd =>
-       exists sprog, program_linksub Language_Cminor sprog prog /\
-       sel_fundef (Genv.globalenv sprog) fd = OK tfd)
-    (fun info tinfo => info = tinfo)
-    nil prog.(prog_main)
-    prog tprog.
-Proof.
-  destruct prog as [defs ?], tprog as [tdefs ?]. clear HELPERS.
-  inv TRANSF. simpl in *. subst. clear ge tge.
-  revert tdefs Hdefs. generalize defs at 1 3 as fdefs.
-  induction defs; intros fdefs tdefs Hdefs.
-  { inv Hdefs. constructor; auto. exists nil. split; auto. constructor. }
-  inv Hdefs. destruct a, b1, H1 as [? H1]. simpl in *. subst.
-  eapply IHdefs in H3. destruct H3 as [H3 ?]. split; [|auto].
-  destruct H3 as [? H3]. simpl in *. rewrite app_nil_r in *.
-  destruct H3 as [H3 ?]. subst.
-  eexists. rewrite app_nil_r. split; auto.
-  constructor; auto.
-  destruct H1 as [prog_src [Hprog_src H1]]. inv H1.
-  - apply match_glob_fun. eexists. split; eauto.
-    simpl in *. destruct fd_src; inv Hf_src. destruct fd_tgt; inv Hf_tgt.
-    unfold sel_fundef, transf_partial_fundef. rewrite Hf. auto.
-  - apply match_glob_fun. eexists. split; eauto.
-    simpl in *. destruct fd_src; inv Hef_src. destruct fd_tgt; inv Hef_tgt.
-    unfold sel_fundef, transf_partial_fundef. auto.
-  - unfold transf_globvar in Hv. monadInv Hv. inv EQ.
-    destruct gv_src. constructor. auto.
-Qed.
-
 Lemma symbols_preserved:
   forall (s: ident), Genv.find_symbol tge s = Genv.find_symbol ge s.
-Proof.
-  intros. eapply Genv.find_symbol_match; eauto.
-Qed.
+Proof (find_symbol_transf_partial _ _ TRANSF).
 
 Lemma function_ptr_translated:
   forall (b: block) (f: Cminor.fundef),
@@ -107,7 +76,12 @@ Lemma function_ptr_translated:
   exists sprog, program_linksub Language_Cminor sprog prog /\
   sel_fundef (Genv.globalenv sprog) f = OK tf.
 Proof.  
-  intros. exploit Genv.find_funct_ptr_match; eauto.
+  intros. exploit (find_funct_ptr_transf_partial _ _ TRANSF); eauto. simpl in *.
+  intros [tf [Htf [sprog [Hsprog Hf]]]].
+  eexists. split; eauto. eexists. split; eauto.
+  destruct f; Errors.monadInv Hf; auto.
+  unfold sel_fundef. unfold transf_partial_fundef.
+  rewrite EQ. auto.
 Qed.
 
 Lemma functions_translated:
@@ -119,7 +93,7 @@ Lemma functions_translated:
   sel_fundef (Genv.globalenv sprog) f = OK tf.
 Proof.  
   intros. inv H0.
-  intros. exploit Genv.find_funct_match; eauto.
+  intros. destruct v'; inv H. destruct (Int.eq_dec i Int.zero); inv H1. eapply function_ptr_translated; eauto.
   simpl in H. discriminate.
 Qed.
 
@@ -137,14 +111,7 @@ Qed.
 
 Lemma varinfo_preserved:
   forall b, Genv.find_var_info tge b = Genv.find_var_info ge b.
-Proof.
-  intros. destruct (Genv.find_var_info ge b) as [v|] eqn:V.
-  - exploit Genv.find_var_info_match; eauto. intros [tv [A B]]. inv B. assumption.
-  - destruct (Genv.find_var_info tge b) as [v'|] eqn:V'; auto.
-    exploit Genv.find_var_info_rev_match; eauto.
-    simpl. destruct (plt b (Genv.genv_next (Genv.globalenv prog))); try tauto.
-    intros [v [A B]]. inv B. fold ge in A. congruence.
-Qed.
+Proof (find_var_info_transf_partial _ _ TRANSF).
 
 Lemma helper_declared_preserved:
   forall id sg, helper_declared ge id sg -> helper_declared tge id sg.
@@ -1059,7 +1026,7 @@ Proof.
   exploit function_ptr_translated; eauto. intros (f' & A & sprog & SPROG & B).
   econstructor; split.
   econstructor.
-  exploit Genv.init_mem_match; eauto.
+  exploit (init_mem_transf_partial _ _ TRANSF); eauto.
   replace (prog_main tprog) with (prog_main prog).
   rewrite symbols_preserved. eauto.
   inv TRANSF. auto.
@@ -1105,10 +1072,8 @@ Theorem transf_program_correct:
   check_helpers (Genv.globalenv prog) = OK tt ->
   (@sepcomp_rel
   Language_Cminor Language_CminorSel
-  (fun p f tf =>
-     sel_function (Genv.globalenv p) f = OK tf)
-  (fun p ef tef =>
-     ef = tef)
+  (fun p f tf => sel_function (Genv.globalenv p) f = OK tf)
+  (fun p ef tef => OK ef = OK tef)
   (@OK _)
   prog tprog) ->
   forward_simulation (Cminor.semantics prog) (CminorSel.semantics tprog).
