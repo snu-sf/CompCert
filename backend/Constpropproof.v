@@ -33,24 +33,25 @@ Require Import ValueAnalysis.
 Require Import ConstpropOp.
 Require Import Constprop.
 Require Import ConstpropOpproof.
-Require Import Language.
-Require Import Linksub.
-Require Import SepcompRel.
-Require Language.
+(* new *) Require Import Language.
+(* new *) Require Import Linksub.
+(* new *) Require Import SepcompRel.
+(* new *) Require Language.
 
 Section PRESERVATION.
 
 Variable prog: program.
 Variable tprog: program.
-Hypothesis TRANSF:
-  @sepcomp_rel
-    Language_RTL Language_RTL
-    (fun p f tf => transf_function (romem_for_program p) f = tf)
-    (fun p ef tef => ef = tef)
-    (@Errors.OK _)
-    prog tprog.
+(* new *) Hypothesis TRANSF:
+(* new *)   @sepcomp_rel
+(* new *)     Language_RTL Language_RTL
+(* new *)     (fun p f tf => transf_function (romem_for_program p) f = tf)
+(* new *)     (fun p ef tef => ef = tef)
+(* new *)     (@Errors.OK _)
+(* new *)     prog tprog.
 Let ge := Genv.globalenv prog.
 Let tge := Genv.globalenv tprog.
+Let rm := romem_for_program prog.
 
 (** * Correctness of the code transformation *)
 
@@ -670,18 +671,18 @@ Qed.
 
 End PRESERVATION.
 
-Lemma Constprop_sepcomp_rel
-      rtlprog1 rtlprog2
-      (Htrans: Constprop.transf_program rtlprog1 = rtlprog2):
-  @sepcomp_rel
-    Language.Language_RTL Language.Language_RTL
-    (fun p f tf => Constprop.transf_function (romem_for_program p) f = tf)
-    (fun p ef tef => ef = tef)
-    (@Errors.OK _)
-    rtlprog1 rtlprog2.
-Proof.
-  apply transf_program_sepcomp_rel. rewrite <- Htrans.
-  unfold Constprop.transf_program. f_equal.
-  apply Axioms.functional_extensionality. intro fd.
-  destruct fd; auto.
-Qed.
+(* new *) Lemma Constprop_sepcomp_rel
+(* new *)       rtlprog1 rtlprog2
+(* new *)       (Htrans: Constprop.transf_program rtlprog1 = rtlprog2):
+(* new *)   @sepcomp_rel
+(* new *)     Language.Language_RTL Language.Language_RTL
+(* new *)     (fun p f tf => Constprop.transf_function (romem_for_program p) f = tf)
+(* new *)     (fun p ef tef => ef = tef)
+(* new *)     (@Errors.OK _)
+(* new *)     rtlprog1 rtlprog2.
+(* new *) Proof.
+(* new *)   apply transf_program_sepcomp_rel. rewrite <- Htrans.
+(* new *)   unfold Constprop.transf_program. f_equal.
+(* new *)   apply Axioms.functional_extensionality. intro fd.
+(* new *)   destruct fd; auto.
+(* new *) Qed.

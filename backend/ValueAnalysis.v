@@ -28,8 +28,8 @@ Require Import RTL.
 Require Import ValueDomain.
 Require Import ValueAOp.
 Require Import Liveness.
-Require Language.
-Require Import Linksub.
+(* new *) Require Language.
+(* new *) Require Import Linksub.
 
 (** * The dataflow analysis *)
 

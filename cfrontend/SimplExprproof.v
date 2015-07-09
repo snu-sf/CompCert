@@ -30,54 +30,54 @@ Require Import Cstrategy.
 Require Import Clight.
 Require Import SimplExpr.
 Require Import SimplExprspec.
-Require Import Language.
-Require Import Linksub.
-Require Import SepcompRel.
+(* new *) Require Import Language.
+(* new *) Require Import Linksub.
+(* new *) Require Import SepcompRel.
 
 Section PRESERVATION.
 
 Variable prog: Csyntax.program.
 Variable tprog: Clight.program.
 
-Hypothesis TRANSF:
-  @sepcomp_rel
-    Language_C Language_Clight
-    (fun _ f tf => tr_function f tf)
-    (fun _ ef tef => ef = tef)
-    (@OK _)
-    prog tprog.
+(* new *) Hypothesis TRANSF:
+(* new *)   @sepcomp_rel
+(* new *)     Language_C Language_Clight
+(* new *)     (fun _ f tf => tr_function f tf)
+(* new *)     (fun _ ef tef => ef = tef)
+(* new *)     (@OK _)
+(* new *)     prog tprog.
 
 Let ge := Genv.globalenv prog.
 Let tge := Genv.globalenv tprog.
 
-Let prog_match:
-  match_program
-    (fun fd tfd => tr_fundef fd tfd)
-    (fun info tinfo => info = tinfo)
-    nil prog.(prog_main)
-    prog tprog.
-Proof.
-  destruct prog as [defs ?], tprog as [tdefs ?].
-  inv TRANSF. simpl in *. subst. clear ge tge.
-  revert tdefs Hdefs. generalize defs at 1 as fdefs.
-  induction defs; intros fdefs tdefs Hdefs.
-  { inv Hdefs. constructor; auto. exists nil. split; auto. constructor. }
-  inv Hdefs. destruct a, b1, H1 as [? H1]. simpl in *. subst.
-  eapply IHdefs in H3. destruct H3 as [H3 ?]. split; [|auto].
-  destruct H3 as [? H3]. simpl in *. rewrite app_nil_r in *.
-  destruct H3 as [H3 ?]. subst.
-  eexists. rewrite app_nil_r. split; auto.
-  constructor; auto.
-  destruct H1 as [prog_src [Hprog_src H1]]. inv H1.
-  - apply match_glob_fun. auto.
-    destruct fd_src; inv Hf_src. destruct fd_tgt; inv Hf_tgt.
-    constructor. auto.
-  - apply match_glob_fun.
-    destruct fd_src; inv Hef_src. destruct fd_tgt; inv Hef_tgt.
-    constructor.
-  - unfold transf_globvar in Hv. monadInv Hv. inv EQ.
-    destruct gv_src. constructor. auto.
-Qed.
+(* new *) Let prog_match:
+(* new *)   match_program
+(* new *)     (fun fd tfd => tr_fundef fd tfd)
+(* new *)     (fun info tinfo => info = tinfo)
+(* new *)     nil prog.(prog_main)
+(* new *)     prog tprog.
+(* new *) Proof.
+(* new *)   destruct prog as [defs ?], tprog as [tdefs ?].
+(* new *)   inv TRANSF. simpl in *. subst. clear ge tge.
+(* new *)   revert tdefs Hdefs. generalize defs at 1 as fdefs.
+(* new *)   induction defs; intros fdefs tdefs Hdefs.
+(* new *)   { inv Hdefs. constructor; auto. exists nil. split; auto. constructor. }
+(* new *)   inv Hdefs. destruct a, b1, H1 as [? H1]. simpl in *. subst.
+(* new *)   eapply IHdefs in H3. destruct H3 as [H3 ?]. split; [|auto].
+(* new *)   destruct H3 as [? H3]. simpl in *. rewrite app_nil_r in *.
+(* new *)   destruct H3 as [H3 ?]. subst.
+(* new *)   eexists. rewrite app_nil_r. split; auto.
+(* new *)   constructor; auto.
+(* new *)   destruct H1 as [prog_src [Hprog_src H1]]. inv H1.
+(* new *)   - apply match_glob_fun. auto.
+(* new *)     destruct fd_src; inv Hf_src. destruct fd_tgt; inv Hf_tgt.
+(* new *)     constructor. auto.
+(* new *)   - apply match_glob_fun.
+(* new *)     destruct fd_src; inv Hef_src. destruct fd_tgt; inv Hef_tgt.
+(* new *)     constructor.
+(* new *)   - unfold transf_globvar in Hv. monadInv Hv. inv EQ.
+(* new *)     destruct gv_src. constructor. auto.
+(* new *) Qed.
 
 (** Invariance properties. *)
 
@@ -2259,25 +2259,25 @@ Qed.
 
 End PRESERVATION.
 
-Lemma SimplExpr_sepcomp_rel
-      cprog clightprog
-      (Htrans: SimplExpr.transl_program cprog = OK clightprog):
-  @sepcomp_rel
-    Language.Language_C Language.Language_Clight
-    (fun _ f tf => SimplExprspec.tr_function f tf)
-    (fun _ ef tef => ef = tef)
-    (@OK _)
-    cprog clightprog.
-Proof.
-  destruct cprog as [defs ?], clightprog as [tdefs ?].
-  exploit SimplExprspec.transl_program_spec; eauto. clear Htrans.
-  intros [[tglob [Hmatch Htglob]] Hmain]. constructor; auto.
-  rewrite app_nil_r in *. simpl in *. subst.
-  eapply list_forall2_imply; eauto. intros. inv H1; simpl; split; auto.
-  - eexists. split; [reflexivity|].
-    inv H2.
-    + eapply (@grel_f Language.Language_C Language.Language_Clight); simpl; auto.
-    + eapply (@grel_ef Language.Language_C Language.Language_Clight); simpl; auto.
-  - eexists. split; [reflexivity|].
-    apply (@grel_gv Language.Language_C Language.Language_Clight). auto.
-Qed.
+(* new *) Lemma SimplExpr_sepcomp_rel
+(* new *)       cprog clightprog
+(* new *)       (Htrans: SimplExpr.transl_program cprog = OK clightprog):
+(* new *)   @sepcomp_rel
+(* new *)     Language.Language_C Language.Language_Clight
+(* new *)     (fun _ f tf => SimplExprspec.tr_function f tf)
+(* new *)     (fun _ ef tef => ef = tef)
+(* new *)     (@OK _)
+(* new *)     cprog clightprog.
+(* new *) Proof.
+(* new *)   destruct cprog as [defs ?], clightprog as [tdefs ?].
+(* new *)   exploit SimplExprspec.transl_program_spec; eauto. clear Htrans.
+(* new *)   intros [[tglob [Hmatch Htglob]] Hmain]. constructor; auto.
+(* new *)   rewrite app_nil_r in *. simpl in *. subst.
+(* new *)   eapply list_forall2_imply; eauto. intros. inv H1; simpl; split; auto.
+(* new *)   - eexists. split; [reflexivity|].
+(* new *)     inv H2.
+(* new *)     + eapply (@grel_f Language.Language_C Language.Language_Clight); simpl; auto.
+(* new *)     + eapply (@grel_ef Language.Language_C Language.Language_Clight); simpl; auto.
+(* new *)   - eexists. split; [reflexivity|].
+(* new *)     apply (@grel_gv Language.Language_C Language.Language_Clight). auto.
+(* new *) Qed.
