@@ -27,59 +27,59 @@ Require Import Registers.
 Require Import Inlining.
 Require Import Inliningspec.
 Require Import RTL.
-Require Import Language.
-Require Import MapsExtra.
-Require Import Linksub.
-Require Import SepcompRel.
-Require Import RTLExtra.
-Require Import sflib.
+(* new *) Require Import Language.
+(* new *) Require Import MapsExtra.
+(* new *) Require Import Linksub.
+(* new *) Require Import SepcompRel.
+(* new *) Require Import RTLExtra.
+(* new *) Require Import sflib.
 
-Lemma funenv_program_spec p i:
-  (funenv_program p) ! i =
-  match find (fun id => peq i (fst id)) (rev p.(prog_defs)) with
-    | Some (_, Gfun (Internal f)) =>
-      if should_inline i f then Some f else None
-    | _ => None
-  end.
-Proof.
-  unfold funenv_program. rewrite <- fold_left_rev_right.
-  induction (rev (prog_defs p)); simpl.
-  { apply PTree.gempty. }
-  destruct a. simpl. destruct g; simpl.
-  - destruct f; simpl.
-    + destruct (should_inline i0 f) eqn:Hinline.
-      * rewrite PTree.gsspec. destruct (peq i i0); subst; simpl; auto.
-        rewrite Hinline. auto.
-      * rewrite PTree.grspec. unfold PTree.elt_eq.
-        destruct (peq i i0); subst; simpl; auto.
-        rewrite Hinline. auto.
-    + rewrite PTree.grspec. unfold PTree.elt_eq.
-      destruct (peq i i0); subst; simpl; auto.
-  - rewrite PTree.grspec. unfold PTree.elt_eq.
-    destruct (peq i i0); simpl; auto.
-Qed.
+(* new *) Lemma funenv_program_spec p i:
+(* new *)   (funenv_program p) ! i =
+(* new *)   match find (fun id => peq i (fst id)) (rev p.(prog_defs)) with
+(* new *)     | Some (_, Gfun (Internal f)) =>
+(* new *)       if should_inline i f then Some f else None
+(* new *)     | _ => None
+(* new *)   end.
+(* new *) Proof.
+(* new *)   unfold funenv_program. rewrite <- fold_left_rev_right.
+(* new *)   induction (rev (prog_defs p)); simpl.
+(* new *)   { apply PTree.gempty. }
+(* new *)   destruct a. simpl. destruct g; simpl.
+(* new *)   - destruct f; simpl.
+(* new *)     + destruct (should_inline i0 f) eqn:Hinline.
+(* new *)       * rewrite PTree.gsspec. destruct (peq i i0); subst; simpl; auto.
+(* new *)         rewrite Hinline. auto.
+(* new *)       * rewrite PTree.grspec. unfold PTree.elt_eq.
+(* new *)         destruct (peq i i0); subst; simpl; auto.
+(* new *)         rewrite Hinline. auto.
+(* new *)     + rewrite PTree.grspec. unfold PTree.elt_eq.
+(* new *)       destruct (peq i i0); subst; simpl; auto.
+(* new *)   - rewrite PTree.grspec. unfold PTree.elt_eq.
+(* new *)     destruct (peq i i0); simpl; auto.
+(* new *) Qed.
 
-Lemma program_linksub_fenv_le sprog prog
-      (Hlink: program_linksub Language_RTL sprog prog):
-  PTree_le (funenv_program sprog) (funenv_program prog).
-Proof.
-  constructor. intros. rewrite ? funenv_program_spec in *.
-  match goal with
-    | [H: context[find ?f ?l] |- _] => destruct (find f l) as [[]|] eqn:Hf; inv H
-  end.
-  destruct g; inv H0. destruct f; inv H1. destruct (should_inline b f) eqn:Hinline; inv H0.
-  destruct Hlink as [Hdefs Hmain]. exploit Hdefs; eauto.
-  { rewrite PTree_guespec. instantiate (2 := b).
-    unfold fundef, ident in *. simpl in *. rewrite Hf. simpl. eauto.
-  }
-  intros [def2 [Hdef2 Hle]]. inv Hle. inv Hv.
-  - rewrite PTree_guespec in Hdef2. unfold fundef, ident. simpl in *.
-    match goal with
-      | [|- context[find ?f ?l]] => destruct (find f l) as [[]|] eqn:Hf'; inv Hdef2
-    end.
-    rewrite Hinline. auto.
-  - inv H; simpl in *; inv H1.
-Qed.
+(* new *) Lemma program_linksub_fenv_le sprog prog
+(* new *)       (Hlink: program_linksub Language_RTL sprog prog):
+(* new *)   PTree_le (funenv_program sprog) (funenv_program prog).
+(* new *) Proof.
+(* new *)   constructor. intros. rewrite ? funenv_program_spec in *.
+(* new *)   match goal with
+(* new *)     | [H: context[find ?f ?l] |- _] => destruct (find f l) as [[]|] eqn:Hf; inv H
+(* new *)   end.
+(* new *)   destruct g; inv H0. destruct f; inv H1. destruct (should_inline b f) eqn:Hinline; inv H0.
+(* new *)   destruct Hlink as [Hdefs Hmain]. exploit Hdefs; eauto.
+(* new *)   { rewrite PTree_guespec. instantiate (2 := b).
+(* new *)     unfold fundef, ident in *. simpl in *. rewrite Hf. simpl. eauto.
+(* new *)   }
+(* new *)   intros [def2 [Hdef2 Hle]]. inv Hle. inv Hv.
+(* new *)   - rewrite PTree_guespec in Hdef2. unfold fundef, ident. simpl in *.
+(* new *)     match goal with
+(* new *)       | [|- context[find ?f ?l]] => destruct (find f l) as [[]|] eqn:Hf'; inv Hdef2
+(* new *)     end.
+(* new *)     rewrite Hinline. auto.
+(* new *)   - inv H; simpl in *; inv H1.
+(* new *) Qed.
 
 Inductive match_fundef prog: forall (fd fd':fundef), Prop :=
 | match_fundef_transl
@@ -94,17 +94,17 @@ Inductive match_fundef prog: forall (fd fd':fundef), Prop :=
 
 Section INLINING.
 
-Let transf_efT (p:program) (ef:external_function) := OK ef.
+(* new *) Let transf_efT (p:program) (ef:external_function) := OK ef.
 
 Variable prog: program.
 Variable tprog: program.
-Hypothesis TRANSF:
-  @sepcomp_rel
-    Language_RTL Language_RTL
-    (fun p f tf => Inlining.transf_function (funenv_program p) f = OK tf \/ f = tf)
-    (fun p ef tef => transf_efT p ef = OK tef)
-    (@OK _)
-    prog tprog.
+(* new *) Hypothesis TRANSF:
+(* new *)   @sepcomp_rel
+(* new *)     Language_RTL Language_RTL
+(* new *)     (fun p f tf => Inlining.transf_function (funenv_program p) f = OK tf \/ f = tf)
+(* new *)     (fun p ef tef => transf_efT p ef = OK tef)
+(* new *)     (@OK _)
+(* new *)     prog tprog.
 Let ge := Genv.globalenv prog.
 Let tge := Genv.globalenv tprog.
 Let fenv := funenv_program prog.
@@ -1582,21 +1582,21 @@ Qed.
 
 End INLINING.
 
-Lemma Inlining_sepcomp_rel
-      rtlprog1 rtlprog2
-      (Htrans: Inlining.transf_program rtlprog1 = OK rtlprog2 \/ rtlprog1 = rtlprog2):
-  @sepcomp_rel
-    Language.Language_RTL Language.Language_RTL
-    (fun p f tf => Inlining.transf_function (Inlining.funenv_program p) f = OK tf \/ f = tf)
-    (fun p ef tef => (fun _ ef => OK ef) p ef = OK tef)
-    (@OK _)
-    rtlprog1 rtlprog2.
-Proof.
-  inv Htrans.
-  - apply transf_partial_optionally_sepcomp_rel.
-    unfold progT, RTL.program, RTL.fundef in *. simpl in *. rewrite <- H.
-    unfold Inlining.transf_program. f_equal.
-    apply Axioms.functional_extensionality. intro fd.
-    destruct fd; auto.
-  - apply transf_partial_optionally_sepcomp_rel_identical; auto.
-Qed.
+(* new *) Lemma Inlining_sepcomp_rel
+(* new *)       rtlprog1 rtlprog2
+(* new *)       (Htrans: Inlining.transf_program rtlprog1 = OK rtlprog2 \/ rtlprog1 = rtlprog2):
+(* new *)   @sepcomp_rel
+(* new *)     Language.Language_RTL Language.Language_RTL
+(* new *)     (fun p f tf => Inlining.transf_function (Inlining.funenv_program p) f = OK tf \/ f = tf)
+(* new *)     (fun p ef tef => (fun _ ef => OK ef) p ef = OK tef)
+(* new *)     (@OK _)
+(* new *)     rtlprog1 rtlprog2.
+(* new *) Proof.
+(* new *)   inv Htrans.
+(* new *)   - apply transf_partial_optionally_sepcomp_rel.
+(* new *)     unfold progT, RTL.program, RTL.fundef in *. simpl in *. rewrite <- H.
+(* new *)     unfold Inlining.transf_program. f_equal.
+(* new *)     apply Axioms.functional_extensionality. intro fd.
+(* new *)     destruct fd; auto.
+(* new *)   - apply transf_partial_optionally_sepcomp_rel_identical; auto.
+(* new *) Qed.
