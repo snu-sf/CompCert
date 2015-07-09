@@ -1198,7 +1198,7 @@ Lemma Selection_sepcomp_rel
   @sepcomp_rel
     Language.Language_Cminor Language.Language_CminorSel
     (fun p f tf => Selection.sel_function (Genv.globalenv p) f = OK tf)
-    (fun p ef tef => ef = tef)
+    (fun p ef tef => OK ef = OK tef)
     (@OK _)
     cminorprog cminorselprog.
 Proof.
