@@ -823,7 +823,6 @@ Hypothesis TRANSF:
     prog tprog.
 Let ge := Genv.globalenv prog.
 Let tge := Genv.globalenv tprog.
-Let rm := romem_for_program prog.
 
 Lemma symbols_preserved:
   forall (s: ident), Genv.find_symbol tge s = Genv.find_symbol ge s.
@@ -945,8 +944,9 @@ Inductive match_stackframes: list stackframe -> list stackframe -> Prop :=
   | match_stackframes_nil:
       match_stackframes nil nil
   | match_stackframes_cons:
-      forall res sp pc rs f approx s rs' s' sprog
-           (ANALYZE: analyze f (vanalyze (romem_for_program sprog) f) = Some approx)
+      forall res sp pc rs f approx s rs' s' sprog rm
+           (ANALYZE: analyze f (vanalyze rm f) = Some approx)
+           (RM: rm = romem_for_program sprog)
            (SPROG: program_linksub Language_RTL sprog prog)
            (SAT: forall v m, exists valu, numbering_holds valu ge sp (rs#res <- v) m approx!!pc)
            (RLD: regs_lessdef rs rs')
@@ -957,8 +957,9 @@ Inductive match_stackframes: list stackframe -> list stackframe -> Prop :=
 
 Inductive match_states: state -> state -> Prop :=
   | match_states_intro:
-      forall s sp pc rs m s' rs' m' f approx sprog
-             (ANALYZE: analyze f (vanalyze (romem_for_program sprog) f) = Some approx)
+      forall s sp pc rs m s' rs' m' f approx sprog rm
+             (ANALYZE: analyze f (vanalyze rm f) = Some approx)
+             (RM: rm = romem_for_program sprog)
              (SPROG: program_linksub Language_RTL sprog prog)
              (SAT: exists valu, numbering_holds valu ge sp rs m approx!!pc)
              (RLD: regs_lessdef rs rs')
@@ -1276,7 +1277,7 @@ Lemma CSE_sepcomp_rel
       (Htrans: CSE.transf_program rtlprog1 = OK rtlprog2):
   @sepcomp_rel
     Language.Language_RTL Language.Language_RTL
-    (fun p f tf => CSE.transf_function (ValueAnalysis.romem_for_program p) f = OK tf)
+    (fun p f tf => CSE.transf_function (romem_for_program p) f = OK tf)
     (fun p ef tef => (fun _ ef => OK ef) p ef = OK tef)
     (@OK _)
     rtlprog1 rtlprog2.
