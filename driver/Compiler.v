@@ -245,7 +245,7 @@ Proof.
   simpl in H. 
   destruct (Selection.sel_program p) as [p1|] eqn:?; simpl in H; try discriminate.
   destruct (RTLgen.transl_program p1) as [p2|] eqn:?; simpl in H; try discriminate.
-  eapply compose_forward_simulation. apply Selectionproof.transl_program_correct. monadInv Heqr. eapply Selectionproof.check_helpers_correct. eauto. apply Selectionproof.Selection_sepcomp_rel. eassumption.
+  eapply compose_forward_simulation. apply Selectionproof.transf_program_correct. monadInv Heqr. destruct x; apply EQ. apply Selectionproof.Selection_sepcomp_rel. eassumption.
   eapply compose_forward_simulation. apply RTLgenproof.transf_program_correct. eassumption.
   exact (fst (transf_rtl_program_correct _ _ H)).
 

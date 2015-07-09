@@ -58,10 +58,8 @@ Hypothesis HELPERS:
 Hypothesis TRANSF:
   @sepcomp_rel
     Language_Cminor Language_CminorSel
-    (fun p f tf =>
-       sel_function (Genv.globalenv p) f = OK tf)
-    (fun p ef tef =>
-       ef = tef)
+    (fun p f tf => sel_function (Genv.globalenv p) f = OK tf)
+    (fun p ef tef => ef = tef)
     (@OK _)
     prog tprog.
 
@@ -119,11 +117,10 @@ Lemma functions_translated:
   exists tf, Genv.find_funct tge v' = Some tf /\
   exists sprog, program_linksub Language_Cminor sprog prog /\
   sel_fundef (Genv.globalenv sprog) f = OK tf.
-Proof.  
+Proof.
+  intros. inv H0.
   intros. exploit Genv.find_funct_match; eauto.
-  intros [tf [Htf [sprog [Hsprog hf]]]].
-  eexists; split; eauto.
-  inv H0; auto. inv H.
+  simpl in H. discriminate.
 Qed.
 
 Lemma sig_function_translated:
@@ -362,25 +359,13 @@ Proof.
   destruct p as [defs main]. unfold Genv.globalenv. simpl in *.
   unfold Genv.add_globals. rewrite <- fold_left_rev_right.
   unfold Genv.find_symbol, Genv.find_funct_ptr, Genv.find_var_info.
-  induction (rev defs); simpl.
-  { rewrite PTree.gempty. auto. }
-  rewrite ? PTree.gsspec. destruct a. simpl. destruct (peq i i0); [subst|]; simpl.
-  { destruct g; clarify.
-    - apply Genv.genv_vars_range in H3. xomega.
-    - apply Genv.genv_vars_range in H3. xomega.
-    - apply Genv.genv_vars_range in H1. xomega.
-    - apply Genv.genv_funs_range in H3. xomega.
-    - apply Genv.genv_funs_range in H3. xomega.
-    - apply Genv.genv_funs_range in H1. xomega.
-  }
-  { clarify.
-    - apply Genv.genv_funs_range in H1. xomega.
-    - apply Genv.genv_funs_range in H1. xomega.
-    - apply Genv.genv_funs_range in H1. xomega.
-    - apply Genv.genv_vars_range in H2. xomega.
-    - apply Genv.genv_vars_range in H2. xomega.
-    - apply Genv.genv_vars_range in H2. xomega.
-  }
+  induction (rev defs); simpl; [rewrite PTree.gempty; auto|].
+  rewrite ? PTree.gsspec. destruct a. simpl.
+  destruct (peq i i0); [subst|]; simpl; [destruct g| ]; clarify;
+  try (match goal with [H: (Genv.genv_vars _)!_=_ |- _] =>
+                       apply Genv.genv_vars_range in H; xomega end);
+  try (match goal with [H: (Genv.genv_funs _)!_=_ |- _] =>
+                       apply Genv.genv_funs_range in H; xomega end).
 Qed.
 
 Lemma classify_call_correct:
@@ -455,32 +440,25 @@ Proof.
         let H := fresh "H" in destruct g as [g_src|] eqn:H; intro X; inv X
     end.
     fold Cminor.fundef in *.
-    destruct (Genv.find_symbol (Genv.globalenv prog) i) eqn:Hb_tgt.
-    { match goal with
-        | [|- context[match ?g with | Some _ => _ | None => _ end -> _]] =>
-          let H := fresh "H" in destruct g as [g_tgt|] eqn:H; [|intro X; inv X]
-      end.
-      destruct g_tgt as [fd_tgt|vi_tgt].
-      { destruct (Genv.find_funct_ptr (Genv.globalenv prog) b) eqn:Hfd_tgt; [|intro X; inv X].
-        destruct (Genv.find_var_info (Genv.globalenv prog) b) eqn:Hvi_tgt; [intro X; inv X|].
-        intro. subst. destruct f.
-        { rewrite Hb_tgt. auto. }
-        { destruct (ef_inline e0) eqn:Hinline.
-          { intro. subst. eexists. split; eauto.
-            destruct a; inv Hident. destruct c; inv H4. destruct (Int.eq i1 Int.zero); inv H5.
-            destruct v; inv H0. destruct (Int.eq_dec i0 Int.zero); inv H4.
-            inv H. inv H4. unfold Cminor.fundef in *. simpl in *. rewrite Hb_tgt in *.
-            inv H0. auto.
-          }
-          { rewrite Hb_tgt. auto. }
-        }
-      }
-      { destruct (Genv.find_funct_ptr (Genv.globalenv prog) b); [intro X; inv X|].
-        destruct (Genv.find_var_info (Genv.globalenv prog) b) eqn:Hvi_tgt; [|intro X; inv X].
-        intro. subst. rewrite Hb_tgt. auto.
-      }
-    }
-    { rewrite Hb_tgt. auto. }
+    destruct (Genv.find_symbol (Genv.globalenv prog) i) eqn:Hb_tgt;
+      [| rewrite Hb_tgt; auto].
+    match goal with
+      | [|- context[match ?g with | Some _ => _ | None => _ end -> _]] =>
+        let H := fresh "H" in destruct g as [g_tgt|] eqn:H; [|intro X; inv X]
+    end.
+    destruct g_tgt as [fd_tgt|vi_tgt].
+    + destruct (Genv.find_funct_ptr (Genv.globalenv prog) b) eqn:Hfd_tgt; [|intro X; inv X].
+      destruct (Genv.find_var_info (Genv.globalenv prog) b) eqn:Hvi_tgt; [intro X; inv X|].
+      intro. subst. destruct f; [rewrite Hb_tgt; auto| ].
+      destruct (ef_inline e0) eqn:Hinline; [| rewrite Hb_tgt; auto].
+      intro. subst. eexists. split; eauto.
+      destruct a; inv Hident. destruct c; inv H4. destruct (Int.eq i1 Int.zero); inv H5.
+      destruct v; inv H0. destruct (Int.eq_dec i0 Int.zero); inv H4.
+      inv H. inv H4. unfold Cminor.fundef in *. simpl in *. rewrite Hb_tgt in *.
+      inv H0. auto.
+    + destruct (Genv.find_funct_ptr (Genv.globalenv prog) b);
+      destruct (Genv.find_var_info (Genv.globalenv prog) b) eqn:Hvi_tgt; try (intro X; inv X; fail).
+      intro. subst. rewrite Hb_tgt. auto.
 Qed.
 
 (** Translation of [switch] statements *)
@@ -1097,16 +1075,6 @@ Proof.
   intros. inv H0. inv H. inv MC. inv LD. constructor.
 Qed.
 
-Theorem transl_program_correct:
-  forward_simulation (Cminor.semantics prog) (CminorSel.semantics tprog).
-Proof.
-  apply forward_simulation_opt with (match_states := match_states) (measure := measure). 
-  eapply symbols_preserved; eauto.
-  apply sel_initial_states; auto.
-  apply sel_final_states; auto.
-  apply sel_step_correct; auto.
-Qed.
-
 End PRESERVATION.
 
 Lemma check_helper_correct:
@@ -1130,6 +1098,30 @@ Proof.
   generalize i64_helpers x. induction 1; simpl; intros.
   contradiction.
   destruct H1. subst a1. eapply check_helper_correct; eauto. eauto. 
+Qed.
+
+Theorem transf_program_correct:
+  forall prog tprog,
+    check_helpers (Genv.globalenv prog) = OK tt ->
+    (@sepcomp_rel
+    Language_Cminor Language_CminorSel
+    (fun p f tf =>
+       sel_function (Genv.globalenv p) f = OK tf)
+    (fun p ef tef =>
+       ef = tef)
+    (@OK _)
+    prog tprog) ->
+    forward_simulation (Cminor.semantics prog) (CminorSel.semantics tprog).
+Proof.
+  intros. unfold sel_program in H. set (ge := Genv.globalenv prog) in *.
+  assert (HELPER_DEC:forall name sg, In (name, sg) i64_helpers -> helper_declared ge name sg). Focus 2.
+  (* assert (HELPER_DEC:forall name sg, In (name, sg) i64_helpers -> helper_declared ge name sg); eauto using check_helpers_correct. *)
+  destruct (check_helpers ge) eqn:CH; simpl in H; try discriminate.
+  apply forward_simulation_opt with (match_states := match_states prog tprog) (measure := measure). 
+  eapply symbols_preserved; eauto.
+  apply sel_initial_states; auto.
+  apply sel_final_states; auto.
+  apply sel_step_correct; auto. eapply check_helpers_correct; eauto.
 Qed.
 
 Lemma link_program_check_helper
@@ -1229,6 +1221,12 @@ Proof.
   exploit IHl; eauto. simpl in *.
   destruct (mmap (SelectLong.check_helper (Genv.globalenv p)) l); auto.
 Qed.
+
+Lemma Selection_check_helpers
+      cminorprog cminorselprog
+      (Htrans: Selection.sel_program cminorprog = OK cminorselprog):
+  SelectLong.check_helpers (Genv.globalenv cminorprog) = OK tt.
+Proof. monadInv Htrans. destruct x; eauto. Qed.
 
 Lemma Selection_sepcomp_rel
       cminorprog cminorselprog
