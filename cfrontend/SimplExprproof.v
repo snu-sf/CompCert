@@ -84,7 +84,8 @@ Let tge := Genv.globalenv tprog.
 Lemma symbols_preserved:
   forall (s: ident), Genv.find_symbol tge s = Genv.find_symbol ge s.
 Proof.
-  intros. eapply Genv.find_symbol_match. eauto. auto. 
+  intros. eapply Genv.find_symbol_match. eauto.
+  simpl. tauto.
 Qed.
 
 Lemma function_ptr_translated:
