@@ -17,14 +17,14 @@ Lemma shift_stack_addressing_Int_zero addr:
   shift_stack_addressing Int.zero addr = addr.
 Proof.
   destruct addr; auto. simpl.
-  f_equal. apply Int.add_zero_l.
+  f_equal. eauto using Int.add_zero_l.
 Qed.
 
 Lemma shift_stack_operation_Int_zero op:
   shift_stack_operation Int.zero op = op.
 Proof.
   destruct op; auto. simpl. f_equal.
-  apply shift_stack_addressing_Int_zero.
+  eauto using Int.add_zero_l, shift_stack_addressing_Int_zero.
 Qed.
 
 (* copy *) Lemma inject_separated_refl F m tm:
@@ -139,9 +139,9 @@ Qed.
 (* copy *)   - apply exec_Inop; eauto.
 (* copy *)   - eapply exec_Iop; eauto.
 (* copy *)     erewrite eval_operation_preserved; eauto.
-(* copy *)   - eapply exec_Iload; eauto.
+(* copy *)   - eapply exec_Iload; eauto;
 (* copy *)     erewrite eval_addressing_preserved; eauto.
-(* copy *)   - eapply exec_Istore; eauto.
+(* copy *)   - eapply exec_Istore; eauto;
 (* copy *)     erewrite eval_addressing_preserved; eauto.
 (* copy *)   - eapply exec_Ibuiltin; eauto.
 (* copy *)     eapply external_call_symbols_preserved; eauto.
@@ -179,7 +179,7 @@ Qed.
 (* copy *)     exploit Mem.loadv_extends; eauto.
 (* copy *)     intro. des.
 (* copy *)     eexists. eexists. splits; eauto.
-(* copy *)     + eapply exec_Iload; eauto.
+(* copy *)     + eapply exec_Iload; eauto;
 (* copy *)       erewrite eval_addressing_preserved; eauto.
 (* copy *)     + apply regset_lessdef_set_reg; auto.
 (* copy *)   - exploit eval_addressing_lessdef; try apply H10; eauto.
@@ -188,7 +188,7 @@ Qed.
 (* copy *)     exploit Mem.storev_extends; eauto.
 (* copy *)     intro. des.
 (* copy *)     eexists. eexists. splits; eauto.
-(* copy *)     + eapply exec_Istore; eauto.
+(* copy *)     + eapply exec_Istore; eauto;
 (* copy *)       erewrite eval_addressing_preserved; eauto.
 (* copy *)   - exploit external_call_mem_extends; eauto.
 (* copy *)     { apply regset_lessdef_val_lessdef_list. eauto. }
