@@ -22,12 +22,12 @@ Require Import Memory.
 Require Import Globalenvs.
 Require Import Events.
 Require Import Smallstep.
-Require Import Language.
 Require Import Op.
 Require Import Registers.
 Require Import Inlining.
 Require Import Inliningspec.
 Require Import RTL.
+Require Import Language.
 Require Import MapsExtra.
 Require Import Linksub.
 Require Import SepcompRel.

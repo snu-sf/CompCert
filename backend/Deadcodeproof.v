@@ -24,7 +24,6 @@ Require Import Memory.
 Require Import Globalenvs.
 Require Import Events.
 Require Import Smallstep.
-Require Import Language.
 Require Import Op.
 Require Import Registers.
 Require Import RTL.
@@ -34,6 +33,7 @@ Require Import ValueDomain.
 Require Import ValueAnalysis.
 Require Import NeedDomain.
 Require Import NeedOp.
+Require Import Language.
 Require Import Deadcode.
 Require Import Linksub.
 Require Import SepcompRel.
