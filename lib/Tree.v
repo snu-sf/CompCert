@@ -211,4 +211,12 @@ Proof.
     + eapply rtc_change_one_attach_right. eauto.
 Qed.
 
+Lemma Forall2_Forall A B (P:A->Prop) (ta:Tree.t A) (tb:Tree.t B)
+      (H: Tree.Forall2 (fun a b => P a) ta tb):
+  Tree.Forall (fun a => P a) ta.
+Proof.
+  generalize dependent tb.
+  induction ta; intros; inv H; constructor; eauto.
+Qed.
+
 End Tree.
