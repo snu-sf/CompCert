@@ -68,7 +68,7 @@ LIB=Axioms.v Coqlib.v Intv.v Maps.v Heaps.v Lattice.v Ordered.v \
   Iteration.v Integers.v Archi.v Fappli_IEEE_extra.v Floats.v \
   Parmov.v UnionFind.v Wfsimpl.v \
   Postorder.v FSetAVLplus.v IntvSets.v \
-  CoqlibExtra.v MapsExtra.v Tree.v sflib.v paconotation.v
+  CoqlibExtra.v MapsExtra.v Tree.v sflib.v
 
 # Parts common to the front-ends and the back-end (in common/)
 
