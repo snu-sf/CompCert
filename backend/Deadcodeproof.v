@@ -522,14 +522,15 @@ Qed.
 
 Inductive match_stackframes: stackframe -> stackframe -> Prop :=
   | match_stackframes_intro:
-      forall res f sp pc e tf te an sprog
-        (SPROG: program_linksub Language_RTL sprog prog)
-        (FUN: transf_function (romem_for_program sprog) f = OK tf)
-        (ANL: analyze (vanalyze (romem_for_program sprog) f) f = Some an)
+      forall res f sp pc e tf te an sprog rm
+        (FUN: transf_function rm f = OK tf)
+        (ANL: analyze (vanalyze rm f) f = Some an)
         (RES: forall v tv,
               Val.lessdef v tv ->
               eagree (e#res <- v) (te#res<- tv)
-                     (fst (transfer f (vanalyze (romem_for_program sprog) f) pc an!!pc))),
+                     (fst (transfer f (vanalyze rm f) pc an!!pc)))
+        (RM: rm = romem_for_program sprog)
+        (SPROG: program_linksub Language_RTL sprog prog),
       match_stackframes (Stackframe res f (Vptr sp Int.zero) pc e)
                         (Stackframe res tf (Vptr sp Int.zero) pc te)
   | match_stackframes_identical:
@@ -548,13 +549,14 @@ Inductive match_identical_states: state -> state -> Prop :=
 
 Inductive match_states: state -> state -> Prop :=
   | match_regular_states:
-      forall s f sp pc e m ts tf te tm an sprog
-        (SPROG: program_linksub Language_RTL sprog prog)
+      forall s f sp pc e m ts tf te tm an sprog rm
         (STACKS: list_forall2 match_stackframes s ts)
-        (FUN: transf_function (romem_for_program sprog) f = OK tf)
-        (ANL: analyze (vanalyze (romem_for_program sprog) f) f = Some an)
-        (ENV: eagree e te (fst (transfer f (vanalyze (romem_for_program sprog) f) pc an!!pc)))
-        (MEM: magree m tm (nlive ge sp (snd (transfer f (vanalyze (romem_for_program sprog) f) pc an!!pc)))),
+        (FUN: transf_function rm f = OK tf)
+        (ANL: analyze (vanalyze rm f) f = Some an)
+        (RM: rm = romem_for_program sprog)
+        (SPROG: program_linksub Language_RTL sprog prog)
+        (ENV: eagree e te (fst (transfer f (vanalyze rm f) pc an!!pc)))
+        (MEM: magree m tm (nlive ge sp (snd (transfer f (vanalyze rm f) pc an!!pc)))),
       match_states (State s f (Vptr sp Int.zero) pc e m)
                    (State ts tf (Vptr sp Int.zero) pc te tm)
   | match_call_states:
@@ -590,11 +592,12 @@ Proof.
 Qed.
 
 Lemma match_succ_states:
-  forall s f sp pc e m ts tf te tm an pc' instr ne nm sprog
+  forall s f sp pc e m ts tf te tm an pc' instr ne nm sprog rm
+    (RM: rm = romem_for_program sprog)
     (SPROG: program_linksub Language_RTL sprog prog)
     (STACKS: list_forall2 match_stackframes s ts)
-    (FUN: transf_function (romem_for_program sprog) f = OK tf)
-    (ANL: analyze (vanalyze (romem_for_program sprog) f) f = Some an)
+    (FUN: transf_function rm f = OK tf)
+    (ANL: analyze (vanalyze rm f) f = Some an)
     (INSTR: f.(fn_code)!pc = Some instr)
     (SUCC: In pc' (successors_instr instr))
     (ANPC: an!!pc = (ne, nm))
@@ -1160,7 +1163,7 @@ Lemma Deadcode_sepcomp_rel
       (Htrans: Deadcode.transf_program rtlprog1 = OK rtlprog2 \/ rtlprog1 = rtlprog2):
   @sepcomp_rel
     Language.Language_RTL Language.Language_RTL
-    (fun p f tf => Deadcode.transf_function (ValueAnalysis.romem_for_program p) f = OK tf \/ f = tf)
+    (fun p f tf => Deadcode.transf_function (romem_for_program p) f = OK tf \/ f = tf)
     (fun p ef tef => (fun _ ef => OK ef) p ef = OK tef)
     (@OK _)
     rtlprog1 rtlprog2.

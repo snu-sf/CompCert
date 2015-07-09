@@ -365,12 +365,13 @@ End BUILTIN_STRENGTH_REDUCTION.
 
 Inductive match_stackframes: stackframe -> stackframe -> Prop :=
    match_stackframe_intro:
-      forall res sp pc rs f rs' sprog,
-      forall (SPROG: program_linksub Language_RTL sprog prog),
+      forall res sp pc rs f rs' sprog rm,
+      forall (RM: rm = romem_for_program sprog)
+             (SPROG: program_linksub Language_RTL sprog prog),
       regs_lessdef rs rs' ->
     match_stackframes
         (Stackframe res f sp pc rs)
-        (Stackframe res (transf_function (romem_for_program sprog) f) sp pc rs')
+        (Stackframe res (transf_function rm f) sp pc rs')
  | match_stackframe_identical:
       forall res sp pc rs rs' f
              (ENV: regset_lessdef rs rs'),
@@ -389,7 +390,8 @@ Inductive match_identical_states: state -> state -> Prop :=
 
 Inductive match_states: nat -> state -> state -> Prop :=
   | match_states_intro:
-      forall s sp pc rs m f s' pc' rs' m' bc ae n sprog
+      forall s sp pc rs m f s' pc' rs' m' bc ae n sprog rm
+           (RM: rm = romem_for_program sprog)
            (SPROG: program_linksub Language_RTL sprog prog)
            (MATCH: ematch bc rs ae)
            (STACKS: list_forall2 match_stackframes s s')
@@ -397,7 +399,7 @@ Inductive match_states: nat -> state -> state -> Prop :=
            (REGS: regs_lessdef rs rs')
            (MEM: Mem.extends m m'),
       match_states n (State s f sp pc rs m)
-                    (State s' (transf_function (romem_for_program sprog) f) sp pc' rs' m')
+                    (State s' (transf_function rm f) sp pc' rs' m')
   | match_states_call:
       forall s f args m s' args' m' f'
            (STACKS: list_forall2 match_stackframes s s')
@@ -419,18 +421,19 @@ Inductive match_states: nat -> state -> state -> Prop :=
       match_states O s s'.
 
 Lemma match_states_succ:
-  forall s f sp pc rs m s' rs' m' sprog,
-  forall (SPROG: program_linksub Language_RTL sprog prog),
+  forall s f sp pc rs m s' rs' m' sprog rm,
+  forall (RM: rm = romem_for_program sprog)
+         (SPROG: program_linksub Language_RTL sprog prog),
   sound_state_ext prog (State s f sp pc rs m) ->
   list_forall2 match_stackframes s s' ->
   regs_lessdef rs rs' ->
   Mem.extends m m' ->
   match_states O (State s f sp pc rs m)
-                 (State s' (transf_function (romem_for_program sprog) f) sp pc rs' m').
+                 (State s' (transf_function rm f) sp pc rs' m').
 Proof.
   intros. inv H. 
   specialize (Hsound _ SPROG). inv Hsound. 
-  apply match_states_intro with (bc := bc) (ae := ae); auto. 
+  eapply match_states_intro with (bc := bc) (ae := ae); auto. 
   constructor.
 Qed.
 
@@ -519,7 +522,7 @@ Proof.
   (* Inop, skipped over *)
   assert (s0 = pc') by congruence. subst s0.
   right; exists n; split. omega. split. auto.
-  apply match_states_intro with bc0 ae0; auto.
+  eapply match_states_intro with bc0 ae0 sprog; auto.
 
   (* Iop *)
   rename pc'0 into pc. TransfInstr.
@@ -532,7 +535,7 @@ Proof.
   exploit const_for_result_correct; eauto. intros (v' & A & B).
   left; econstructor; econstructor; split.
   eapply exec_Iop; eauto. 
-  apply match_states_intro with bc ae'; auto.
+  apply match_states_intro with bc ae' sprog; auto.
   apply match_successor. 
   apply set_reg_lessdef; auto.
   (* operator is strength-reduced *)
@@ -550,7 +553,7 @@ Proof.
   left; econstructor; econstructor; split.
   eapply exec_Iop; eauto.
   erewrite eval_operation_preserved. eexact EV''. exact symbols_preserved.
-  apply match_states_intro with bc ae'; auto.
+  apply match_states_intro with bc ae' sprog; auto.
   apply match_successor.
   apply set_reg_lessdef; auto. eapply Val.lessdef_trans; eauto.
 
@@ -790,7 +793,7 @@ Lemma Constprop_sepcomp_rel
       (Htrans: Constprop.transf_program rtlprog1 = rtlprog2 \/ rtlprog1 = rtlprog2):
   @sepcomp_rel
     Language.Language_RTL Language.Language_RTL
-    (fun p f tf => Constprop.transf_function (ValueAnalysis.romem_for_program p) f = tf \/ f = tf)
+    (fun p f tf => Constprop.transf_function (romem_for_program p) f = tf \/ f = tf)
     (fun p ef tef => ef = tef)
     (@Errors.OK _)
     rtlprog1 rtlprog2.
