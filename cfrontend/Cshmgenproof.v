@@ -1534,3 +1534,4 @@ End CORRECTNESS.
 (* new *)     f_equal. symmetry. apply Cshmgenproof.transl_params_types.
 (* new *)   - eapply globfun_linkable_ee; simpl; auto.
 (* new *) Qed.
+(* new *)
