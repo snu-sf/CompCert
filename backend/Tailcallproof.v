@@ -27,6 +27,7 @@ Require Import Registers.
 Require Import RTL.
 Require Import Conventions.
 Require Import Tailcall.
+(* new *) Require Import Language.
 
 (** * Syntactic properties of the code transformation *)
 
@@ -627,3 +628,10 @@ Qed.
 End PRESERVATION.
 
 
+(* new *) Lemma Tailcall_sig:
+(* new *)   forall (f : F_RTL),
+(* new *)     F_sig F_RTL f = F_sig F_RTL (Tailcall.transf_function f).
+(* new *) Proof.
+(* new *)   intros. unfold Tailcall.transf_function.
+(* new *)   destruct (zeq (RTL.fn_stacksize f) 0 && Compopts.eliminate_tailcalls tt); auto.
+(* new *) Qed.

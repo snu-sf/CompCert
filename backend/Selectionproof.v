@@ -1159,3 +1159,10 @@ Qed.
 (* new *)       eapply (@grel_gv Language.Language_Cminor Language.Language_CminorSel); auto.
 (* new *)     + apply IHdefs; auto.
 (* new *) Qed.
+
+(* new *) Lemma Selection_sig:
+(* new *)   forall ge (f1 : F_Cminor) (f2 : F_CminorSel),
+(* new *)     Selection.sel_function ge f1 = OK f2 -> F_sig F_Cminor f1 = F_sig F_CminorSel f2.
+(* new *) Proof.
+(* new *)   intros. unfold Selection.sel_function in H. monadInv H. auto.
+(* new *) Qed.

@@ -1,4 +1,5 @@
 Require Import Coqlib.
+Require Import Errors.
 
 Set Implicit Arguments.
 
@@ -61,3 +62,28 @@ Proof.
       * inversion_clear Hk. apply H. apply IHn.
   - intros. eapply H0. eauto.
 Qed.
+
+Lemma OK_eq_inversion A (a b:A):
+  OK a = OK b -> a = b.
+Proof. intro. inv H. auto. Qed.
+
+Ltac sig_clarify :=
+  repeat match goal with
+           | [H: context[if ?b then _ else _]|- _] =>
+             let X := fresh "X" in destruct b eqn:X
+           | [H: context[match ?b with OK _ => _ | Error _ => _ end]|- _] =>
+             let X := fresh "X" in destruct b
+           | [H: context[match ?b with Some _ => _ | None => _ end]|- _] =>
+             let X := fresh "X" in destruct b
+           | [H: bind _ _ = OK _ |- _] => monadInv H
+           | [H: OK _ = OK _ |- _] => apply OK_eq_inversion in H; subst
+           | [H: OK _ = Error _ |- _] => inv H
+           | [H: Error _ = OK _ |- _] => inv H
+           | [H: Some _ = Some _ |- _] => inv H
+           | [H: Some _ = None _ |- _] => inv H
+           | [H: None = Some _ |- _] => inv H
+           | [H: inl _ = inl _ |- _] => inv H
+           | [H: inl _ = inr _ |- _] => inv H
+           | [H: inr _ = inl _ |- _] => inv H
+           | [H: inr _ = inr _ |- _] => inv H
+         end.

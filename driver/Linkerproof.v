@@ -7,18 +7,55 @@ Require Import Integers Floats Values AST Globalenvs.
 Require Import Errors Behaviors Compiler Smallstep.
 Require Import Language Linker.
 Require Import Tree.
-Require Import LinkerBasicproof Sig.
+Require Import LinkerBasicproof.
 Require Import SepcompRel.
 
-Require SimplExprproof.
-Require Selectionproof.
-Require Inliningproof.
-Require Constpropproof.
-Require CSEproof.
-Require Deadcodeproof.
+Require Import Tailcallproof.
+Require Import SimplExprproof.
+Require Import Selectionproof.
+Require Import Inliningproof.
+Require Import Constpropproof.
+Require Import CSEproof.
+Require Import Deadcodeproof.
+Require Import Asmgenproof.
+Require Import Allocproof.
+Require Import Linearizeproof.
+Require Import Stackingproof.
+Require Import RTLgenproof.
+Require Import Cshmgenproof.
+Require Import Cminorgenproof.
+Require Import SimplLocalsproof.
+Require Import SimplExprproof.
 
 
 Set Implicit Arguments.
+
+Lemma Asmgen_sig:
+  forall (f1 : F_Mach) (f2 : F_Asm),
+    Asmgen.transf_function f1 = OK f2 -> F_sig F_Mach f1 = F_sig F_Asm f2.
+Proof.
+  intros.
+  unfold Asmgen.transf_function in H. monadInv H.
+  unfold Asmgen.transl_function in EQ. monadInv EQ.
+  sig_clarify. auto.
+Qed.
+
+Lemma globfun_linkable_transf_partial_fundef
+      (fT1 fT2:F Sig_signature) vT
+      tf (Htf: forall (f1:fT1) (f2:fT2) (Hf: tf f1 = OK f2), fT1.(F_sig) f1 = fT2.(F_sig) f2)
+      (f1 f2:(mkLanguage (Fundef_common fT1) vT).(fundefT)) (f1' f2':(mkLanguage (Fundef_common fT2) vT).(fundefT))
+      (Hlink: globfun_linkable (mkLanguage (Fundef_common fT1) vT) f1 f2)
+      (H1: transf_partial_fundef tf f1 = OK f1')
+      (H2: transf_partial_fundef tf f2 = OK f2'):
+  globfun_linkable (mkLanguage (Fundef_common fT2) vT) f1' f2'.
+Proof.
+  simpl in *.
+  destruct f1, f2; inv H1; inv H2; inv Hlink; simpl in *; sig_clarify.
+  - destruct (tf i2) eqn:Hi2; inv EQ.
+    eapply globfun_linkable_ei; simpl; eauto.
+    rewrite Hsig. erewrite Htf; eauto.
+  - eapply globfun_linkable_ee; simpl; eauto.
+Qed.
 
 (** Lemma on applies *)
 

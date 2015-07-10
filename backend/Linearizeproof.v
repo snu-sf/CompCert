@@ -30,6 +30,7 @@ Require Import Locations.
 Require Import LTL.
 Require Import Linear.
 Require Import Linearize.
+(* new *) Require Import Language.
 
 Module NodesetFacts := FSetFacts.Facts(Nodeset).
 
@@ -748,3 +749,10 @@ Proof.
 Qed.
 
 End LINEARIZATION.
+
+(* new *) Lemma Linearize_sig:
+(* new *)   forall (f1 : F_LTL) (f2 : F_Linear),
+(* new *)     Linearize.transf_function f1 = OK f2 -> F_sig F_LTL f1 = F_sig F_Linear f2.
+(* new *) Proof.
+(* new *)   intros. unfold Linearize.transf_function in H. monadInv H. auto.
+(* new *) Qed.
