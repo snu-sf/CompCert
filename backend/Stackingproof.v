@@ -2892,7 +2892,7 @@ Proof.
 Qed.
 
 End PRESERVATION.
-
+(* new *)
 (* new *) Require Import Language.
 (* new *) Require Import CoqlibExtra.
 (* new *)
@@ -2902,4 +2902,3 @@ End PRESERVATION.
 (* new *) Proof.
 (* new *)   intros. unfold Stacking.transf_function in H. sig_clarify. auto.
 (* new *) Qed.
-(* new *)

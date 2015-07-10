@@ -2252,7 +2252,7 @@ Proof.
 Qed.
 
 End PRESERVATION.
-
+(* new *)
 (* new *) Lemma SimplLocals_sig:
 (* new *)   forall f1 f2 f1' f2' : fundefT Language_Clight,
 (* new *)     globfun_linkable Language_Clight f1 f2 ->
@@ -2268,4 +2268,3 @@ End PRESERVATION.
 (* new *)     inv EQ.
 (* new *)   - eapply globfun_linkable_ee; simpl; auto.
 (* new *) Qed.
-(* new *)
