@@ -29,6 +29,9 @@ Require Import Clight.
 Require Import Cminor.
 Require Import Csharpminor.
 Require Import Cshmgen.
+(* new *) Require Import Language.
+(* new *) Require Import Linker.
+(* new *) Require Import CoqlibExtra.
 
 (** * Properties of operations over types *)
 
@@ -1513,3 +1516,21 @@ Proof.
 Qed.
 
 End CORRECTNESS.
+
+(* new *) Lemma Cshmgen_sig:
+(* new *)   forall (f1 f2 : fundefT Language_Clight)
+(* new *)          (f1' f2' : fundefT Language_Csharpminor),
+(* new *)     globfun_linkable Language_Clight f1 f2 ->
+(* new *)     Cshmgen.transl_fundef f1 = OK f1' ->
+(* new *)     Cshmgen.transl_fundef f2 = OK f2' ->
+(* new *)     globfun_linkable Language_Csharpminor f1' f2'.
+(* new *) Proof.
+(* new *)   simpl. intros.
+(* new *)   destruct f1, f2; simpl in *; sig_clarify;
+(* new *)     inv H; simpl in *; sig_clarify.
+(* new *)   - inv Hsig. eapply globfun_linkable_ei; simpl; eauto. rewrite e0.
+(* new *)     unfold Cshmgen.transl_function in EQ. sig_clarify. simpl.
+(* new *)     unfold Ctypes.signature_of_type, Cshmgen.signature_of_function.
+(* new *)     f_equal. symmetry. apply Cshmgenproof.transl_params_types.
+(* new *)   - eapply globfun_linkable_ee; simpl; auto.
+(* new *) Qed.

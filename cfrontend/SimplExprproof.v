@@ -2282,3 +2282,10 @@ End PRESERVATION.
 (* new *)   - eexists. split; [reflexivity|].
 (* new *)     apply (@grel_gv Language.Language_C Language.Language_Clight). auto.
 (* new *) Qed.
+
+Lemma SimplExpr_sig:
+  forall (f1 : F_C) (f2 : F_Clight),
+    SimplExprspec.tr_function f1 f2 -> F_sig F_C f1 = F_sig F_Clight f2.
+Proof.
+  intros. destruct f1, f2. inv H. simpl in *. subst. auto.
+Qed.

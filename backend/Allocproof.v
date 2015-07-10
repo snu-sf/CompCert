@@ -36,6 +36,8 @@ Require Import Locations.
 Require Import Conventions.
 Require Import LTL.
 Require Import Allocation.
+(* new *) Require Import Language.
+(* new *) Require Import CoqlibExtra.
 
 (** * Soundness of structural checks *)
 
@@ -2217,3 +2219,15 @@ Proof.
 Qed.
 
 End PRESERVATION.
+
+(* new *) Lemma Allocation_sig:
+(* new *)   forall (f1 : F_RTL) (f2 : F_LTL),
+(* new *)     Allocation.transf_function f1 = OK f2 -> F_sig F_RTL f1 = F_sig F_LTL f2.
+(* new *) Proof.
+(* new *)   intros.
+(* new *)   unfold Allocation.transf_function in H. sig_clarify.
+(* new *)   unfold Allocation.check_function in EQ. sig_clarify.
+(* new *)   monadInv EQ. sig_clarify.
+(* new *)   unfold Allocation.transfer in EQ0. sig_clarify.
+(* new *)   unfold Allocation.check_entrypoints_aux in X. sig_clarify. auto.
+(* new *) Qed.
