@@ -1458,7 +1458,7 @@ Proof.
 Qed.
 
 End CORRECTNESS.
-
+(* new *)
 (* new *) Lemma RTLgen_sig:
 (* new *)   forall (f1 : F_CminorSel) (f2 : F_RTL),
 (* new *)     RTLgen.transl_function f1 = OK f2 -> F_sig F_CminorSel f1 = F_sig F_RTL f2.
@@ -1468,4 +1468,3 @@ End CORRECTNESS.
 (* new *)   destruct (RTLgen.transl_fun f1 l s); inv H.
 (* new *)   destruct p. inv H1. auto.
 (* new *) Qed.
-(* new *)
