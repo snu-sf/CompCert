@@ -2268,3 +2268,4 @@ End PRESERVATION.
 (* new *)     inv EQ.
 (* new *)   - eapply globfun_linkable_ee; simpl; auto.
 (* new *) Qed.
+(* new *)

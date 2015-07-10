@@ -2231,3 +2231,4 @@ End PRESERVATION.
 (* new *)   unfold Allocation.transfer in EQ0. sig_clarify.
 (* new *)   unfold Allocation.check_entrypoints_aux in X. sig_clarify. auto.
 (* new *) Qed.
+(* new *)
