@@ -76,44 +76,7 @@ Require Import Compiler.
 (** Command-line flags. *)
 Require Import Compopts.
 
-(** Pretty-printers (defined in Caml). *)
-(* Parameter print_Clight: Clight.program -> unit. *)
-(* Parameter print_Cminor: Cminor.program -> unit. *)
-(* Parameter print_RTL: Z -> RTL.program -> unit. *)
-(* Parameter print_LTL: LTL.program -> unit. *)
-(* Parameter print_Mach: Mach.program -> unit. *)
-
 Open Local Scope string_scope.
-
-(** * Composing the translation passes *)
-
-(** We first define useful monadic composition operators,
-    along with funny (but convenient) notations. *)
-
-(* Definition apply_total (A B: Type) (x: res A) (f: A -> B) : res B := *)
-(*   match x with Error msg => Error msg | OK x1 => OK (f x1) end. *)
-
-(* Definition apply_partial (A B: Type) *)
-(*                          (x: res A) (f: A -> res B) : res B := *)
-(*   match x with Error msg => Error msg | OK x1 => f x1 end. *)
-
-(* Notation "a @@@ b" := *)
-(*    (apply_partial _ _ a b) (at level 50, left associativity). *)
-(* Notation "a @@ b" := *)
-(*    (apply_total _ _ a b) (at level 50, left associativity). *)
-
-(* Definition print {A: Type} (printer: A -> unit) (prog: A) : A := *)
-(*   let unused := printer prog in prog. *)
-
-(* Definition time {A B: Type} (name: string) (f: A -> B) : A -> B := f. *)
-
-(* Definition total_if {A: Type} *)
-(*           (flag: unit -> bool) (f: A -> A) (prog: A) : A := *)
-(*   if flag tt then f prog else prog. *)
-
-(* Definition partial_if {A: Type} *)
-(*           (flag: unit -> bool) (f: A -> res A) (prog: A) : res A := *)
-(*   if flag tt then f prog else OK prog. *)
 
 Inductive rtl_pass: Type :=
 | Tailcall: rtl_pass
@@ -126,12 +89,6 @@ Inductive rtl_pass: Type :=
 Definition opt_list:= list (rtl_pass * (unit -> bool)).
 Definition tflag := (fun (t:unit) => true).
 Definition fflag := (fun (t:unit) => false).
-
-
-(** We define three translation functions for whole programs: one
-  starting with a C program, one with a Cminor program, one with an
-  RTL program.  The three translations produce Asm programs ready for
-  pretty-printing and assembling. *)
 
 Definition transf_rtl_program_to_asm_opt (p: res RTL.program) : res Asm.program :=
    p
@@ -187,33 +144,6 @@ Definition transf_c_program_opt l p : res Asm.program :=
      @@@ time "Clight generation" SimplExpr.transl_program
      @@@ transf_clight_program_opt l.
 
-(* Ltac match_solve := *)
-(*   match goal with *)
-(*       [|- match ?x with | OK _ => _ | Error _ => _ end = *)
-(*           match ?x with | OK _ => _ | Error _ => _ end *)
-(*       ] => destruct x; [| reflexivity] *)
-(*   end. *)
-
-(* Lemma OK_apply_partial: *)
-(*   forall A B (f:A -> res B) (a:A), *)
-(*     OK a @@@ f = f a. *)
-(* Proof. eauto. Qed. *)
-
-(* Lemma OK_apply_total: *)
-(*   forall A B (f:A -> B) (a:A), *)
-(*     OK a @@ f = OK (f a). *)
-(* Proof. eauto. Qed. *)
-
-(* Lemma partial_if_tflag: *)
-(*   forall A (f:A -> res A) (a:A), *)
-(*     partial_if tflag f a = f a. *)
-(* Proof. auto. Qed. *)
-
-(* Lemma total_if_tflag: *)
-(*   forall A (f:A -> A) (a:A), *)
-(*     total_if tflag f a = f a. *)
-(* Proof. auto. Qed. *)
-
 Definition compiler_flag :=
     (Tailcall, optim_tailcalls)::(Inlining, tflag)::(Renumber, tflag)::(Constprop, optim_constprop)
   ::(Renumber, optim_constprop)::(CSE, optim_CSE)::(Deadcode, optim_redundancy)::nil.
@@ -224,95 +154,6 @@ Theorem compiler_equivalence:
   transf_c_program = transf_c_program_opt compiler_flag.
 Proof. reflexivity. Qed.
 
-
-
-  (* Lemma same_res_apply_partial: *)
-  (*   forall A B (f1 f2: A -> res B), *)
-  (*     (forall a, f1 a = f2 a) -> *)
-  (*     forall ra, ra @@@ f1 = ra @@@ f2. *)
-  (* Proof. *)
-  (*   intros. *)
-  (*   unfold apply_total. *)
-  (*   destruct ra; try rewrite H; eauto. *)
-  (* Qed. *)
-
-  (* apply same_res_apply_total. *)
-  
-    
-    
-  (*     res1 @@  *)
-  
-  (* unfold apply_total. match_solve. *)
-
-  
-  (* simpl. *)
-
-  (* destruct (optim_tailcalls tt) eqn:Htailcall. *)
-  (* - instantiate (1:= (Tailcall, tflag) :: nil). *)
-  (*   admit. *)
-  (* - instantiate (1:= (Tailcall, fflag) :: nil). *)
-  (*   admit. *)
-  (*   unfold transf_rtl_program_opt. *)
-  (*   |  *)
-  (* instantiate (1:= cons _ _).  *)
-  
-
-(** The following lemmas help reason over compositions of passes. *)
-
-(* Lemma print_identity: *)
-(*   forall (A: Type) (printer: A -> unit) (prog: A), *)
-(*   print printer prog = prog. *)
-(* Proof. *)
-(*   intros; unfold print. destruct (printer prog); auto.  *)
-(* Qed. *)
-
-(* Lemma compose_print_identity: *)
-(*   forall (A: Type) (x: res A) (f: A -> unit),  *)
-(*   x @@ print f = x. *)
-(* Proof. *)
-(*   intros. destruct x; simpl. rewrite print_identity. auto. auto.  *)
-(* Qed. *)
-
-(* Remark forward_simulation_identity: *)
-(*   forall sem, forward_simulation sem sem. *)
-(* Proof. *)
-(*   intros. apply forward_simulation_step with (fun s1 s2 => s2 = s1); intros. *)
-(* - auto. *)
-(* - exists s1; auto. *)
-(* - subst s2; auto. *)
-(* - subst s2. exists s1'; auto.  *)
-(* Qed.  *)
-
-(* Lemma total_if_simulation: *)
-(*   forall (A: Type) (sem: A -> semantics) (flag: unit -> bool) (f: A -> A) (prog: A), *)
-(*   (forall p, forward_simulation (sem p) (sem (f p))) -> *)
-(*   forward_simulation (sem prog) (sem (total_if flag f prog)). *)
-(* Proof. *)
-(*   intros. unfold total_if. destruct (flag tt). auto. apply forward_simulation_identity. *)
-(* Qed. *)
-
-(* Lemma partial_if_simulation: *)
-(*   forall (A: Type) (sem: A -> semantics) (flag: unit -> bool) (f: A -> res A) (prog tprog: A), *)
-(*   partial_if flag f prog = OK tprog -> *)
-(*   (forall p tp, f p = OK tp -> forward_simulation (sem p) (sem tp)) -> *)
-(*   forward_simulation (sem prog) (sem tprog). *)
-(* Proof. *)
-(*   intros. unfold partial_if in *. destruct (flag tt). eauto. inv H. apply forward_simulation_identity. *)
-(* Qed. *)
-
-(** * Semantic preservation *)
-
-(** We prove that the [transf_program] translations preserve semantics
-  by constructing the following simulations:
-- Forward simulations from [Cstrategy] / [Cminor] / [RTL] to [Asm]
-  (composition of the forward simulations for each pass).
-- Backward simulations for the same languages
-  (derived from the forward simulation, using receptiveness of the source
-  language and determinacy of [Asm]).
-- Backward simulation from [Csem] to [Asm]
-  (composition of two backward simulations).
-
-These results establish the correctness of the whole compiler! *)
 
 Lemma transf_rtl_program_opt'_error: forall l n msg, transf_rtl_program_opt' n l (Error msg) = Error msg.
 Proof.
