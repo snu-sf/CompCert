@@ -157,7 +157,7 @@ Tactic Notation "ii" := repeat intro.
 Notation rtc := (clos_refl_trans _).
 Hint Immediate rt_step Relation_Operators.rt_refl Relation_Operators.t_step.
 
-(* (* from paconotation *) *)
+(* from paconotation *)
 
 Notation "p <0= q" :=
   (forall (PR: p : Prop), q : Prop)
