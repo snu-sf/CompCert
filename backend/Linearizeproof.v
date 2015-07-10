@@ -756,3 +756,4 @@ End LINEARIZATION.
 (* new *) Proof.
 (* new *)   intros. unfold Linearize.transf_function in H. monadInv H. auto.
 (* new *) Qed.
+(* new *)

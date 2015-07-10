@@ -2256,7 +2256,7 @@ End TRANSLATION.
 
 (* new *) Require Import Language.
 (* new *) Require Import CoqlibExtra.
-
+(* new *)
 (* new *) Lemma Cminorgen_sig:
 (* new *)   forall (f1 : F_Csharpminor) (f2 : F_Cminor),
 (* new *)     Cminorgen.transl_function f1 = OK f2 -> F_sig F_Csharpminor f1 = F_sig F_Cminor f2.
