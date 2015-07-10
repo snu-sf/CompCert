@@ -219,4 +219,16 @@ Proof.
   induction ta; intros; inv H; constructor; eauto.
 Qed.
 
+Lemma reduce_composite:
+  forall A (tr1 tr2: Tree.t A) f a,
+    Tree.reduce f (Tree.Tree_composite tr1 tr2) = Some a ->
+    exists a1 a2,
+      <<FRED: Tree.reduce f tr1 = Some a1>>
+      /\ <<SRED: Tree.reduce f tr2 = Some a2>>
+      /\ <<LINK: f a1 a2 = Some a>>.
+Proof.
+  intros. inv H.
+  destruct (Tree.reduce f tr1); destruct (Tree.reduce f tr2); esplits; eauto; done.
+Qed.
+
 End Tree.
