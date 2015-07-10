@@ -29,6 +29,8 @@ Require Import CminorSel.
 Require Import RTL.
 Require Import RTLgen.
 Require Import RTLgenspec.
+(* new *) Require Import Language.
+(* new *) Require Import CoqlibExtra.
 
 (** * Correspondence between Cminor environments and RTL register sets *)
 
@@ -1456,3 +1458,13 @@ Proof.
 Qed.
 
 End CORRECTNESS.
+
+(* new *) Lemma RTLgen_sig:
+(* new *)   forall (f1 : F_CminorSel) (f2 : F_RTL),
+(* new *)     RTLgen.transl_function f1 = OK f2 -> F_sig F_CminorSel f1 = F_sig F_RTL f2.
+(* new *) Proof.
+(* new *)   intros. unfold RTLgen.transl_function in H. sig_clarify.
+(* new *)   destruct (RTLgen.reserve_labels (CminorSel.fn_body f1) (PTree.empty RTL.node, RTLgen.init_state)).
+(* new *)   destruct (RTLgen.transl_fun f1 l s); inv H.
+(* new *)   destruct p. inv H1. auto.
+(* new *) Qed.

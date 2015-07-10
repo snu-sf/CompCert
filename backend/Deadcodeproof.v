@@ -1176,3 +1176,11 @@ End PRESERVATION.
 (* new *)     destruct fd; auto.
 (* new *)   - apply transf_partial_optionally_sepcomp_rel_identical. auto.
 (* new *) Qed.
+
+(* new *) Lemma Deadcode_sig:
+(* new *)   forall rm (f1 : F_RTL) (f2 : F_RTL),
+(* new *)     Deadcode.transf_function rm f1 = OK f2 -> F_sig F_RTL f1 = F_sig F_RTL f2.
+(* new *) Proof.
+(* new *)   intros. unfold Deadcode.transf_function in H.
+(* new *)   destruct (Deadcode.analyze (Deadcode.vanalyze rm f1) f1); inv H. auto.
+(* new *) Qed.

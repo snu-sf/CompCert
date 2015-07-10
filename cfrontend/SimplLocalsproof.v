@@ -30,6 +30,9 @@ Require Import Ctypes.
 Require Import Cop.
 Require Import Clight.
 Require Import SimplLocals.
+(* new *) Require Import Language.
+(* new *) Require Import Linker.
+(* new *) Require Import CoqlibExtra.
 
 Module VSF := FSetFacts.Facts(VSet).
 Module VSP := FSetProperties.Properties(VSet).
@@ -2249,3 +2252,19 @@ Proof.
 Qed.
 
 End PRESERVATION.
+
+(* new *) Lemma SimplLocals_sig:
+(* new *)   forall f1 f2 f1' f2' : fundefT Language_Clight,
+(* new *)     globfun_linkable Language_Clight f1 f2 ->
+(* new *)     SimplLocals.transf_fundef f1 = OK f1' ->
+(* new *)     SimplLocals.transf_fundef f2 = OK f2' ->
+(* new *)     globfun_linkable Language_Clight f1' f2'.
+(* new *) Proof.
+(* new *)   simpl. intros.
+(* new *)   destruct f1, f2; simpl in *; sig_clarify;
+(* new *)     inv H; simpl in *; sig_clarify.
+(* new *)   - inv Hsig. eapply globfun_linkable_ei; simpl; eauto.
+(* new *)     unfold SimplLocals.transf_function in EQ. sig_clarify; auto.
+(* new *)     inv EQ.
+(* new *)   - eapply globfun_linkable_ee; simpl; auto.
+(* new *) Qed.

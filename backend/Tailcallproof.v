@@ -819,3 +819,11 @@ End PRESERVATION.
 (* new *)     destruct fd; auto.
 (* new *)   - apply transf_program_optionally_sepcomp_rel_identical; auto.
 (* new *) Qed.
+
+(* new *) Lemma Tailcall_sig:
+(* new *)   forall (f : F_RTL),
+(* new *)     F_sig F_RTL f = F_sig F_RTL (Tailcall.transf_function f).
+(* new *) Proof.
+(* new *)   intros. unfold Tailcall.transf_function.
+(* new *)   destruct (zeq (RTL.fn_stacksize f)); auto.
+(* new *) Qed.

@@ -1565,3 +1565,13 @@ End INLINING.
 (* new *)     destruct fd; auto.
 (* new *)   - apply transf_partial_optionally_sepcomp_rel_identical; auto.
 (* new *) Qed.
+
+(* new *) Lemma Inlining_sig:
+(* new *)   forall fenv (f1 : F_RTL) (f2 : F_RTL),
+(* new *)     Inlining.transf_function fenv f1 = OK f2 -> F_sig F_RTL f1 = F_sig F_RTL f2.
+(* new *) Proof.
+(* new *)   intros. unfold Inlining.transf_function in H.
+(* new *)   destruct (Inlining.expand_function fenv f1 Inlining.initstate).
+(* new *)   destruct (zlt (Inlining.st_stksize s') Int.max_unsigned); inv H.
+(* new *)   auto.
+(* new *) Qed.
