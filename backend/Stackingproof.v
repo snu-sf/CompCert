@@ -2895,10 +2895,11 @@ End PRESERVATION.
 
 (* new *) Require Import Language.
 (* new *) Require Import CoqlibExtra.
-
+(* new *)
 (* new *) Lemma Stacking_sig:
 (* new *)   forall (f1 : Language.F_Linear) (f2 : F_Mach),
 (* new *)     Stacking.transf_function f1 = OK f2 -> F_sig F_Linear f1 = F_sig F_Mach f2.
 (* new *) Proof.
 (* new *)   intros. unfold Stacking.transf_function in H. sig_clarify. auto.
 (* new *) Qed.
+(* new *)
