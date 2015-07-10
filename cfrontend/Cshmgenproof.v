@@ -1516,7 +1516,7 @@ Proof.
 Qed.
 
 End CORRECTNESS.
-
+(* new *)
 (* new *) Lemma Cshmgen_sig:
 (* new *)   forall (f1 f2 : fundefT Language_Clight)
 (* new *)          (f1' f2' : fundefT Language_Csharpminor),
@@ -1534,4 +1534,3 @@ End CORRECTNESS.
 (* new *)     f_equal. symmetry. apply Cshmgenproof.transl_params_types.
 (* new *)   - eapply globfun_linkable_ee; simpl; auto.
 (* new *) Qed.
-(* new *)

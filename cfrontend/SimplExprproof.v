@@ -2259,7 +2259,7 @@ Proof.
 Qed.
 
 End PRESERVATION.
-
+(* new *)
 (* new *) Lemma SimplExpr_sepcomp_rel
 (* new *)       cprog clightprog
 (* new *)       (Htrans: SimplExpr.transl_program cprog = OK clightprog):
@@ -2282,7 +2282,7 @@ End PRESERVATION.
 (* new *)   - eexists. split; [reflexivity|].
 (* new *)     apply (@grel_gv Language.Language_C Language.Language_Clight). auto.
 (* new *) Qed.
-
+(* new *)
 (* new *) Lemma SimplExpr_sig:
 (* new *)   forall (f1 : F_C) (f2 : F_Clight),
 (* new *)     SimplExprspec.tr_function f1 f2 -> F_sig F_C f1 = F_sig F_Clight f2.

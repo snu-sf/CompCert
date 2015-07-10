@@ -2219,7 +2219,7 @@ Proof.
 Qed.
 
 End PRESERVATION.
-
+(* new *)
 (* new *) Lemma Allocation_sig:
 (* new *)   forall (f1 : F_RTL) (f2 : F_LTL),
 (* new *)     Allocation.transf_function f1 = OK f2 -> F_sig F_RTL f1 = F_sig F_LTL f2.
@@ -2231,4 +2231,3 @@ End PRESERVATION.
 (* new *)   unfold Allocation.transfer in EQ0. sig_clarify.
 (* new *)   unfold Allocation.check_entrypoints_aux in X. sig_clarify. auto.
 (* new *) Qed.
-(* new *)
