@@ -258,3 +258,72 @@ Proof.
 Qed.
 
 End Linksub.
+
+Lemma find_symbol_spec F V (p:program F V) i:
+  match Genv.find_symbol (Genv.globalenv p) i, option_map snd (find (fun id => peq i (fst id)) (rev p.(prog_defs))) with
+    | Some b, Some g =>
+      match
+        g,
+        Genv.find_funct_ptr (Genv.globalenv p) b,
+        Genv.find_var_info (Genv.globalenv p) b
+      with
+        | Gfun fd1, Some fd2, None => fd1 = fd2
+        | Gvar vi1, None, Some vi2 => vi1 = vi2
+        | _, _, _ => False
+      end
+    | None, None => True
+    | _, _ => False
+  end.
+Proof.
+  Ltac clarify_find_symbol_spec :=
+    repeat (try match goal with
+                  | [H1: ?m ! ?b = _, H2: ?m ! ?b = _ |- _] => rewrite H1 in H2; inv H2
+                  | [H: Some _ = Some _ |- _] => inv H
+                  | [|- context[(PTree.set ?k _ _) ! ?k]] => rewrite PTree.gss
+                  | [H: context[(PTree.set ?k _ _) ! ?k] |- _] => rewrite PTree.gss in H
+                  | [|- context[(PTree.set _ _ _) ! _]] => rewrite PTree.gsspec
+                  | [H: context[(PTree.set _ _ _) ! _] |- _] => rewrite PTree.gsspec in H
+                  | [|- context[peq ?a ?b]] => destruct (peq a b)
+                  | [H: context[peq ?a ?b] |- _] => destruct (peq a b)
+                  | [H: context[match ?x with | Some _ => _ | None => _ end] |- _] =>
+                    let H := fresh "H" in destruct x eqn:H
+                  | [|- context[match ?x with | Some _ => _ | None => _ end]] =>
+                    let H := fresh "H" in destruct x eqn:H
+                  | [H: False |- _] => inv H
+                  | [g: globdef _ _ |- _] => destruct g
+                end; subst; auto).
+  destruct p as [defs main]. unfold Genv.globalenv. simpl in *.
+  unfold Genv.add_globals. rewrite <- fold_left_rev_right.
+  unfold Genv.find_symbol, Genv.find_funct_ptr, Genv.find_var_info.
+  induction (rev defs); simpl; [rewrite PTree.gempty; auto|].
+  rewrite ? PTree.gsspec. destruct a. simpl.
+  destruct (peq i i0); [subst|]; simpl; [destruct g| ]; clarify_find_symbol_spec;
+  try (match goal with [H: (Genv.genv_vars _)!_=_ |- _] =>
+                       apply Genv.genv_vars_range in H; xomega end);
+  try (match goal with [H: (Genv.genv_funs _)!_=_ |- _] =>
+                       apply Genv.genv_funs_range in H; xomega end).
+Qed.
+
+Definition defines_internal lang (ge:Genv.t _ lang.(vT)) id f :=
+  exists b,
+    Genv.find_symbol ge id = Some b /\
+    Genv.find_funct_ptr ge b = Some (BtoA lang.(fundefT) (inl f)).
+
+Lemma program_linksub_internal lang sprog prog id f
+      (Hlink: program_linksub lang sprog prog)
+      (Hf: defines_internal lang (Genv.globalenv sprog) id f):
+  defines_internal lang (Genv.globalenv prog) id f.
+Proof.
+  Ltac finishF :=try (intro FALSO; inv FALSO).
+  destruct Hf as [b [G F]].
+  generalize (find_symbol_spec sprog id). rewrite G, F, <- PTree_guespec.
+  destruct ((PTree_unelements _) ! _) as [[]|] eqn:Hg; finishF.
+  destruct (Genv.find_var_info (Genv.globalenv sprog) b); finishF.
+  apply Hlink in Hg. destruct Hg as [g' [G' LINK]]. inv LINK. inv Hv;
+    [|inv H; rewrite HBAB in *; inv H1].
+  generalize (find_symbol_spec prog id). rewrite <- PTree_guespec, G'.
+  destruct (Genv.find_symbol (Genv.globalenv prog) id) eqn:Hg'; finishF.
+  destruct (Genv.find_funct_ptr (Genv.globalenv prog) b0) eqn:Hf'; finishF.
+  destruct (Genv.find_var_info (Genv.globalenv prog) b0) eqn:Hv'; finishF.
+  eexists. split; eauto.
+Qed.

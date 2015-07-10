@@ -32,56 +32,21 @@ Require Import RTL.
 (* new *) Require Import Linksub.
 (* new *) Require Import SepcompRel.
 
-(* new *) Lemma funenv_program_spec p i:
-(* new *)   (funenv_program p) ! i =
-(* new *)   match find (fun id => peq i (fst id)) (rev p.(prog_defs)) with
-(* new *)     | Some (_, Gfun (Internal f)) =>
-(* new *)       if should_inline i f then Some f else None
-(* new *)     | _ => None
-(* new *)   end.
-(* new *) Proof.
-(* new *)   unfold funenv_program. rewrite <- fold_left_rev_right.
-(* new *)   induction (rev (prog_defs p)); simpl.
-(* new *)   { apply PTree.gempty. }
-(* new *)   destruct a. simpl. destruct g; simpl.
-(* new *)   - destruct f; simpl.
-(* new *)     + destruct (should_inline i0 f) eqn:Hinline.
-(* new *)       * rewrite PTree.gsspec. destruct (peq i i0); subst; simpl; auto.
-(* new *)         rewrite Hinline. auto.
-(* new *)       * rewrite PTree.grspec. unfold PTree.elt_eq.
-(* new *)         destruct (peq i i0); subst; simpl; auto.
-(* new *)         rewrite Hinline. auto.
-(* new *)     + rewrite PTree.grspec. unfold PTree.elt_eq.
-(* new *)       destruct (peq i i0); subst; simpl; auto.
-(* new *)   - rewrite PTree.grspec. unfold PTree.elt_eq.
-(* new *)     destruct (peq i i0); simpl; auto.
-(* new *) Qed.
-
-(* new *) Lemma program_linksub_fenv_le sprog prog
-(* new *)       (Hlink: program_linksub Language_RTL sprog prog):
-(* new *)   PTree_le (funenv_program sprog) (funenv_program prog).
-(* new *) Proof.
-(* new *)   constructor. intros. rewrite ? funenv_program_spec in *.
-(* new *)   match goal with
-(* new *)     | [H: context[find ?f ?l] |- _] => destruct (find f l) as [[]|] eqn:Hf; inv H
-(* new *)   end.
-(* new *)   destruct g; inv H0. destruct f; inv H1. destruct (should_inline b f) eqn:Hinline; inv H0.
-(* new *)   destruct Hlink as [Hdefs Hmain]. exploit Hdefs; eauto.
-(* new *)   { rewrite PTree_guespec. instantiate (2 := b).
-(* new *)     unfold fundef, ident in *. simpl in *. rewrite Hf. simpl. eauto.
-(* new *)   }
-(* new *)   intros [def2 [Hdef2 Hle]]. inv Hle. inv Hv.
-(* new *)   - rewrite PTree_guespec in Hdef2. unfold fundef, ident. simpl in *.
-(* new *)     match goal with
-(* new *)       | [|- context[find ?f ?l]] => destruct (find f l) as [[]|] eqn:Hf'; inv Hdef2
-(* new *)     end.
-(* new *)     rewrite Hinline. auto.
-(* new *)   - inv H; simpl in *; inv H1.
-(* new *) Qed.
-
 Section INLINING.
 
 (* new *) Let transf_efT (p:program) (ef:external_function) := OK ef.
+
+(* new *) Lemma funenv_program_compat_ext:
+(* new *)   forall sp p id b f
+(* new *)          (LINKSUB: program_linksub Language_RTL sp p)
+(* new *)          (FENV: (funenv_program sp) ! id = Some f)
+(* new *)          (SYMBOL: Genv.find_symbol (Genv.globalenv p) id = Some b),
+(* new *)     Genv.find_funct_ptr (Genv.globalenv p) b = Some (Internal f).
+(* new *) Proof.
+(* new *)   intros. exploit funenv_program_compat; eauto. intros [sb [SB SF]].
+(* new *)   exploit program_linksub_internal; eauto; simpl; eauto. econstructor; eauto. intros [b' [S F]].
+(* new *)   simpl in *. rewrite SYMBOL in S. inv S. auto.
+(* new *) Qed.
 
 Variable prog: program.
 Variable tprog: program.
@@ -1019,7 +984,7 @@ Proof.
 (* inlined *)
   assert (fd = Internal f0).
     simpl in H0. destruct (Genv.find_symbol ge id) as [b|] eqn:?; try discriminate.
-    exploit (funenv_program_compat prog); eauto. destruct (program_linksub_fenv_le _ _ SPROG). apply H1. eauto. intros. 
+    exploit (funenv_program_compat_ext sprog); eauto. simpl. fold fundef. intros. 
     unfold ge in H0. congruence.
   subst fd.
   right; split. simpl; omega. split. auto. 
@@ -1073,7 +1038,7 @@ Proof.
 (* inlined *)
   assert (fd = Internal f0).
     simpl in H0. destruct (Genv.find_symbol ge id) as [b|] eqn:?; try discriminate.
-    exploit (funenv_program_compat prog); eauto. destruct (program_linksub_fenv_le _ _ SPROG). apply H1. eauto. intros. 
+    exploit (funenv_program_compat_ext sprog); eauto. simpl. fold fundef. intros. 
     unfold ge in H0. congruence.
   subst fd.
   right; split. simpl; omega. split. auto. 

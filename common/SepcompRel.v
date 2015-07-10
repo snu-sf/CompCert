@@ -8,51 +8,6 @@ Require Import Errors.
 
 Set Implicit Arguments.
 
-Lemma find_symbol_spec F V (p:program F V) i:
-  match Genv.find_symbol (Genv.globalenv p) i, option_map snd (find (fun id => peq i (fst id)) (rev p.(prog_defs))) with
-    | Some b, Some g =>
-      match
-        g,
-        Genv.find_funct_ptr (Genv.globalenv p) b,
-        Genv.find_var_info (Genv.globalenv p) b
-      with
-        | Gfun fd1, Some fd2, None => fd1 = fd2
-        | Gvar vi1, None, Some vi2 => vi1 = vi2
-        | _, _, _ => False
-      end
-    | None, None => True
-    | _, _ => False
-  end.
-Proof.
-  Ltac clarify_find_symbol_spec :=
-    repeat (try match goal with
-                  | [H1: ?m ! ?b = _, H2: ?m ! ?b = _ |- _] => rewrite H1 in H2; inv H2
-                  | [H: Some _ = Some _ |- _] => inv H
-                  | [|- context[(PTree.set ?k _ _) ! ?k]] => rewrite PTree.gss
-                  | [H: context[(PTree.set ?k _ _) ! ?k] |- _] => rewrite PTree.gss in H
-                  | [|- context[(PTree.set _ _ _) ! _]] => rewrite PTree.gsspec
-                  | [H: context[(PTree.set _ _ _) ! _] |- _] => rewrite PTree.gsspec in H
-                  | [|- context[peq ?a ?b]] => destruct (peq a b)
-                  | [H: context[peq ?a ?b] |- _] => destruct (peq a b)
-                  | [H: context[match ?x with | Some _ => _ | None => _ end] |- _] =>
-                    let H := fresh "H" in destruct x eqn:H
-                  | [|- context[match ?x with | Some _ => _ | None => _ end]] =>
-                    let H := fresh "H" in destruct x eqn:H
-                  | [H: False |- _] => inv H
-                  | [g: globdef _ _ |- _] => destruct g
-                end; subst; auto).
-  destruct p as [defs main]. unfold Genv.globalenv. simpl in *.
-  unfold Genv.add_globals. rewrite <- fold_left_rev_right.
-  unfold Genv.find_symbol, Genv.find_funct_ptr, Genv.find_var_info.
-  induction (rev defs); simpl; [rewrite PTree.gempty; auto|].
-  rewrite ? PTree.gsspec. destruct a. simpl.
-  destruct (peq i i0); [subst|]; simpl; [destruct g| ]; clarify_find_symbol_spec;
-  try (match goal with [H: (Genv.genv_vars _)!_=_ |- _] =>
-                       apply Genv.genv_vars_range in H; xomega end);
-  try (match goal with [H: (Genv.genv_funs _)!_=_ |- _] =>
-                       apply Genv.genv_funs_range in H; xomega end).
-Qed.
-
 Ltac clarify :=
   repeat
     match goal with

@@ -23,6 +23,8 @@ Require Import Op.
 Require Import Registers.
 Require Import RTL.
 Require Import Inlining.
+(* new *) Require Import Language.
+(* new *) Require Import Linksub.
 
 (** ** Soundness of function environments. *)
 
@@ -30,34 +32,41 @@ Require Import Inlining.
   (run-time) global environment if the following condition holds. *)
 
 Definition fenv_compat (ge: genv) (fenv: funenv) : Prop :=
-  forall id b f,
-  fenv!id = Some f -> Genv.find_symbol ge id = Some b ->
-  Genv.find_funct_ptr ge b = Some (Internal f).
+  forall id f, fenv!id = Some f -> defines_internal Language_RTL ge id f.
 
 Remark add_globdef_compat:
   forall ge fenv idg,
   fenv_compat ge fenv ->
   fenv_compat (Genv.add_global ge idg) (Inlining.add_globdef fenv idg).
 Proof.
-  intros. destruct idg as [id gd]. red; simpl; intros.
-  unfold Genv.find_symbol in H1; simpl in H1. 
-  unfold Genv.find_funct_ptr; simpl.
-  rewrite PTree.gsspec in H1. destruct (peq id0 id).
-  (* same *)
-  subst id0. inv H1. destruct gd. destruct f0. 
+  intros. destruct idg as [id gd]. red. red. simpl. intros.
+  unfold Genv.find_symbol, Genv.add_global at 1. simpl.
+  rewrite PTree.gsspec. destruct (peq id0 id).
+- (* same *)
+  subst id0. eexists. split; eauto. destruct gd. destruct f0. 
   destruct (should_inline id f0).
-  rewrite PTree.gss in H0. rewrite PTree.gss. inv H0; auto.
-  rewrite PTree.grs in H0; discriminate.
-  rewrite PTree.grs in H0; discriminate.
-  rewrite PTree.grs in H0; discriminate.
-  (* different *)
-  destruct gd. rewrite PTree.gso. eapply H; eauto. 
-  destruct f0. destruct (should_inline id f0).
-  rewrite PTree.gso in H0; auto.
-  rewrite PTree.gro in H0; auto.
-  rewrite PTree.gro in H0; auto.
-  red; intros; subst b. eelim Plt_strict. eapply Genv.genv_symb_range; eauto.
-  rewrite PTree.gro in H0; auto. eapply H; eauto. 
+  + rewrite PTree.gss in *. inv H0.
+    unfold Genv.find_funct_ptr, Genv.add_global. simpl. rewrite PTree.gss. auto.
+  + rewrite PTree.grs in *. discriminate.
+  + rewrite PTree.grs in *. discriminate.
+  + rewrite PTree.grs in *. discriminate.
+- (* different *)
+  destruct gd. destruct f0. destruct (should_inline id f0).
+  + rewrite PTree.gso in *; auto.
+    unfold Genv.find_funct_ptr, Genv.add_global. simpl.
+    exploit H; eauto. intros [b [S F]]. eexists. split; eauto.
+    rewrite PTree.gso; auto. exploit Genv.genv_symb_range; eauto.
+  + rewrite PTree.gro in *; auto.
+    unfold Genv.find_funct_ptr, Genv.add_global. simpl.
+    exploit H; eauto. intros [b [S F]]. eexists. split; eauto.
+    rewrite PTree.gso; auto. exploit Genv.genv_symb_range; eauto.
+  + rewrite PTree.gro in *; auto.
+    unfold Genv.find_funct_ptr, Genv.add_global. simpl.
+    exploit H; eauto. intros [b [S F]]. eexists. split; eauto.
+    rewrite PTree.gso; auto. exploit Genv.genv_symb_range; eauto.
+  + rewrite PTree.gro in *; auto.
+    unfold Genv.find_funct_ptr, Genv.add_global. simpl.
+    exploit H; eauto.
 Qed.
 
 Lemma funenv_program_compat:
@@ -69,7 +78,7 @@ Proof.
          fenv_compat ge fenv ->
          fenv_compat (Genv.add_globals ge gl) (fold_left add_globdef gl fenv)).
     induction gl; simpl; intros. auto. apply IHgl. apply add_globdef_compat; auto. 
-  apply H. red; intros. rewrite PTree.gempty in H0; discriminate.
+  apply H. red; intros. rewrite PTree.gempty in *. discriminate.
 Qed.
 
 (** ** Properties of shifting *)
