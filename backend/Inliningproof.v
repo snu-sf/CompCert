@@ -81,16 +81,16 @@ Require Import RTL.
 (* new *)   - inv H; simpl in *; inv H1.
 (* new *) Qed.
 
-Inductive match_fundef prog: forall (fd fd':fundef), Prop :=
-| match_fundef_transl
-    fd fd' sprog
-    (SPROG: program_linksub Language_RTL sprog prog)
-    (FD: transf_fundef (funenv_program sprog) fd = OK fd'):
-    match_fundef prog fd fd'
-| match_fundef_identical
-    fd:
-    match_fundef prog fd fd
-.
+(* new *) Inductive match_fundef prog: forall (fd fd':fundef), Prop :=
+(* new *) | match_fundef_transl
+(* new *)     fd fd' sprog
+(* new *)     (SPROG: program_linksub Language_RTL sprog prog)
+(* new *)     (FD: transf_fundef (funenv_program sprog) fd = OK fd'):
+(* new *)     match_fundef prog fd fd'
+(* new *) | match_fundef_identical
+(* new *)     fd:
+(* new *)     match_fundef prog fd fd
+(* new *) .
 
 Section INLINING.
 

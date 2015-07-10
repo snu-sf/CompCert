@@ -290,51 +290,6 @@ Proof.
   predSpec Int.eq Int.eq_spec i0 Int.zero; congruence.
 Qed.
 
-Lemma find_symbol_spec (p:Cminor.program) i:
-  match Genv.find_symbol (Genv.globalenv p) i, option_map snd (find (fun id => peq i (fst id)) (rev p.(prog_defs))) with
-    | Some b, Some g =>
-      match
-        g,
-        Genv.find_funct_ptr (Genv.globalenv p) b,
-        Genv.find_var_info (Genv.globalenv p) b
-      with
-        | Gfun fd1, Some fd2, None => fd1 = fd2
-        | Gvar vi1, None, Some vi2 => vi1 = vi2
-        | _, _, _ => False
-      end
-    | None, None => True
-    | _, _ => False
-  end.
-Proof.
-  Ltac clarify :=
-    repeat (try match goal with
-                  | [H1: ?m ! ?b = _, H2: ?m ! ?b = _ |- _] => rewrite H1 in H2; inv H2
-                  | [H: Some _ = Some _ |- _] => inv H
-                  | [|- context[(PTree.set ?k _ _) ! ?k]] => rewrite PTree.gss
-                  | [H: context[(PTree.set ?k _ _) ! ?k] |- _] => rewrite PTree.gss in H
-                  | [|- context[(PTree.set _ _ _) ! _]] => rewrite PTree.gsspec
-                  | [H: context[(PTree.set _ _ _) ! _] |- _] => rewrite PTree.gsspec in H
-                  | [|- context[peq ?a ?b]] => destruct (peq a b)
-                  | [H: context[peq ?a ?b] |- _] => destruct (peq a b)
-                  | [H: context[match ?x with | Some _ => _ | None => _ end] |- _] =>
-                    let H := fresh "H" in destruct x eqn:H
-                  | [|- context[match ?x with | Some _ => _ | None => _ end]] =>
-                    let H := fresh "H" in destruct x eqn:H
-                  | [H: False |- _] => inv H
-                  | [g: globdef _ _ |- _] => destruct g
-                end; subst; auto).
-  destruct p as [defs main]. unfold Genv.globalenv. simpl in *.
-  unfold Genv.add_globals. rewrite <- fold_left_rev_right.
-  unfold Genv.find_symbol, Genv.find_funct_ptr, Genv.find_var_info.
-  induction (rev defs); simpl; [rewrite PTree.gempty; auto|].
-  rewrite ? PTree.gsspec. destruct a. simpl.
-  destruct (peq i i0); [subst|]; simpl; [destruct g| ]; clarify;
-  try (match goal with [H: (Genv.genv_vars _)!_=_ |- _] =>
-                       apply Genv.genv_vars_range in H; xomega end);
-  try (match goal with [H: (Genv.genv_funs _)!_=_ |- _] =>
-                       apply Genv.genv_funs_range in H; xomega end).
-Qed.
-
 Lemma classify_call_correct:
   forall sp e m a v fd,
   Cminor.eval_expr ge sp e m a v ->
@@ -358,75 +313,75 @@ Proof.
   auto.
 Qed.
 
-Lemma classify_call_correct_ext:
-  forall sp e m a v fd sprog
-  (SPROG: program_linksub Language_Cminor sprog prog),
-  Cminor.eval_expr ge sp e m a v ->
-  Genv.find_funct ge v = Some fd ->
-  match classify_call (Genv.globalenv sprog) a with
-  | Call_default => True
-  | Call_imm id => exists b, Genv.find_symbol ge id = Some b /\ v = Vptr b Int.zero
-  | Call_builtin ef => fd = External ef
-  end.
-Proof.
-  intros. exploit classify_call_correct; eauto.
-  unfold ge, tge in *. clear ge tge.
-  unfold classify_call. destruct (expr_is_addrof_ident a) eqn:Hident; auto.
-  destruct SPROG as [SPROG _]. unfold Cminor.fundef in *. simpl in *.
-  generalize (find_symbol_spec prog i).
-  generalize (find_symbol_spec sprog i).
-  unfold Cminor.fundef in *.
-  destruct (Genv.find_symbol (Genv.globalenv sprog) i) as [b_src|] eqn:Hb_src.
-  - match goal with
-      | [|- context[match ?g with | Some _ => _ | None => _ end -> _]] =>
-        let H := fresh "H" in destruct g as [g_src|] eqn:H; [|intro X; inv X]
-    end.
-    exploit (SPROG i); [rewrite PTree_guespec; apply H1|]. intros [g_tgt [Hg_tgt Hsim]].
-    rewrite PTree_guespec in Hg_tgt. unfold ident, Cminor.fundef in *. simpl in *. rewrite Hg_tgt.
-    inv Hsim.
-    + destruct (Genv.find_funct_ptr (Genv.globalenv sprog) b_src) eqn:Hfd_src; [|intro X; inv X].
-      destruct (Genv.find_var_info (Genv.globalenv sprog) b_src) eqn:Hvi_src; [intro X; inv X|].
-      intro. subst. fold Cminor.fundef in *.
-      destruct (Genv.find_symbol (Genv.globalenv prog) i) eqn:Hb_tgt; [|intro X; inv X].
-      destruct (Genv.find_funct_ptr (Genv.globalenv prog) b) eqn:Hfd'_src; [|intro X; inv X].
-      destruct (Genv.find_var_info (Genv.globalenv prog) b) eqn:Hvi'_src; [intro X; inv X|].
-      intro. subst. fold Cminor.fundef in *.
-      inv Hv; auto. inv H2.
-      * destruct f; inv H3. destruct f0; inv H4. destruct e1; inv Hlinkable. auto.
-      * destruct f; inv H3. destruct f0; inv H4. auto.
-    + destruct (Genv.find_funct_ptr (Genv.globalenv sprog) b_src) eqn:Hfd_src; [intro X; inv X|].
-      destruct (Genv.find_var_info (Genv.globalenv sprog) b_src) eqn:Hvi_src; [|intro X; inv X].
-      intro. subst. fold Cminor.fundef in *.
-      destruct (Genv.find_symbol (Genv.globalenv prog) i) eqn:Hb_tgt; [|intro X; inv X].
-      destruct (Genv.find_funct_ptr (Genv.globalenv prog) b) eqn:Hfd'_src; [intro X; inv X|].
-      destruct (Genv.find_var_info (Genv.globalenv prog) b) eqn:Hvi'_src; [|intro X; inv X].
-      intros ? [b' [Hb' Hv']]. subst. rewrite Hb_tgt in Hb'. inv Hb'.
-      eexists. split; eauto.
-  - match goal with
-      | [|- context[match ?g with | Some _ => _ | None => _ end -> _]] =>
-        let H := fresh "H" in destruct g as [g_src|] eqn:H; intro X; inv X
-    end.
-    fold Cminor.fundef in *.
-    destruct (Genv.find_symbol (Genv.globalenv prog) i) eqn:Hb_tgt;
-      [| rewrite Hb_tgt; auto].
-    match goal with
-      | [|- context[match ?g with | Some _ => _ | None => _ end -> _]] =>
-        let H := fresh "H" in destruct g as [g_tgt|] eqn:H; [|intro X; inv X]
-    end.
-    destruct g_tgt as [fd_tgt|vi_tgt].
-    + destruct (Genv.find_funct_ptr (Genv.globalenv prog) b) eqn:Hfd_tgt; [|intro X; inv X].
-      destruct (Genv.find_var_info (Genv.globalenv prog) b) eqn:Hvi_tgt; [intro X; inv X|].
-      intro. subst. destruct f; [rewrite Hb_tgt; auto| ].
-      destruct (ef_inline e0) eqn:Hinline; [| rewrite Hb_tgt; auto].
-      intro. subst. eexists. split; eauto.
-      destruct a; inv Hident. destruct c; inv H4. destruct (Int.eq i1 Int.zero); inv H5.
-      destruct v; inv H0. destruct (Int.eq_dec i0 Int.zero); inv H4.
-      inv H. inv H4. unfold Cminor.fundef in *. simpl in *. rewrite Hb_tgt in *.
-      inv H0. auto.
-    + destruct (Genv.find_funct_ptr (Genv.globalenv prog) b);
-      destruct (Genv.find_var_info (Genv.globalenv prog) b) eqn:Hvi_tgt; try (intro X; inv X; fail).
-      intro. subst. rewrite Hb_tgt. auto.
-Qed.
+(* new *) Lemma classify_call_correct_ext:
+(* new *)   forall sp e m a v fd sprog
+(* new *)   (SPROG: program_linksub Language_Cminor sprog prog),
+(* new *)   Cminor.eval_expr ge sp e m a v ->
+(* new *)   Genv.find_funct ge v = Some fd ->
+(* new *)   match classify_call (Genv.globalenv sprog) a with
+(* new *)   | Call_default => True
+(* new *)   | Call_imm id => exists b, Genv.find_symbol ge id = Some b /\ v = Vptr b Int.zero
+(* new *)   | Call_builtin ef => fd = External ef
+(* new *)   end.
+(* new *) Proof.
+(* new *)   intros. exploit classify_call_correct; eauto.
+(* new *)   unfold ge, tge in *. clear ge tge.
+(* new *)   unfold classify_call. destruct (expr_is_addrof_ident a) eqn:Hident; auto.
+(* new *)   destruct SPROG as [SPROG _]. unfold Cminor.fundef in *. simpl in *.
+(* new *)   generalize (find_symbol_spec prog i).
+(* new *)   generalize (find_symbol_spec sprog i).
+(* new *)   unfold Cminor.fundef in *.
+(* new *)   destruct (Genv.find_symbol (Genv.globalenv sprog) i) as [b_src|] eqn:Hb_src.
+(* new *)   - match goal with
+(* new *)       | [|- context[match ?g with | Some _ => _ | None => _ end -> _]] =>
+(* new *)         let H := fresh "H" in destruct g as [g_src|] eqn:H; [|intro X; inv X]
+(* new *)     end.
+(* new *)     exploit (SPROG i); [rewrite PTree_guespec; apply H1|]. intros [g_tgt [Hg_tgt Hsim]].
+(* new *)     rewrite PTree_guespec in Hg_tgt. unfold ident, Cminor.fundef in *. simpl in *. rewrite Hg_tgt.
+(* new *)     inv Hsim.
+(* new *)     + destruct (Genv.find_funct_ptr (Genv.globalenv sprog) b_src) eqn:Hfd_src; [|intro X; inv X].
+(* new *)       destruct (Genv.find_var_info (Genv.globalenv sprog) b_src) eqn:Hvi_src; [intro X; inv X|].
+(* new *)       intro. subst. fold Cminor.fundef in *.
+(* new *)       destruct (Genv.find_symbol (Genv.globalenv prog) i) eqn:Hb_tgt; [|intro X; inv X].
+(* new *)       destruct (Genv.find_funct_ptr (Genv.globalenv prog) b) eqn:Hfd'_src; [|intro X; inv X].
+(* new *)       destruct (Genv.find_var_info (Genv.globalenv prog) b) eqn:Hvi'_src; [intro X; inv X|].
+(* new *)       intro. subst. fold Cminor.fundef in *.
+(* new *)       inv Hv; auto. inv H2.
+(* new *)       * destruct f; inv H3. destruct f0; inv H4. destruct e1; inv Hlinkable. auto.
+(* new *)       * destruct f; inv H3. destruct f0; inv H4. auto.
+(* new *)     + destruct (Genv.find_funct_ptr (Genv.globalenv sprog) b_src) eqn:Hfd_src; [intro X; inv X|].
+(* new *)       destruct (Genv.find_var_info (Genv.globalenv sprog) b_src) eqn:Hvi_src; [|intro X; inv X].
+(* new *)       intro. subst. fold Cminor.fundef in *.
+(* new *)       destruct (Genv.find_symbol (Genv.globalenv prog) i) eqn:Hb_tgt; [|intro X; inv X].
+(* new *)       destruct (Genv.find_funct_ptr (Genv.globalenv prog) b) eqn:Hfd'_src; [intro X; inv X|].
+(* new *)       destruct (Genv.find_var_info (Genv.globalenv prog) b) eqn:Hvi'_src; [|intro X; inv X].
+(* new *)       intros ? [b' [Hb' Hv']]. subst. rewrite Hb_tgt in Hb'. inv Hb'.
+(* new *)       eexists. split; eauto.
+(* new *)   - match goal with
+(* new *)       | [|- context[match ?g with | Some _ => _ | None => _ end -> _]] =>
+(* new *)         let H := fresh "H" in destruct g as [g_src|] eqn:H; intro X; inv X
+(* new *)     end.
+(* new *)     fold Cminor.fundef in *.
+(* new *)     destruct (Genv.find_symbol (Genv.globalenv prog) i) eqn:Hb_tgt;
+(* new *)       [| rewrite Hb_tgt; auto].
+(* new *)     match goal with
+(* new *)       | [|- context[match ?g with | Some _ => _ | None => _ end -> _]] =>
+(* new *)         let H := fresh "H" in destruct g as [g_tgt|] eqn:H; [|intro X; inv X]
+(* new *)     end.
+(* new *)     destruct g_tgt as [fd_tgt|vi_tgt].
+(* new *)     + destruct (Genv.find_funct_ptr (Genv.globalenv prog) b) eqn:Hfd_tgt; [|intro X; inv X].
+(* new *)       destruct (Genv.find_var_info (Genv.globalenv prog) b) eqn:Hvi_tgt; [intro X; inv X|].
+(* new *)       intro. subst. destruct f; [rewrite Hb_tgt; auto| ].
+(* new *)       destruct (ef_inline e0) eqn:Hinline; [| rewrite Hb_tgt; auto].
+(* new *)       intro. subst. eexists. split; eauto.
+(* new *)       destruct a; inv Hident. destruct c; inv H4. destruct (Int.eq i1 Int.zero); inv H5.
+(* new *)       destruct v; inv H0. destruct (Int.eq_dec i0 Int.zero); inv H4.
+(* new *)       inv H. inv H4. unfold Cminor.fundef in *. simpl in *. rewrite Hb_tgt in *.
+(* new *)       inv H0. auto.
+(* new *)     + destruct (Genv.find_funct_ptr (Genv.globalenv prog) b);
+(* new *)       destruct (Genv.find_var_info (Genv.globalenv prog) b) eqn:Hvi_tgt; try (intro X; inv X; fail).
+(* new *)       intro. subst. rewrite Hb_tgt. auto.
+(* new *) Qed.
 
 (** Translation of [switch] statements *)
 
@@ -1107,15 +1062,15 @@ Qed.
 (* new *)   destruct (ident_eq name0 id); simpl in *; subst; try congruence.
 (* new *)   destruct (signature_eq sg0 sig); simpl in *; subst; try congruence.
 (* new *)   exploit find_symbol_spec; eauto.
-(* new *)   instantiate (1 := p1). instantiate (1 := id).
+(* new *)   instantiate (3 := p1). instantiate (1 := id).
 (* new *)   simpl in *. fold Cminor.fundef in *. rewrite SYM1, FUNC1.
 (* new *)   intro ID1.
 (* new *)   exploit find_symbol_spec; eauto.
-(* new *)   instantiate (1 := p2). instantiate (1 := id).
+(* new *)   instantiate (3 := p2). instantiate (1 := id).
 (* new *)   simpl in *. fold Cminor.fundef in *. rewrite SYM2, FUNC2.
 (* new *)   intro ID2.
 (* new *)   exploit find_symbol_spec; eauto.
-(* new *)   instantiate (1 := p). instantiate (1 := id).
+(* new *)   instantiate (3 := p). instantiate (1 := id).
 (* new *)   simpl in *. fold Cminor.fundef in *.
 (* new *)   intro ID.
 (* new *)   unfold link_program in LINK. simpl in *. fold Cminor.fundef in *.
@@ -1125,30 +1080,8 @@ Qed.
 (* new *)   destruct (link_globdefs Language_Cminor (PTree_unelements (prog_defs p1)) (PTree_unelements (prog_defs p2))) eqn:DEFS'; inv DEFS.
 (* new *)   exploit gtlink_globdefs; eauto. instantiate (1 := id). rewrite ? PTree_guespec.
 (* new *)   revert ID1 ID2. simpl in *. fold Cminor.fundef in *. fold ident.
-(* new *)   destruct
-(* new *)     (@option_map (prod ident (globdef Cminor.fundef unit))
-(* new *)                  (globdef Cminor.fundef unit) (@snd ident (globdef Cminor.fundef unit))
-(* new *)                  (@find (prod ident (globdef Cminor.fundef unit))
-(* new *)                         (fun id0 : prod ident (globdef Cminor.fundef unit) =>
-(* new *)                            @proj_sumbool
-(* new *)                              (@eq ident id (@fst ident (globdef Cminor.fundef unit) id0))
-(* new *)                              (not
-(* new *)                                 (@eq ident id (@fst ident (globdef Cminor.fundef unit) id0)))
-(* new *)                              (peq id (@fst ident (globdef Cminor.fundef unit) id0)))
-(* new *)                         (@rev (prod ident (globdef Cminor.fundef unit))
-(* new *)                               (@prog_defs Cminor.fundef unit p1)))); [|intros; exfalso; auto].
-(* new *)   destruct
-(* new *)     (@option_map (prod ident (globdef Cminor.fundef unit))
-(* new *)                  (globdef Cminor.fundef unit) (@snd ident (globdef Cminor.fundef unit))
-(* new *)                  (@find (prod ident (globdef Cminor.fundef unit))
-(* new *)                         (fun id0 : prod ident (globdef Cminor.fundef unit) =>
-(* new *)                            @proj_sumbool
-(* new *)                              (@eq ident id (@fst ident (globdef Cminor.fundef unit) id0))
-(* new *)                              (not
-(* new *)                                 (@eq ident id (@fst ident (globdef Cminor.fundef unit) id0)))
-(* new *)                              (peq id (@fst ident (globdef Cminor.fundef unit) id0)))
-(* new *)                         (@rev (prod ident (globdef Cminor.fundef unit))
-(* new *)                               (@prog_defs Cminor.fundef unit p2)))); [|intros; exfalso; auto].
+(* new *)   destruct (option_map _ (find _ (_ (_ p1)))); [|intros; exfalso; auto].
+(* new *)   destruct (option_map _ (find _ (_ (_ p2)))); [|intros; exfalso; auto].
 (* new *)   destruct g, g0; intros; try (exfalso; auto; fail).
 (* new *)   destruct (t ! id) eqn:TID; [|exfalso; auto].
 (* new *)   rewrite PTree_gespec in TID.

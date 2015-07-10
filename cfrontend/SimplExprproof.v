@@ -56,7 +56,7 @@ Let tge := Genv.globalenv tprog.
 (* new *)     (fun info tinfo => info = tinfo)
 (* new *)     nil prog.(prog_main)
 (* new *)     prog tprog.
-(* new *) Proof. 
+(* new *) Proof.
 (* new *)   destruct prog as [defs ?], tprog as [tdefs ?].
 (* new *)   inv TRANSF. simpl in *. subst. clear ge tge.
 (* new *)   revert tdefs Hdefs. generalize defs at 1 as fdefs.
@@ -77,7 +77,7 @@ Let tge := Genv.globalenv tprog.
 (* new *)     constructor.
 (* new *)   - unfold transf_globvar in Hv. monadInv Hv. inv EQ.
 (* new *)     destruct gv_src. constructor. auto.
-(* new *) Qed. 
+(* new *) Qed.
 
 (** Invariance properties. *)
 
