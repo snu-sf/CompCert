@@ -144,17 +144,6 @@ Definition transf_c_program_opt l p : res Asm.program :=
      @@@ time "Clight generation" SimplExpr.transl_program
      @@@ transf_clight_program_opt l.
 
-Definition compiler_flag :=
-    (Tailcall, optim_tailcalls)::(Inlining, tflag)::(Renumber, tflag)::(Constprop, optim_constprop)
-  ::(Renumber, optim_constprop)::(CSE, optim_CSE)::(Deadcode, optim_redundancy)::nil.
-
-Require Import FunctionalExtensionality.
-
-Theorem compiler_equivalence:
-  transf_c_program = transf_c_program_opt compiler_flag.
-Proof. reflexivity. Qed.
-
-
 Lemma transf_rtl_program_opt'_error: forall l n msg, transf_rtl_program_opt' n l (Error msg) = Error msg.
 Proof.
   intros l. induction l; intros; eauto.
@@ -322,3 +311,12 @@ Proof.
   eapply ssr_well_behaved; eapply Cstrategy.semantics_strongly_receptive.
   exact (snd (transf_cstrategy_program_opt_correct _ _ _ H)).
 Qed.
+
+Definition default_flag :=
+   (Tailcall, optim_tailcalls)::(Inlining, tflag)::(Renumber, tflag)::
+   (Constprop, optim_constprop)::(Renumber, optim_constprop)::
+   (CSE, optim_CSE)::(Deadcode, optim_redundancy)::nil.
+
+Theorem compiler_equivalence:
+  transf_c_program = transf_c_program_opt default_flag.
+Proof. reflexivity. Qed.
