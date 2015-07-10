@@ -63,7 +63,6 @@ Proof.
   - intros. eapply H0. eauto.
 Qed.
 
-
 Lemma OK_eq_inversion A (a b:A):
   OK a = OK b -> a = b.
 Proof. intro. inv H. auto. Qed.
