@@ -151,29 +151,21 @@ Proof.
   left. induction FORALL; subst; auto. inv Hpred. auto.
 Qed.
 
-Lemma partial_if_link_program
-      (fT:F Sig_signature) vT
-      (p1 p2 p:(mkLanguage (Fundef_common fT) vT).(progT))
-      (q1 q2:(mkLanguage (Fundef_common fT) vT).(progT))
-      flag transf
-      (TRANSF:
-         forall (Hp: link_program (mkLanguage (Fundef_common fT) vT) p1 p2 = Some p)
-                (H1: transf p1 = OK q1)
-                (H2: transf p2 = OK q2),
-         exists q,
-           link_program (mkLanguage (Fundef_common fT) vT) q1 q2 = Some q /\
-           transf p = OK q)
-      (Hp: link_program (mkLanguage (Fundef_common fT) vT) p1 p2 = Some p)
-      (H1: partial_if flag transf p1 = OK q1)
-      (H2: partial_if flag transf p2 = OK q2):
-  exists q,
-    link_program (mkLanguage (Fundef_common fT) vT) q1 q2 = Some q /\
-    partial_if flag transf p = OK q.
-Proof.
-  unfold partial_if in *. destruct (flag tt).
-  - apply TRANSF; auto.
-  - inv H1. inv H2. eexists. split; eauto.
-Qed.
+Lemma elim_or
+      (P1 P2 C:Prop)
+      (H: P1 \/ P2)
+      (H1: P1 -> C)
+      (H2: P2 -> C):
+  C.
+Proof. destruct H; auto. Qed.
+
+Lemma Tree_reduce_sim_identity
+      ptree tptree p
+      (EQ: ptree = tptree)
+      (REDUCE: Tree.reduce (link_program Language_RTL) ptree = Some p):
+  exists tp (SIM: forward_simulation (RTL.semantics p) (RTL.semantics tp)),
+    Tree.reduce (link_program Language_RTL) tptree = Some tp.
+Proof. subst. exists p, (forward_simulation_identity _). auto. Qed.
 
 Lemma linker_correct_determinate_forward
         ctree asmtree cprog
@@ -251,24 +243,6 @@ Proof.
              apply (@Tree_Forall2_partial_if Language_RTL) in H; simpl in H
          end.
 
-  Lemma elim_or
-    (P1 P2 C:Prop)
-    (H: P1 \/ P2)
-    (H1: P1 -> C)
-    (H2: P2 -> C):
-    C.
-  Proof. destruct H; auto. Qed.
-  idtac.
-
-  Lemma Tree_reduce_sim_identity
-        ptree tptree p
-        (EQ: ptree = tptree)
-        (REDUCE: Tree.reduce (link_program Language_RTL) ptree = Some p):
-    exists tp (SIM: forward_simulation (RTL.semantics p) (RTL.semantics tp)),
-      Tree.reduce (link_program Language_RTL) tptree = Some tp.
-  Proof. subst. exists p, (forward_simulation_identity _). auto. Qed.
-  idtac.
-  
   exploit (elim_or T19 (@Tree_reduce_sim_identity _ _ rtlprog0)); auto.
   { intro X. eapply Tree.Forall2_reduce in X; eauto;
       [|eapply transform_program_link_program];
