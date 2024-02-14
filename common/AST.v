@@ -663,8 +663,8 @@ Inductive builtin_arg (A: Type) : Type :=
   | BA_long (n: int64)
   | BA_float (f: float)
   | BA_single (f: float32)
-  | BA_loadstack (chunk: memory_chunk) (ofs: ptrofs)
-  | BA_addrstack (ofs: ptrofs)
+  | BA_loadstack (chunk: memory_chunk) (id: ident) (ofs: ptrofs)
+  | BA_addrstack (id: ident) (ofs: ptrofs)
   | BA_loadglobal (chunk: memory_chunk) (id: ident) (ofs: ptrofs)
   | BA_addrglobal (id: ident) (ofs: ptrofs)
   | BA_splitlong (hi lo: builtin_arg A)
@@ -712,8 +712,8 @@ Fixpoint map_builtin_arg (A B: Type) (f: A -> B) (a: builtin_arg A) : builtin_ar
   | BA_long n => BA_long n
   | BA_float n => BA_float n
   | BA_single n => BA_single n
-  | BA_loadstack chunk ofs => BA_loadstack chunk ofs
-  | BA_addrstack ofs => BA_addrstack ofs
+  | BA_loadstack chunk id ofs => BA_loadstack chunk id ofs
+  | BA_addrstack id ofs => BA_addrstack id ofs
   | BA_loadglobal chunk id ofs => BA_loadglobal chunk id ofs
   | BA_addrglobal id ofs => BA_addrglobal id ofs
   | BA_splitlong hi lo =>

@@ -88,12 +88,24 @@ Definition transf_instr (f: function) (pc: node) (instr: instruction) :=
   | _ => instr
   end.
 
-(** A function is transformed only if its stack block is empty,
+(** A function is transformed only if its stackspaces are empty,
     as explained above.  *)
 
+Definition stackspaces_length (f: function) :=
+  Z.of_nat (length f.(fn_stackspaces)).
+
+Definition stackspaces_empty (f: function) :=
+  zeq (stackspaces_length f) 0.
+
+Lemma stackspaces_empty_nil:
+  forall f, stackspaces_length f = 0 -> (fn_stackspaces f) = nil.
+Proof.
+  unfold stackspaces_length. intros.
+  destruct (fn_stackspaces f); try reflexivity; discriminate H.
+Qed.
+
 Definition transf_function (f: function) : function :=
-  if zeq f.(fn_stacksize) 0
-  && option_eq zeq f.(fn_sig).(sig_cc).(cc_vararg) None
+  if stackspaces_empty f && option_eq zeq f.(fn_sig).(sig_cc).(cc_vararg) None
   then RTL.transf_function (transf_instr f) f
   else f.
 

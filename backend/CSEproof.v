@@ -14,7 +14,7 @@
 
 Require Import Coqlib Maps Errors Integers Floats Lattice Kildall.
 Require Import AST Linking.
-Require Import Values Memory Builtins Events Globalenvs Smallstep.
+Require Import Values Memory Builtins Events Globalenvs Stackenvs Smallstep.
 Require Import Op Registers RTL.
 Require Import ValueDomain ValueAOp ValueAnalysis.
 Require Import CSEdomain CombineOp CombineOpproof CSE.
@@ -51,7 +51,7 @@ Variable upto: valnum.
 Variable valu2: valuation.
 Hypothesis AGREE: valu_agree valu1 valu2 upto.
 Variable ge: genv.
-Variable sp: val.
+Variable ste: stenv.
 Variable rs: regset.
 Variable m: mem.
 
@@ -65,9 +65,9 @@ Qed.
 
 Lemma rhs_eval_to_exten:
   forall r v,
-  rhs_eval_to valu1 ge sp m r v ->
+  rhs_eval_to valu1 ge ste m r v ->
   (forall v, In v (valnums_rhs r) -> Plt v upto) ->
-  rhs_eval_to valu2 ge sp m r v.
+  rhs_eval_to valu2 ge ste m r v.
 Proof.
   intros. inv H; simpl in *.
 - constructor. rewrite valnums_val_exten by assumption. auto.
@@ -76,9 +76,9 @@ Qed.
 
 Lemma equation_holds_exten:
   forall e,
-  equation_holds valu1 ge sp m e ->
+  equation_holds valu1 ge ste m e ->
   wf_equation upto e ->
-  equation_holds valu2 ge sp m e.
+  equation_holds valu2 ge ste m e.
 Proof.
   intros. destruct e. destruct H0. inv H.
 - constructor. rewrite AGREE by auto. apply rhs_eval_to_exten; auto.
@@ -87,9 +87,9 @@ Qed.
 
 Lemma numbering_holds_exten:
   forall n,
-  numbering_holds valu1 ge sp rs m n ->
+  numbering_holds valu1 ge ste rs m n ->
   Ple n.(num_next) upto ->
-  numbering_holds valu2 ge sp rs m n.
+  numbering_holds valu2 ge ste rs m n.
 Proof.
   intros. destruct H. constructor; intros.
 - auto.
@@ -103,11 +103,11 @@ End EXTEN.
 Ltac splitall := repeat (match goal with |- _ /\ _ => split end).
 
 Lemma valnum_reg_holds:
-  forall valu1 ge sp rs m n r n' v,
-  numbering_holds valu1 ge sp rs m n ->
+  forall valu1 ge ste rs m n r n' v,
+  numbering_holds valu1 ge ste rs m n ->
   valnum_reg n r = (n', v) ->
   exists valu2,
-     numbering_holds valu2 ge sp rs m n'
+     numbering_holds valu2 ge ste rs m n'
   /\ rs#r = valu2 v
   /\ valu_agree valu1 valu2 n.(num_next)
   /\ Plt v n'.(num_next)
@@ -148,10 +148,10 @@ Qed.
 
 Lemma valnum_regs_holds:
   forall rl valu1 ge sp rs m n n' vl,
-  numbering_holds valu1 ge sp rs m n ->
+  numbering_holds valu1 ge ste rs m n ->
   valnum_regs n rl = (n', vl) ->
   exists valu2,
-     numbering_holds valu2 ge sp rs m n'
+     numbering_holds valu2 ge ste rs m n'
   /\ rs##rl = map valu2 vl
   /\ valu_agree valu1 valu2 n.(num_next)
   /\ (forall v, In v vl -> Plt v n'.(num_next))
@@ -207,9 +207,9 @@ Proof.
 Qed.
 
 Lemma reg_valnum_sound:
-  forall n v r valu ge sp rs m,
+  forall n v r valu ge ste rs m,
   reg_valnum n v = Some r ->
-  numbering_holds valu ge sp rs m n ->
+  numbering_holds valu ge ste rs m n ->
   rs#r = valu v.
 Proof.
   unfold reg_valnum; intros. destruct (num_val n)#v as [ | r1 rl] eqn:E; inv H.
@@ -218,8 +218,8 @@ Proof.
 Qed.
 
 Lemma regs_valnums_sound:
-  forall n valu ge sp rs m,
-  numbering_holds valu ge sp rs m n ->
+  forall n valu ge ste rs m,
+  numbering_holds valu ge ste rs m n ->
   forall vl rl,
   regs_valnums n vl = Some rl ->
   rs##rl = map valu vl.
@@ -232,10 +232,10 @@ Proof.
 Qed.
 
 Lemma find_rhs_sound:
-  forall n rh r valu ge sp rs m,
+  forall n rh r valu ge ste rs m,
   find_rhs n rh = Some r ->
-  numbering_holds valu ge sp rs m n ->
-  exists v, rhs_eval_to valu ge sp m rh v /\ Val.lessdef v rs#r.
+  numbering_holds valu ge ste rs m n ->
+  exists v, rhs_eval_to valu ge ste m rh v /\ Val.lessdef v rs#r.
 Proof.
   unfold find_rhs; intros. destruct (find_valnum_rhs' rh (num_eqs n)) as [vres|] eqn:E; try discriminate.
   exploit find_valnum_rhs'_charact; eauto. intros [strict IN].
@@ -287,19 +287,19 @@ Proof.
 Qed.
 
 Lemma rhs_eval_to_inj:
-  forall valu ge sp m rh v1 v2,
-  rhs_eval_to valu ge sp m rh v1 -> rhs_eval_to valu ge sp m rh v2 -> v1 = v2.
+  forall valu ge ste m rh v1 v2,
+  rhs_eval_to valu ge ste m rh v1 -> rhs_eval_to valu ge ste m rh v2 -> v1 = v2.
 Proof.
   intros. inv H; inv H0; congruence.
 Qed.
 
 Lemma add_rhs_holds:
-  forall valu1 ge sp rs m n rd rh rs',
-  numbering_holds valu1 ge sp rs m n ->
-  rhs_eval_to valu1 ge sp m rh (rs'#rd) ->
+  forall valu1 ge ste rs m n rd rh rs',
+  numbering_holds valu1 ge ste rs m n ->
+  rhs_eval_to valu1 ge ste m rh (rs'#rd) ->
   wf_rhs n.(num_next) rh ->
   (forall r, r <> rd -> rs'#r = rs#r) ->
-  exists valu2, numbering_holds valu2 ge sp rs' m (add_rhs n rd rh).
+  exists valu2, numbering_holds valu2 ge ste rs' m (add_rhs n rd rh).
 Proof.
   unfold add_rhs; intros.
   destruct (find_valnum_rhs rh n.(num_eqs)) as [vres|] eqn:FIND.
@@ -345,10 +345,10 @@ Proof.
 Qed.
 
 Lemma add_op_holds:
-  forall valu1 ge sp rs m n op (args: list reg) v dst,
-  numbering_holds valu1 ge sp rs m n ->
-  eval_operation ge sp op rs##args m = Some v ->
-  exists valu2, numbering_holds valu2 ge sp (rs#dst <- v) m (add_op n dst op args).
+  forall valu1 ge ste rs m n op (args: list reg) v dst,
+  numbering_holds valu1 ge ste rs m n ->
+  eval_operation ge ste op rs##args m = Some v ->
+  exists valu2, numbering_holds valu2 ge ste (rs#dst <- v) m (add_op n dst op args).
 Proof.
   unfold add_op; intros.
   destruct (is_move_operation op args) as [src|] eqn:ISMOVE.
@@ -378,11 +378,11 @@ Proof.
 Qed.
 
 Lemma add_load_holds:
-  forall valu1 ge sp rs m n addr (args: list reg) a chunk v dst,
-  numbering_holds valu1 ge sp rs m n ->
-  eval_addressing ge sp addr rs##args = Some a ->
+  forall valu1 ge ste rs m n addr (args: list reg) a chunk v dst,
+  numbering_holds valu1 ge ste rs m n ->
+  eval_addressing ge ste addr rs##args = Some a ->
   Mem.loadv chunk m a = Some v ->
-  exists valu2, numbering_holds valu2 ge sp (rs#dst <- v) m (add_load n dst chunk addr args).
+  exists valu2, numbering_holds valu2 ge ste (rs#dst <- v) m (add_load n dst chunk addr args).
 Proof.
   unfold add_load; intros.
   destruct (valnum_regs n args) as [n1 vl] eqn:VN.
@@ -394,9 +394,9 @@ Proof.
 Qed.
 
 Lemma set_unknown_holds:
-  forall valu ge sp rs m n r v,
-  numbering_holds valu ge sp rs m n ->
-  numbering_holds valu ge sp (rs#r <- v) m (set_unknown n r).
+  forall valu ge ste rs m n r v,
+  numbering_holds valu ge ste rs m n ->
+  numbering_holds valu ge ste (rs#r <- v) m (set_unknown n r).
 Proof.
   intros; constructor; simpl; intros.
 - constructor; simpl; intros.
@@ -413,9 +413,9 @@ Proof.
 Qed.
 
 Lemma set_res_unknown_holds:
-  forall valu ge sp rs m n r v,
-  numbering_holds valu ge sp rs m n ->
-  numbering_holds valu ge sp (regmap_setres r v rs) m (set_res_unknown n r).
+  forall valu ge ste rs m n r v,
+  numbering_holds valu ge ste rs m n ->
+  numbering_holds valu ge ste (regmap_setres r v rs) m (set_res_unknown n r).
 Proof.
   intros. destruct r; simpl; auto. apply set_unknown_holds; auto.
 Qed.
@@ -433,13 +433,13 @@ Proof.
 Qed.
 
 Lemma kill_equations_hold:
-  forall valu ge sp rs m n pred m',
-  numbering_holds valu ge sp rs m n ->
+  forall valu ge ste rs m n pred m',
+  numbering_holds valu ge ste rs m n ->
   (forall r v,
       pred r = false ->
-      rhs_eval_to valu ge sp m r v ->
-      rhs_eval_to valu ge sp m' r v) ->
-  numbering_holds valu ge sp rs m' (kill_equations pred n).
+      rhs_eval_to valu ge ste m r v ->
+      rhs_eval_to valu ge ste m' r v) ->
+  numbering_holds valu ge ste rs m' (kill_equations pred n).
 Proof.
   intros; constructor; simpl; intros.
 - constructor; simpl; intros; eauto with cse.
@@ -450,9 +450,9 @@ Proof.
 Qed.
 
 Lemma kill_all_loads_hold:
-  forall valu ge sp rs m n m',
-  numbering_holds valu ge sp rs m n ->
-  numbering_holds valu ge sp rs m' (kill_all_loads n).
+  forall valu ge ste rs m n m',
+  numbering_holds valu ge ste rs m n ->
+  numbering_holds valu ge ste rs m' (kill_all_loads n).
 Proof.
   intros. eapply kill_equations_hold; eauto.
   unfold filter_loads; intros. inv H1.
@@ -461,15 +461,15 @@ Proof.
 Qed.
 
 Lemma kill_loads_after_store_holds:
-  forall valu ge sp rs m n addr args a chunk v m' bc approx ae am,
-  numbering_holds valu ge (Vptr sp Ptrofs.zero) rs m n ->
-  eval_addressing ge (Vptr sp Ptrofs.zero) addr rs##args = Some a ->
+  forall valu ge ve rs m n addr args a chunk v m' bc approx ae am,
+  numbering_holds valu ge (Stenv.of_venv ve flat_mid flat_maddr) rs m n ->
+  eval_addressing ge (Stenv.of_venv ve flat_mid flat_maddr) addr rs##args = Some a ->
   Mem.storev chunk m a v = Some m' ->
   genv_match bc ge ->
-  bc sp = BCstack ->
+  bc ve = BCstack ->
   ematch bc rs ae ->
   approx = VA.State ae am ->
-  numbering_holds valu ge (Vptr sp Ptrofs.zero) rs m'
+  numbering_holds valu ge (Stenv.of_venv ve flat_mid flat_maddr) rs m'
                            (kill_loads_after_store approx n chunk addr args).
 Proof.
   intros. apply kill_equations_hold with m; auto.
@@ -505,13 +505,13 @@ Proof.
 Qed.
 
 Lemma add_store_result_hold:
-  forall valu1 ge sp rs m' n addr args a chunk m src bc ae approx am,
-  numbering_holds valu1 ge sp rs m' n ->
-  eval_addressing ge sp addr rs##args = Some a ->
+  forall valu1 ge ste rs m' n addr args a chunk m src bc ae approx am,
+  numbering_holds valu1 ge ste rs m' n ->
+  eval_addressing ge ste addr rs##args = Some a ->
   Mem.storev chunk m a rs#src = Some m' ->
   ematch bc rs ae ->
   approx = VA.State ae am ->
-  exists valu2, numbering_holds valu2 ge sp rs m' (add_store_result approx n chunk addr args src).
+  exists valu2, numbering_holds valu2 ge ste rs m' (add_store_result approx n chunk addr args src).
 Proof.
   unfold add_store_result; intros.
   unfold avalue; rewrite H3.
@@ -536,8 +536,8 @@ Proof.
 Qed.
 
 Lemma kill_loads_after_storebytes_holds:
-  forall valu ge sp rs m n dst b ofs bytes m' bc approx ae am sz,
-  numbering_holds valu ge (Vptr sp Ptrofs.zero) rs m n ->
+  forall valu ge ve rs m n dst b ofs bytes m' bc approx ae am sz,
+  numbering_holds valu ge (Stenv.of_venv ve flat_mid flat_maddr) rs m n ->
   pmatch bc b ofs dst ->
   Mem.storebytes m b (Ptrofs.unsigned ofs) bytes = Some m' ->
   genv_match bc ge ->
@@ -545,7 +545,7 @@ Lemma kill_loads_after_storebytes_holds:
   ematch bc rs ae ->
   approx = VA.State ae am ->
   length bytes = Z.to_nat sz -> sz >= 0 ->
-  numbering_holds valu ge (Vptr sp Ptrofs.zero) rs m'
+  numbering_holds valu ge (Stenv.of_venv ve flat_mid flat_maddr) rs m'
                            (kill_loads_after_storebytes approx n dst sz).
 Proof.
   intros. apply kill_equations_hold with m; auto.
@@ -632,12 +632,12 @@ Proof with (try discriminate).
 Qed.
 
 Lemma shift_memcpy_eq_holds:
-  forall src dst sz e e' m sp bytes m' valu ge,
+  forall src dst sz e e' m ve bytes m' valu ge,
   shift_memcpy_eq src sz (dst - src) e = Some e' ->
   Mem.loadbytes m sp src sz = Some bytes ->
   Mem.storebytes m sp dst bytes = Some m' ->
-  equation_holds valu ge (Vptr sp Ptrofs.zero) m e ->
-  equation_holds valu ge (Vptr sp Ptrofs.zero) m' e'.
+  equation_holds valu ge (Stenv.of_venv ve flat_mid flat_maddr) m e ->
+  equation_holds valu ge (Stenv.of_venv ve flat_mid flat_maddr) m' e'.
 Proof with (try discriminate).
   intros. set (delta := dst - src) in *. unfold shift_memcpy_eq in H.
   destruct e as [l strict rhs] eqn:E.
@@ -686,16 +686,16 @@ Proof.
 Qed.
 
 Lemma add_memcpy_holds:
-  forall m bsrc osrc sz bytes bdst odst m' valu ge sp rs n1 n2 bc asrc adst,
+  forall m bsrc osrc sz bytes bdst odst m' valu ge ve rs n1 n2 bc asrc adst,
   Mem.loadbytes m bsrc (Ptrofs.unsigned osrc) sz = Some bytes ->
   Mem.storebytes m bdst (Ptrofs.unsigned odst) bytes = Some m' ->
-  numbering_holds valu ge (Vptr sp Ptrofs.zero) rs m n1 ->
-  numbering_holds valu ge (Vptr sp Ptrofs.zero) rs m' n2 ->
+  numbering_holds valu ge (Stenv.of_venv ve flat_mid flat_maddr) rs m n1 ->
+  numbering_holds valu ge (Stenv.of_venv ve flat_mid flat_maddr) rs m' n2 ->
   pmatch bc bsrc osrc asrc ->
   pmatch bc bdst odst adst ->
   bc sp = BCstack ->
   Ple (num_next n1) (num_next n2) ->
-  numbering_holds valu ge (Vptr sp Ptrofs.zero) rs m' (add_memcpy n1 n2 asrc adst sz).
+  numbering_holds valu ge (Stenv.of_venv ve flat_mid flat_maddr) rs m' (add_memcpy n1 n2 asrc adst sz).
 Proof.
   intros. unfold add_memcpy.
   destruct asrc; auto; destruct adst; auto.
@@ -724,7 +724,7 @@ Variable A: Type.
 Variable f: (valnum -> option rhs) -> A -> list valnum -> option (A * list valnum).
 Variable V: Type.
 Variable ge: genv.
-Variable sp: val.
+Variable ste: stenv.
 Variable rs: regset.
 Variable m: mem.
 Variable sem: A -> list val -> option V.
@@ -782,13 +782,13 @@ Section REDUCELD.
 Variable A: Type.
 Variable f: (valnum -> option rhs) -> A -> list valnum -> option (A * list valnum).
 Variable ge: genv.
-Variable sp: val.
+Variable ste: stenv.
 Variable rs: regset.
 Variable m: mem.
 Variable sem: A -> list val -> option val.
 Hypothesis f_sound:
   forall eqs valu op args op' args' r,
-  (forall v rhs, eqs v = Some rhs -> rhs_eval_to valu ge sp m rhs (valu v)) ->
+  (forall v rhs, eqs v = Some rhs -> rhs_eval_to valu ge ste m rhs (valu v)) ->
   f eqs op args = Some(op', args') ->
   sem op (map valu args) = Some r ->
   exists r',
@@ -850,11 +850,11 @@ End REDUCELD.
   satisfiability at [pc']. *)
 
 Theorem analysis_correct_1:
-  forall ge sp rs m f vapprox approx pc pc' i,
+  forall ge ste rs m f vapprox approx pc pc' i,
   analyze f vapprox = Some approx ->
   f.(fn_code)!pc = Some i -> In pc' (successors_instr i) ->
-  (exists valu, numbering_holds valu ge sp rs m (transfer f vapprox pc approx!!pc)) ->
-  (exists valu, numbering_holds valu ge sp rs m approx!!pc').
+  (exists valu, numbering_holds valu ge ste rs m (transfer f vapprox pc approx!!pc)) ->
+  (exists valu, numbering_holds valu ge ste rs m approx!!pc').
 Proof.
   intros.
   assert (Numbering.ge approx!!pc' (transfer f vapprox pc approx!!pc)).
@@ -863,9 +863,9 @@ Proof.
 Qed.
 
 Theorem analysis_correct_entry:
-  forall ge sp rs m f vapprox approx,
+  forall ge ste rs m f vapprox approx,
   analyze f vapprox = Some approx ->
-  exists valu, numbering_holds valu ge sp rs m approx!!(f.(fn_entrypoint)).
+  exists valu, numbering_holds valu ge ste rs m approx!!(f.(fn_entrypoint)).
 Proof.
   intros.
   replace (approx!!(f.(fn_entrypoint))) with Solver.L.top.
@@ -988,27 +988,27 @@ Inductive match_stackframes: list stackframe -> list stackframe -> Prop :=
   | match_stackframes_nil:
       match_stackframes nil nil
   | match_stackframes_cons:
-      forall res sp pc rs f s rs' s' cu approx
+      forall res ste pc rs f s rs' s' cu approx
            (LINK: linkorder cu prog)
            (ANALYZE: analyze cu f = Some approx)
-           (SAT: forall v m, exists valu, numbering_holds valu ge sp (rs#res <- v) m approx!!pc)
+           (SAT: forall v m, exists valu, numbering_holds valu ge ste (rs#res <- v) m approx!!pc)
            (RLD: regs_lessdef rs rs')
            (STACKS: match_stackframes s s'),
     match_stackframes
-      (Stackframe res f sp pc rs :: s)
-      (Stackframe res (transf_function' f approx) sp pc rs' :: s').
+      (Stackframe res f ste pc rs :: s)
+      (Stackframe res (transf_function' f approx) ste pc rs' :: s').
 
 Inductive match_states: state -> state -> Prop :=
   | match_states_intro:
-      forall s sp pc rs m s' rs' m' f cu approx
+      forall s ste pc rs m s' rs' m' f cu approx
              (LINK: linkorder cu prog)
              (ANALYZE: analyze cu f = Some approx)
              (SAT: exists valu, numbering_holds valu ge sp rs m approx!!pc)
              (RLD: regs_lessdef rs rs')
              (MEXT: Mem.extends m m')
              (STACKS: match_stackframes s s'),
-      match_states (State s f sp pc rs m)
-                   (State s' (transf_function' f approx) sp pc rs' m')
+      match_states (State s f ste pc rs m)
+                   (State s' (transf_function' f approx) ste pc rs' m')
   | match_states_call:
       forall s f tf args m s' args' m' cu
              (LINK: linkorder cu prog)
@@ -1083,7 +1083,7 @@ Proof.
   eapply Val.lessdef_trans; eauto.
 * (* possibly simplified *)
   destruct (reduce operation combine_op n1 op args vl) as [op' args'] eqn:?.
-  exploit (reduce_lessdef_sound operation combine_op ge sp rs m (fun op vl => eval_operation ge sp op vl m)); intros;eauto.
+  exploit (reduce_lessdef_sound operation combine_op ge ste rs m (fun op vl => eval_operation ge ste op vl m)); intros;eauto.
   exploit combine_op_sound; eauto.
   destruct H1 as (v' & EV' & LD').
   exploit (eval_operation_lessdef). eapply regs_lessdef_regs; eauto. eexact MEXT. eexact EV'.

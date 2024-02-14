@@ -25,6 +25,7 @@ Require Import Floats.
 Require Import Values.
 Require Import Memory.
 Require Import Globalenvs.
+Require Import Stackenvs.
 Require Import Builtins.
 
 (** Backwards compatibility for Hint Rewrite locality attributes. *)
@@ -1015,7 +1016,7 @@ Proof.
   rewrite dec_eq_false. auto.
   apply Mem.valid_not_valid_diff with m1; eauto with mem.
 (* readonly *)
-- inv H. eapply unchanged_on_readonly; eauto. 
+- inv H. eapply unchanged_on_readonly; eauto.
 (* mem extends *)
 - inv H. inv H1. inv H7.
   assert (SZ: v2 = Vptrofs sz).
@@ -1197,7 +1198,7 @@ Proof.
 - (* perms *)
   intros. inv H. eapply Mem.perm_storebytes_2; eauto.
 - (* readonly *)
-  intros. inv H. eapply unchanged_on_readonly; eauto. 
+  intros. inv H. eapply unchanged_on_readonly; eauto.
   eapply Mem.storebytes_unchanged_on; eauto.
   intros; red; intros. elim H11.
   apply Mem.perm_cur_max. eapply Mem.storebytes_range_perm; eauto.
@@ -1465,10 +1466,10 @@ Proof.
 (* trace length *)
 - inv H; simpl; lia.
 (* receptive *)
-- inv H; inv H0. exists vres1, m1; constructor; auto. 
+- inv H; inv H0. exists vres1, m1; constructor; auto.
 (* determ *)
 - inv H; inv H0.
-  split. constructor. intuition congruence. 
+  split. constructor. intuition congruence.
 Qed.
 
 (** ** Semantics of external functions. *)
@@ -1503,7 +1504,7 @@ Definition builtin_or_external_sem name sg :=
 Lemma builtin_or_external_sem_ok: forall name sg,
   extcall_properties (builtin_or_external_sem name sg) sg.
 Proof.
-  unfold builtin_or_external_sem; intros. 
+  unfold builtin_or_external_sem; intros.
   destruct (lookup_builtin_function name sg) as [bf|] eqn:L.
 - exploit lookup_builtin_function_sig; eauto. intros EQ; subst sg.
   apply known_builtin_ok.
@@ -1651,7 +1652,7 @@ Section EVAL_BUILTIN_ARG.
 Variable A: Type.
 Variable ge: Senv.t.
 Variable e: A -> val.
-Variable sp: val.
+Variable ste: Stenv.t.
 Variable m: mem.
 
 Inductive eval_builtin_arg: builtin_arg A -> val -> Prop :=
@@ -1665,11 +1666,11 @@ Inductive eval_builtin_arg: builtin_arg A -> val -> Prop :=
       eval_builtin_arg (BA_float n) (Vfloat n)
   | eval_BA_single: forall n,
       eval_builtin_arg (BA_single n) (Vsingle n)
-  | eval_BA_loadstack: forall chunk ofs v,
-      Mem.loadv chunk m (Val.offset_ptr sp ofs) = Some v ->
-      eval_builtin_arg (BA_loadstack chunk ofs) v
-  | eval_BA_addrstack: forall ofs,
-      eval_builtin_arg (BA_addrstack ofs) (Val.offset_ptr sp ofs)
+  | eval_BA_loadstack: forall chunk id ofs v,
+      Mem.loadv chunk m (Stenv.var_address ste id ofs) = Some v ->
+      eval_builtin_arg (BA_loadstack chunk id ofs) v
+  | eval_BA_addrstack: forall id ofs,
+      eval_builtin_arg (BA_addrstack id ofs) (Stenv.var_address ste id ofs)
   | eval_BA_loadglobal: forall chunk id ofs v,
       Mem.loadv chunk m (Senv.symbol_address ge id ofs) = Some v ->
       eval_builtin_arg (BA_loadglobal chunk id ofs) v
@@ -1691,7 +1692,7 @@ Lemma eval_builtin_arg_determ:
 Proof.
   induction 1; intros v' EV; inv EV; try congruence.
   f_equal; eauto.
-  apply IHeval_builtin_arg1 in H3. apply IHeval_builtin_arg2 in H5. subst; auto. 
+  apply IHeval_builtin_arg1 in H3. apply IHeval_builtin_arg2 in H5. subst; auto.
 Qed.
 
 Lemma eval_builtin_args_determ:
@@ -1712,14 +1713,14 @@ Variables A F1 V1 F2 V2: Type.
 Variable ge1: Genv.t F1 V1.
 Variable ge2: Genv.t F2 V2.
 Variable e: A -> val.
-Variable sp: val.
+Variable ste: Stenv.t.
 Variable m: mem.
 
 Hypothesis symbols_preserved:
   forall id, Genv.find_symbol ge2 id = Genv.find_symbol ge1 id.
 
 Lemma eval_builtin_arg_preserved:
-  forall a v, eval_builtin_arg ge1 e sp m a v -> eval_builtin_arg ge2 e sp m a v.
+  forall a v, eval_builtin_arg ge1 e ste m a v -> eval_builtin_arg ge2 e ste m a v.
 Proof.
   assert (EQ: forall id ofs, Senv.symbol_address ge2 id ofs = Senv.symbol_address ge1 id ofs).
   { unfold Senv.symbol_address; simpl; intros. rewrite symbols_preserved; auto. }
@@ -1727,7 +1728,7 @@ Proof.
 Qed.
 
 Lemma eval_builtin_args_preserved:
-  forall al vl, eval_builtin_args ge1 e sp m al vl -> eval_builtin_args ge2 e sp m al vl.
+  forall al vl, eval_builtin_args ge1 e ste m al vl -> eval_builtin_args ge2 e ste m al vl.
 Proof.
   induction 1; constructor; auto; eapply eval_builtin_arg_preserved; eauto.
 Qed.
@@ -1741,15 +1742,15 @@ Section EVAL_BUILTIN_ARG_LESSDEF.
 Variable A: Type.
 Variable ge: Senv.t.
 Variables e1 e2: A -> val.
-Variable sp: val.
+Variable ste: Stenv.t.
 Variables m1 m2: mem.
 
 Hypothesis env_lessdef: forall x, Val.lessdef (e1 x) (e2 x).
 Hypothesis mem_extends: Mem.extends m1 m2.
 
 Lemma eval_builtin_arg_lessdef:
-  forall a v1, eval_builtin_arg ge e1 sp m1 a v1 ->
-  exists v2, eval_builtin_arg ge e2 sp m2 a v2 /\ Val.lessdef v1 v2.
+  forall a v1, eval_builtin_arg ge e1 ste m1 a v1 ->
+  exists v2, eval_builtin_arg ge e2 ste m2 a v2 /\ Val.lessdef v1 v2.
 Proof.
   induction 1.
 - exists (e2 x); auto with barg.
@@ -1766,13 +1767,13 @@ Proof.
   econstructor; split; eauto with barg. apply Val.longofwords_lessdef; auto.
 - destruct IHeval_builtin_arg1 as (vhi' & P & Q).
   destruct IHeval_builtin_arg2 as (vlo' & R & S).
-  econstructor; split; eauto with barg. 
+  econstructor; split; eauto with barg.
   destruct Archi.ptr64; auto using Val.add_lessdef, Val.addl_lessdef.
 Qed.
 
 Lemma eval_builtin_args_lessdef:
-  forall al vl1, eval_builtin_args ge e1 sp m1 al vl1 ->
-  exists vl2, eval_builtin_args ge e2 sp m2 al vl2 /\ Val.lessdef_list vl1 vl2.
+  forall al vl1, eval_builtin_args ge e1 ste m1 al vl1 ->
+  exists vl2, eval_builtin_args ge e2 ste m2 al vl2 /\ Val.lessdef_list vl1 vl2.
 Proof.
   induction 1.
 - econstructor; split. constructor. auto.
@@ -1782,4 +1783,3 @@ Proof.
 Qed.
 
 End EVAL_BUILTIN_ARG_LESSDEF.
-

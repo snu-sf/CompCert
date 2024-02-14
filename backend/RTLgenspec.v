@@ -917,7 +917,7 @@ Inductive tr_function: CminorSel.function -> RTL.function -> Prop :=
       tr_function f (RTL.mkfunction
                        f.(CminorSel.fn_sig)
                        rparams
-                       f.(CminorSel.fn_stackspace)
+                       f.(CminorSel.fn_stackspaces)
                        code
                        nentry).
 

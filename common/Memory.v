@@ -3041,6 +3041,19 @@ Proof.
   intuition eauto using perm_free_3.
 Qed.
 
+Lemma free_list_left_extends:
+  forall m2 l m1 m1',
+  extends m1 m2 ->
+  free_list m1 l = Some m1' ->
+  extends m1' m2.
+Proof.
+  induction l; simpl; intros.
+  - inv H0. auto.
+  - destruct a as [[b lo] hi].
+    destruct (free m1 b lo hi) as [m11|] eqn:E; try discriminate.
+    apply IHl with m11; auto. eapply free_left_extends; eauto.
+Qed.
+
 Theorem free_right_extends:
   forall m1 m2 b lo hi m2',
   extends m1 m2 ->
@@ -3081,6 +3094,22 @@ Proof.
   eapply perm_free_inv in A; eauto. destruct A as [[A B]|A]; auto.
   subst b0. right; eapply perm_free_2; eauto.
   right; intuition eauto using perm_free_3.
+Qed.
+
+Theorem free_list_parallel_extends:
+  forall l m1 m2 m1',
+  extends m1 m2 ->
+  free_list m1 l = Some m1' ->
+  exists m2',
+    free_list m2 l = Some m2'
+  /\ extends m1' m2'.
+Proof.
+  induction l; simpl; intros.
+  - inversion H0. rewrite H2 in H. eauto.
+  - destruct a as [[b lo] hi].
+    destruct (free m1 b lo hi) as [m11|] eqn:E1; try discriminate.
+    destruct (free_parallel_extends m1 m2 b lo hi m11); auto; try apply E1.
+    inv H1. rewrite H2. apply IHl with m11. apply H3. apply H0.
 Qed.
 
 Theorem valid_block_extends:

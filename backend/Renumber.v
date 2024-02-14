@@ -69,7 +69,7 @@ Definition transf_function (f: function) : function :=
   mkfunction
     f.(fn_sig)
     f.(fn_params)
-    f.(fn_stacksize)
+    f.(fn_stackspaces)
     (renum_cfg pnum f.(fn_code))
     (renum_pc pnum f.(fn_entrypoint)).
 

@@ -404,9 +404,9 @@ End REDUCE.
 Module Numbering.
   Definition t := numbering.
   Definition ge (n1 n2: numbering) : Prop :=
-    forall valu ge sp rs m,
-    numbering_holds valu ge sp rs m n2 ->
-    numbering_holds valu ge sp rs m n1.
+    forall valu ge ste rs m,
+    numbering_holds valu ge ste rs m n2 ->
+    numbering_holds valu ge ste rs m n1.
   Definition top := empty_numbering.
   Lemma top_ge: forall x, ge top x.
   Proof.
@@ -582,4 +582,3 @@ Definition transf_fundef (rm: romem) (f: fundef) : res fundef :=
 
 Definition transf_program (p: program) : res program :=
   transform_partial_program (transf_fundef (romem_for p)) p.
-

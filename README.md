@@ -37,3 +37,17 @@ mailing list.
 
 For inquiries on the commercial version of CompCert, please contact
 info@absint.com
+
+--
+
+## Remarks on this branch
+This branch is a project that changes a stack representation of CompCert from a single block into a map of blocks. While some of intermediate languages and optimization paths were updated, many codebases have the original stack representation. Thus, it will NOT BE COMPILED.
+
+### Updated (Both spec and proof)
+- Cminor
+- CminorSel, Selection
+- RTL
+- x86/Op, SelectOpproof
+- TailCall
+- Renumbering
+ 

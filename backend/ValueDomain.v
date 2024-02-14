@@ -21,15 +21,17 @@ Require Import Registers RTL.
 Inductive block_class : Type :=
   | BCinvalid
   | BCglob (id: ident)
-  | BCstack
+  | BCstack (id: ident)
   | BCother.
 
 Definition block_class_eq: forall (x y: block_class), {x=y} + {x<>y}.
-Proof. decide equality. apply peq. Defined.
+Proof. decide equality. apply peq. apply peq. Defined.
 
 Record block_classification : Type := BC {
   bc_img :> block -> block_class;
-  bc_stack: forall b1 b2, bc_img b1 = BCstack -> bc_img b2 = BCstack -> b1 = b2;
+  bc_stack_in: forall b1 b2 id, bc_img b1 = BCstack id -> bc_img b2 = BCstack id -> b1 = b2;
+  (* bc_stack_out_l: forall b1 b2 id1 id2, bc_img b1 <> BCstack id1 -> bc_img b2 = BCstack id2 -> b1 <> b2; *)
+  (* bc_stack_out_r: forall b1 b2 id1 id2, bc_img b1 = BCstack id1 -> bc_img b2 <> BCstack id2 -> b1 <> b2; *)
   bc_glob: forall b1 b2 id, bc_img b1 = BCglob id -> bc_img b2 = BCglob id -> b1 = b2
 }.
 
@@ -117,14 +119,15 @@ Qed.
 (** * Abstracting pointers *)
 
 Inductive aptr : Type :=
-  | Pbot                         (**r bottom (empty set of pointers) *)
-  | Gl (id: ident) (ofs: ptrofs) (**r pointer into the block for global variable [id] at offset [ofs] *)
-  | Glo (id: ident)              (**r pointer anywhere into the block for global [id] *)
-  | Glob                         (**r pointer into any global variable *)
-  | Stk (ofs: ptrofs)            (**r pointer into the current stack frame at offset [ofs] *)
-  | Stack                        (**r pointer anywhere into the current stack frame *)
-  | Nonstack                     (**r pointer anywhere but into the current stack frame *)
-  | Ptop.                        (**r any valid pointer *)
+  | Pbot                           (**r bottom (empty set of pointers) *)
+  | Gl (id: ident) (ofs: ptrofs)   (**r pointer into the block for global variable [id] at offset [ofs] *)
+  | Glo (id: ident)                (**r pointer anywhere into the block for global [id] *)
+  | Glob                           (**r pointer into any global variable *)
+  | St (id: ident) (ofs: ptrofs)   (**r pointer into the current stack at id [id] and offset [ofs] *)
+  | Stk (id: ident)                (**r pointer into the current stack at id [id] *)
+  | Stack                          (**r pointer anywhere into the current stack *)
+  | Nonstack                       (**r pointer anywhere but into the current stack *)
+  | Ptop.                          (**r any valid pointer *)
 
 Definition eq_aptr: forall (p1 p2: aptr), {p1=p2} + {p1<>p2}.
 Proof.
@@ -141,14 +144,17 @@ Inductive pmatch (b: block) (ofs: ptrofs): aptr -> Prop :=
   | pmatch_glob: forall id,
       bc b = BCglob id ->
       pmatch b ofs Glob
-  | pmatch_stk:
-      bc b = BCstack ->
-      pmatch b ofs (Stk ofs)
-  | pmatch_stack:
-      bc b = BCstack ->
+  | pmatch_st: forall id,
+      bc b = BCstack id ->
+      pmatch b ofs (St id ofs)
+  | pmatch_stk: forall id,
+      bc b = BCstack id ->
+      pmatch b ofs (Stk id)
+  | pmatch_stack: forall id,
+      bc b = BCstack id ->
       pmatch b ofs Stack
   | pmatch_nonstack:
-      bc b <> BCstack -> bc b <> BCinvalid ->
+      (forall id, bc b <> BCstack id) -> bc b <> BCinvalid ->
       pmatch b ofs Nonstack
   | pmatch_top:
       bc b <> BCinvalid ->
@@ -166,7 +172,9 @@ Inductive pge: aptr -> aptr -> Prop :=
   | pge_ns_gl: forall id ofs, pge Nonstack (Gl id ofs)
   | pge_ns_glo: forall id, pge Nonstack (Glo id)
   | pge_ns_glob: pge Nonstack Glob
-  | pge_stack_stk: forall ofs, pge Stack (Stk ofs).
+  | pge_stk_st: forall id ofs, pge (Stk id) (St id ofs)
+  | pge_stack_st: forall id ofs, pge Stack (St id ofs)
+  | pge_stack_stk: forall id, pge Stack (Stk id).
 
 Hint Constructors pge: va.
 
@@ -180,6 +188,8 @@ Lemma pmatch_ge:
   forall b ofs p q, pge p q -> pmatch b ofs q -> pmatch b ofs p.
 Proof.
   induction 1; intros PM; inv PM; eauto with va.
+  (* Unshelve. *)
+  (* exact 1%positive. exact 1%positive. exact 1%positive. *)
 Qed.
 
 Lemma pmatch_top': forall b ofs p, pmatch b ofs p -> pmatch b ofs Ptop.
@@ -205,12 +215,16 @@ Definition plub (p q: aptr) : aptr :=
       Nonstack
   | Nonstack, (Gl _ _ | Glo _ | Glob) =>
       Nonstack
-  | Stk ofs1, Stk ofs2 =>
-      if Ptrofs.eq_dec ofs1 ofs2 then p else Stack
-  | (Stk _ | Stack), Stack =>
-      Stack
-  | Stack, Stk _ =>
-      Stack
+  | St id1 ofs1, St id2 ofs2 =>
+      if ident_eq id1 id2 then if Ptrofs.eq_dec ofs1 ofs2 then p else Stk id1 else Stack
+  | St id1 ofs1, Stk id2 =>
+      if ident_eq id1 id2 then q else Stack
+  | Stk id1, St id2 ofs2 =>
+      if ident_eq id1 id2 then p else Stack
+  | Stk id1, Stk id2 =>
+      if ident_eq id1 id2 then p else Stack
+  | (St _ _ | Stk _ | Stack), Stack => Stack
+  | Stack, (St _ _ | Stk _) => Stack
   | _, _ => Ptop
   end.
 
@@ -232,7 +246,20 @@ Proof.
   destruct (ident_eq id id0). subst id0.
   rewrite dec_eq_true; auto.
   rewrite dec_eq_false; auto.
-  destruct (Ptrofs.eq_dec ofs ofs0). subst ofs0. rewrite dec_eq_true; auto.
+
+  destruct (ident_eq id id0). subst id0.
+  rewrite dec_eq_true.
+  destruct (Ptrofs.eq_dec ofs ofs0). subst ofs0. rewrite dec_eq_true. auto.
+  rewrite dec_eq_false by auto. auto.
+  rewrite dec_eq_false by auto. auto.
+  destruct (ident_eq id id0). subst id0.
+  rewrite dec_eq_true; auto.
+  rewrite dec_eq_false; auto.
+  destruct (ident_eq id id0). subst id0.
+  rewrite dec_eq_true; auto.
+  rewrite dec_eq_false; auto.
+  destruct (ident_eq id id0). subst id0.
+  rewrite dec_eq_true; auto.
   rewrite dec_eq_false; auto.
 Qed.
 
@@ -246,7 +273,12 @@ Proof.
 - destruct (ident_eq id id0); subst; constructor.
 - destruct (ident_eq id id0); subst; constructor.
 - destruct (ident_eq id id0); subst; constructor.
-- destruct (Ptrofs.eq_dec ofs ofs0); subst; constructor.
+- destruct (ident_eq id id0).
+  destruct (Ptrofs.eq_dec ofs ofs0); subst; constructor.
+  constructor.
+- destruct (ident_eq id id0); subst; constructor.
+- destruct (ident_eq id id0); subst; constructor.
+- destruct (ident_eq id id0); subst; constructor.
 Qed.
 
 Lemma pge_lub_r:
@@ -275,6 +307,7 @@ Proof.
 - unfold plub; destruct q; repeat rewrite dec_eq_true; constructor.
 - rewrite dec_eq_true; constructor.
 - rewrite dec_eq_true; constructor.
+- rewrite dec_eq_true; constructor.
 - rewrite dec_eq_true. destruct (Ptrofs.eq_dec ofs ofs0); constructor.
 - destruct (ident_eq id id0). destruct (Ptrofs.eq_dec ofs ofs0); constructor. constructor.
 - destruct (ident_eq id id0); constructor.
@@ -284,7 +317,12 @@ Proof.
 - destruct (ident_eq id id0); constructor.
 - destruct (ident_eq id id0); constructor.
 - destruct (ident_eq id id0); constructor.
-- destruct (Ptrofs.eq_dec ofs ofs0); constructor.
+- rewrite dec_eq_true; constructor.
+- rewrite dec_eq_true. destruct (Ptrofs.eq_dec ofs ofs0); constructor.
+- destruct (ident_eq id id0). destruct (Ptrofs.eq_dec ofs ofs0); constructor. constructor.
+- destruct (ident_eq id id0); constructor.
+- destruct (ident_eq id id0); constructor.
+- destruct (ident_eq id id0); constructor.
 Qed.
 
 Definition pincl (p q: aptr) : bool :=
@@ -295,9 +333,10 @@ Definition pincl (p q: aptr) : bool :=
   | Glo id1, Glo id2 => peq id1 id2
   | (Gl _ _ | Glo _ | Glob), Glob => true
   | (Gl _ _ | Glo _ | Glob | Nonstack), Nonstack => true
-  | Stk ofs1, Stk ofs2 => Ptrofs.eq_dec ofs1 ofs2
-  | Stk ofs1, Stack => true
-  | Stack, Stack => true
+  | St id1 ofs1, St id2 ofs2 => peq id1 id2 && Ptrofs.eq_dec ofs1 ofs2
+  | St id1 ofs1, Stk id2 => peq id1 id2
+  | Stk id1, Stk id2 => peq id1 id2
+  | (St _ _ | Stk _ | Stack), Stack => true
   | _, Ptop => true
   | _, _ => false
   end.
@@ -314,6 +353,7 @@ Proof.
 - destruct p; auto.
 - destruct p; simpl; auto; rewrite ! proj_sumbool_is_true; auto.
 - rewrite ! proj_sumbool_is_true; auto.
+- rewrite ! proj_sumbool_is_true; auto.
 Qed.
 
 Lemma pincl_sound:
@@ -326,7 +366,7 @@ Qed.
 Definition padd (p: aptr) (n: ptrofs) : aptr :=
   match p with
   | Gl id ofs => Gl id (Ptrofs.add ofs n)
-  | Stk ofs => Stk (Ptrofs.add ofs n)
+  | St id ofs => St id (Ptrofs.add ofs n)
   | _ => p
   end.
 
@@ -341,7 +381,7 @@ Qed.
 Definition psub (p: aptr) (n: ptrofs) : aptr :=
   match p with
   | Gl id ofs => Gl id (Ptrofs.sub ofs n)
-  | Stk ofs => Stk (Ptrofs.sub ofs n)
+  | St id ofs => St id (Ptrofs.sub ofs n)
   | _ => p
   end.
 
@@ -356,7 +396,7 @@ Qed.
 Definition poffset (p: aptr) : aptr :=
   match p with
   | Gl id ofs => Glo id
-  | Stk ofs => Stack
+  | St id ofs => Stk id
   | _ => p
   end.
 
@@ -399,9 +439,17 @@ Definition pcmp (c: comparison) (p1 p2: aptr) : abool :=
       if peq id1 id2 then Btop else cmp_different_blocks c
   | Glo id1, Glo id2 =>
       if peq id1 id2 then Btop else cmp_different_blocks c
-  | Stk ofs1, Stk ofs2 => Maybe (Ptrofs.cmpu c ofs1 ofs2)
-  | (Gl _ _ | Glo _ | Glob | Nonstack), (Stk _ | Stack) => cmp_different_blocks c
-  | (Stk _ | Stack), (Gl _ _ | Glo _ | Glob | Nonstack) => cmp_different_blocks c
+  | St id1 ofs1, St id2 ofs2 =>
+      if peq id1 id2 then Maybe (Ptrofs.cmpu c ofs1 ofs2)
+      else cmp_different_blocks c
+  | St id1 ofs1, Stk id2 =>
+      if peq id1 id2 then Btop else cmp_different_blocks c
+  | Stk id1, St id2 ofs2 =>
+      if peq id1 id2 then Btop else cmp_different_blocks c
+  | Stk id1, Stk id2 =>
+      if peq id1 id2 then Btop else cmp_different_blocks c
+  | (Gl _ _ | Glo _ | Glob | Nonstack), (St _ _ | Stk _ | Stack) => cmp_different_blocks c
+  | (St _ _ | Stk _ | Stack), (Gl _ _ | Glo _ | Glob | Nonstack) => cmp_different_blocks c
   | _, _ => Btop
   end.
 
@@ -440,7 +488,10 @@ Proof.
   - destruct (peq id id0); auto with va.
   - destruct (peq id id0); auto with va.
   - destruct (peq id id0); auto with va.
-  - apply SAME. eapply bc_stack; eauto.
+  - destruct (peq id id0); auto with va.
+  - destruct (peq id id0); auto with va.
+  - destruct (peq id id0); auto with va.
+  - destruct (peq id id0); auto with va.
 Qed.
 
 Lemma pcmp_sound_64:
@@ -478,7 +529,10 @@ Proof.
   - destruct (peq id id0); auto with va.
   - destruct (peq id id0); auto with va.
   - destruct (peq id id0); auto with va.
-  - apply SAME. eapply bc_stack; eauto.
+  - destruct (peq id id0); auto with va. apply SAME. eapply bc_stack_in; eauto; congruence.
+  - destruct (peq id id0); auto with va.
+  - destruct (peq id id0); auto with va.
+  - destruct (peq id id0); auto with va.
 Qed.
 
 Lemma pcmp_none:
@@ -501,11 +555,16 @@ Definition pdisjoint (p1: aptr) (sz1: Z) (p2: aptr) (sz2: Z) : bool :=
   | Gl id1 ofs1, Glo id2 => negb(peq id1 id2)
   | Glo id1, Gl id2 ofs2 => negb(peq id1 id2)
   | Glo id1, Glo id2 => negb(peq id1 id2)
-  | Stk ofs1, Stk ofs2 =>
-      zle (Ptrofs.unsigned ofs1 + sz1) (Ptrofs.unsigned ofs2)
-      || zle (Ptrofs.unsigned ofs2 + sz2) (Ptrofs.unsigned ofs1)
-  | (Gl _ _ | Glo _ | Glob | Nonstack), (Stk _ | Stack) => true
-  | (Stk _ | Stack), (Gl _ _ | Glo _ | Glob | Nonstack) => true
+  | St id1 ofs1, St id2 ofs2 =>
+      if peq id1 id2
+      then zle (Ptrofs.unsigned ofs1 + sz1) (Ptrofs.unsigned ofs2)
+           || zle (Ptrofs.unsigned ofs2 + sz2) (Ptrofs.unsigned ofs1)
+      else true
+  | St id1 ofs1, Stk id2 => negb(peq id1 id2)
+  | Stk id1, St id2 ofs2 => negb(peq id1 id2)
+  | Stk id1, Stk id2 => negb(peq id1 id2)
+  | (Gl _ _ | Glo _ | Glob | Nonstack), (St _ _ | Stk _ | Stack) => true
+  | (St _ _ | Stk _ | Stack), (Gl _ _ | Glo _ | Glob | Nonstack) => true
   | _, _ => false
   end.
 
@@ -521,7 +580,11 @@ Proof.
 - destruct (peq id id0); try discriminate. left; congruence.
 - destruct (peq id id0); try discriminate. left; congruence.
 - destruct (peq id id0); try discriminate. left; congruence.
-- destruct (orb_true_elim _ _ H); InvBooleans; auto.
+- destruct (peq id id0). subst id0. destruct (orb_true_elim _ _ H); InvBooleans; auto.
+  left; congruence.
+- destruct (peq id id0); try discriminate. left; congruence.
+- destruct (peq id id0); try discriminate. left; congruence.
+- destruct (peq id id0); try discriminate. left; congruence.
 Qed.
 
 (** * Abstracting values *)
@@ -770,7 +833,7 @@ Definition ntop2 (x y: aval) : aval := Num (plub (provenance x) (provenance y)).
 for loads and stores, e.g. [ int * device = (int * ) 0x1000; *device = 12; ].
 In conservative mode, we analyze these loads and stores as potentially
 accessing any memory location except stack blocks, i.e. as a [Nonstack]
-access.  
+access.
 
 The following functions determine the provenance to use for integer
 literals when they are used in a pointer context.  The null pointer
@@ -1090,7 +1153,7 @@ Definition vpincl (v: aval) (p: aptr) : bool :=
 Lemma vpincl_ge:
   forall x p, vpincl x p = true -> vge (Ifptr p) x.
 Proof.
-  unfold vpincl; intros. destruct x; eauto using pincl_ge with va. 
+  unfold vpincl; intros. destruct x; eauto using pincl_ge with va.
 Qed.
 
 Lemma vpincl_sound:
@@ -1139,7 +1202,7 @@ Qed.
 
 Definition genv_match (ge: genv) : Prop :=
   (forall id b, Genv.find_symbol ge id = Some b <-> bc b = BCglob id)
-/\(forall b, Plt b (Genv.genv_next ge) -> bc b <> BCinvalid /\ bc b <> BCstack).
+/\(forall b, Plt b (Genv.genv_next ge) -> bc b <> BCinvalid /\ (forall id, bc b <> BCstack id)).
 
 Lemma symbol_address_sound:
   forall ge id ofs,
@@ -1163,14 +1226,14 @@ Proof.
 - constructor.
 Qed.
 
-Lemma vmatch_ptr_stk:
-  forall v ofs sp,
-  vmatch v (Ptr(Stk ofs)) ->
-  bc sp = BCstack ->
-  Val.lessdef v (Vptr sp ofs).
+Lemma vmatch_ptr_st:
+  forall v id ofs b,
+  vmatch v (Ptr(St id ofs)) ->
+  bc b = BCstack id ->
+  Val.lessdef v (Vptr b ofs).
 Proof.
   intros. inv H.
-- inv H3. replace b with sp by (eapply bc_stack; eauto). constructor.
+- inv H3. replace b with b0 by (eapply bc_stack_in; eauto). constructor.
 - constructor.
 Qed.
 
@@ -2133,7 +2196,7 @@ Proof.
     intros. apply vmatch_sgn. apply is_sign_ext_sgn; auto with va.
   }
   intros. unfold sign_ext. destruct (zle nbits 0).
-- destruct v; simpl; auto with va. constructor. lia. 
+- destruct v; simpl; auto with va. constructor. lia.
   rewrite Int.sign_ext_below by auto. red; intros; apply Int.bits_zero.
 - inv H; simpl; auto with va.
 + destruct (zlt n nbits); eauto with va.
@@ -2921,7 +2984,7 @@ Proof.
 - apply add_undef_normalize; destruct b; auto.
 - apply add_undef_undef.
 - apply add_undef_normalize; destruct b; auto.
-- destruct ob as [b|]. 
+- destruct ob as [b|].
 + apply add_undef_normalize. destruct b; [apply vmatch_lub_l|apply vmatch_lub_r]; auto.
 + apply add_undef_undef.
 Qed.
@@ -3040,7 +3103,7 @@ Lemma vnormalize_monotone:
 Proof with (auto using provenance_monotone, provenance_ifptr_ge with va).
 Local Opaque provenance.
   induction 1;
-  unfold vnormalize; generalize Archi.ptr64; intro ptr64; subst; 
+  unfold vnormalize; generalize Archi.ptr64; intro ptr64; subst;
   destruct chunk eqn:C; simpl;
   repeat match goal with |- vge (if ?x then _ else _) _ => destruct x end...
 - constructor... apply is_sign_ext_uns...
@@ -3074,7 +3137,7 @@ Local Opaque provenance.
 Qed.
 
 (** Analysis of known builtin functions.  All we have is a dynamic semantics
-  as a function [list val -> option val], but we can still perform 
+  as a function [list val -> option val], but we can still perform
   some constant propagation. *)
 
 Definition val_of_aval (a: aval) : val :=
@@ -3108,7 +3171,7 @@ Proof.
 Qed.
 
 Lemma aval_of_val_sound:
-  forall v a, aval_of_val v = Some a -> vmatch v a. 
+  forall v a, aval_of_val v = Some a -> vmatch v a.
 Proof.
   intros v a E; destruct v; simpl in E; inv E; constructor.
 Qed.
@@ -3828,23 +3891,26 @@ Qed.
 
 (** * Abstracting memory states *)
 
+(** Design Choice: am_stack *)
+
 Record amem : Type := AMem {
-  am_stack: ablock;
+  am_stack: PTree.t ablock;
   am_glob: PTree.t ablock;
   am_nonstack: aptr;
   am_top: aptr
 }.
 
 Record mmatch (m: mem) (am: amem) : Prop := mk_mem_match {
-  mmatch_stack: forall b,
-    bc b = BCstack ->
-    bmatch m b am.(am_stack);
+  mmatch_stack: forall id ab b,
+    bc b = BCstack id ->
+    am.(am_stack)!id = Some ab ->
+    bmatch m b ab;
   mmatch_glob: forall id ab b,
     bc b = BCglob id ->
     am.(am_glob)!id = Some ab ->
     bmatch m b ab;
   mmatch_nonstack: forall b,
-    bc b <> BCstack -> bc b <> BCinvalid ->
+    (forall id, bc b <> BCstack id) -> bc b <> BCinvalid ->
     smatch m b am.(am_nonstack);
   mmatch_top: forall b,
     bc b <> BCinvalid ->
@@ -3854,7 +3920,7 @@ Record mmatch (m: mem) (am: amem) : Prop := mk_mem_match {
 }.
 
 Definition minit (p: aptr) :=
-  {| am_stack := ablock_init p;
+  {| am_stack := PTree.empty _;
      am_glob := PTree.empty _;
      am_nonstack := p;
      am_top := p |}.
@@ -3883,9 +3949,17 @@ Definition load (chunk: memory_chunk) (rm: romem) (m: amem) (p: aptr) : aval :=
           | None => vnormalize chunk (Ifptr m.(am_nonstack))
           end
       end
-  | Stk ofs => ablock_load chunk m.(am_stack) (Ptrofs.unsigned ofs)
-  | Stack => ablock_load_anywhere chunk m.(am_stack)
-  | Glob | Nonstack => vnormalize chunk (Ifptr m.(am_nonstack))
+  | St id ofs =>
+      match m.(am_stack)!id with
+      | Some ab => ablock_load chunk ab (Ptrofs.unsigned ofs)
+      | None => vnormalize chunk (Ifptr m.(am_nonstack))
+      end
+  | Stk id =>
+      match m.(am_stack)!id with
+      | Some ab => ablock_load_anywhere chunk ab
+      | None => vnormalize chunk (Ifptr m.(am_nonstack))
+      end
+  | Glob | Stack | Nonstack => vnormalize chunk (Ifptr m.(am_nonstack))
   | Ptop => vnormalize chunk (Ifptr m.(am_top))
   end.
 
@@ -3895,8 +3969,13 @@ Definition loadv (chunk: memory_chunk) (rm: romem) (m: amem) (addr: aval) : aval
 Definition store (chunk: memory_chunk) (m: amem) (p: aptr) (av: aval) : amem :=
   {| am_stack :=
        match p with
-       | Stk ofs      => ablock_store chunk m.(am_stack) (Ptrofs.unsigned ofs) av
-       | Stack | Ptop => ablock_store_anywhere chunk m.(am_stack) av
+       | St id ofs =>
+           let ab := match m.(am_stack)!id with Some ab => ab | None => ablock_init m.(am_nonstack) end in
+           PTree.set id (ablock_store chunk ab (Ptrofs.unsigned ofs) av) m.(am_stack)
+       | Stk id =>
+           let ab := match m.(am_stack)!id with Some ab => ab | None => ablock_init m.(am_nonstack) end in
+           PTree.set id (ablock_store_anywhere chunk ab av) m.(am_stack)
+       | Stack | Ptop => PTree.empty _
        | _ => m.(am_stack)
        end;
      am_glob :=
@@ -3933,16 +4012,25 @@ Definition loadbytes (m: amem) (rm: romem) (p: aptr) : aptr :=
           | None => m.(am_nonstack)
           end
       end
-  | Stk _ | Stack => ablock_loadbytes m.(am_stack)
-  | Glob | Nonstack => m.(am_nonstack)
+  | St id _ | Stk id =>
+      match m.(am_glob)!id with
+      | Some ab => ablock_loadbytes ab
+      | None => m.(am_nonstack)
+      end
+  | Glob | Stack | Nonstack => m.(am_nonstack)
   | Ptop => m.(am_top)
   end.
 
 Definition storebytes (m: amem) (dst: aptr) (sz: Z) (p: aptr) : amem :=
   {| am_stack :=
        match dst with
-       | Stk ofs      => ablock_storebytes m.(am_stack) p (Ptrofs.unsigned ofs) sz
-       | Stack | Ptop => ablock_storebytes_anywhere m.(am_stack) p
+       | St id ofs =>
+           let ab := match m.(am_stack)!id with Some ab => ab | None => ablock_init m.(am_nonstack) end in
+           PTree.set id (ablock_storebytes ab p (Ptrofs.unsigned ofs) sz) m.(am_stack)
+       | Stk id =>
+           let ab := match m.(am_stack)!id with Some ab => ab | None => ablock_init m.(am_nonstack) end in
+           PTree.set id (ablock_storebytes_anywhere ab p) m.(am_stack)
+       | Stack | Nonstack | Ptop => PTree.empty _
        | _ => m.(am_stack)
        end;
      am_glob :=
@@ -3987,7 +4075,11 @@ Proof.
   eapply vnormalize_cast; eauto. eapply mmatch_nonstack; eauto; congruence.
 - (* Glob *)
   eapply vnormalize_cast; eauto. eapply mmatch_nonstack; eauto. congruence. congruence.
-- (* Stk ofs *)
+- (* St id ofs *)
+  destruct (am_stack am)!id as [ab|] eqn:AM.
+  eapply ablock_load_sound; eauto. eapply mmatch_stack; eauto.
+  eapply vnormalize_cast; eauto. eapply mmatch_nonstack; eauto;  congruence.
+- (* Stk id *)
   eapply ablock_load_sound; eauto. eapply mmatch_stack; eauto.
 - (* Stack *)
   eapply ablock_load_anywhere_sound; eauto. eapply mmatch_stack; eauto.

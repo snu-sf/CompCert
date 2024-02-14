@@ -388,8 +388,8 @@ Fixpoint convert_builtin_arg {A: Type} (a: builtin_arg expr) (rl: list A) : buil
   | BA_long n => (BA_long n, rl)
   | BA_float n => (BA_float n, rl)
   | BA_single n => (BA_single n, rl)
-  | BA_loadstack chunk ofs => (BA_loadstack chunk ofs, rl)
-  | BA_addrstack ofs => (BA_addrstack ofs, rl)
+  | BA_loadstack chunk id ofs => (BA_loadstack chunk id ofs, rl)
+  | BA_addrstack id ofs => (BA_addrstack id ofs, rl)
   | BA_loadglobal chunk id ofs => (BA_loadglobal chunk id ofs, rl)
   | BA_addrglobal id ofs => (BA_addrglobal id ofs, rl)
   | BA_splitlong hi lo =>
@@ -649,7 +649,7 @@ Fixpoint transl_stmt (map: mapping) (s: stmt) (nd: node)
 Definition alloc_label (lbl: Cminor.label) (map: labelmap) : mon labelmap :=
   do n <- reserve_instr;
   ret (PTree.set lbl n map).
-   
+
 
 Fixpoint reserve_labels (s: stmt) (lm: labelmap)
                         {struct s} : mon labelmap :=
@@ -684,7 +684,7 @@ Definition transl_function (f: CminorSel.function) : Errors.res RTL.function :=
       Errors.OK (RTL.mkfunction
                    f.(CminorSel.fn_sig)
                    rparams
-                   f.(CminorSel.fn_stackspace)
+                   f.(CminorSel.fn_stackspaces)
                    s.(st_code)
                    nentry)
   end.

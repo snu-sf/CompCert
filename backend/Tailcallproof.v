@@ -13,7 +13,7 @@
 (** Recognition of tail calls: correctness proof *)
 
 Require Import Coqlib Maps Integers AST Linking.
-Require Import Values Memory Events Globalenvs Smallstep.
+Require Import Values Memory Events Globalenvs Stackenvs Smallstep.
 Require Import Op Registers RTL Conventions Tailcall.
 
 (** * Syntactic properties of the code transformation *)
@@ -105,7 +105,7 @@ Inductive is_return_spec (f:function): node -> reg -> Prop :=
       f.(fn_code)!pc = Some(Iop Omove (r::nil) r' s) ->
       is_return_spec f s r' ->
       (return_measure f.(fn_code) s < return_measure f.(fn_code) pc)%nat ->
-     is_return_spec f pc r.
+      is_return_spec f pc r.
 
 Lemma is_return_charact:
   forall f n pc rret,
@@ -145,7 +145,7 @@ Qed.
 
 Inductive transf_instr_spec (f: function): instruction -> instruction -> Prop :=
   | transf_instr_tailcall: forall sig ros args res s,
-      f.(fn_stacksize) = 0 ->
+      (stackspaces_length f) = 0 ->
       is_return_spec f s res ->
       transf_instr_spec f (Icall sig ros args res s) (Itailcall sig ros args)
   | transf_instr_default: forall i,
@@ -153,7 +153,7 @@ Inductive transf_instr_spec (f: function): instruction -> instruction -> Prop :=
 
 Lemma transf_instr_charact:
   forall f pc instr,
-  f.(fn_stacksize) = 0 ->
+  (stackspaces_length f) = 0 ->
   transf_instr_spec f instr (transf_instr f pc instr).
 Proof.
   intros. unfold transf_instr. destruct instr; try constructor.
@@ -169,7 +169,7 @@ Lemma transf_instr_lookup:
   exists i',  (transf_function f).(fn_code)!pc = Some i' /\ transf_instr_spec f i i'.
 Proof.
   intros. unfold transf_function.
-  destruct (zeq (fn_stacksize f) 0 && option_eq zeq (cc_vararg (sig_cc (fn_sig f))) None) eqn:B.
+  destruct (stackspaces_empty f && option_eq zeq (cc_vararg (sig_cc (fn_sig f))) None) eqn:B.
   InvBooleans.
   simpl. rewrite PTree.gmap. rewrite H. simpl.
   exists (transf_instr f pc i); split. auto. apply transf_instr_charact; auto.
@@ -241,14 +241,14 @@ Lemma sig_preserved:
   forall f, funsig (transf_fundef f) = funsig f.
 Proof.
   destruct f; auto. simpl. unfold transf_function.
-  destruct (zeq (fn_stacksize f) 0 && option_eq zeq (cc_vararg (sig_cc (fn_sig f))) None); auto.
+  destruct (stackspaces_empty f && option_eq zeq (cc_vararg (sig_cc (fn_sig f))) None); auto.
 Qed.
 
-Lemma stacksize_preserved:
-  forall f, fn_stacksize (transf_function f) = fn_stacksize f.
+Lemma stackspaces_preserved:
+  forall f, fn_stackspaces (transf_function f) = fn_stackspaces f.
 Proof.
   unfold transf_function. intros.
-  destruct (zeq (fn_stacksize f) 0 && option_eq zeq (cc_vararg (sig_cc (fn_sig f))) None); auto.
+  destruct (stackspaces_empty f && option_eq zeq (cc_vararg (sig_cc (fn_sig f))) None); auto.
 Qed.
 
 Lemma find_function_translated:
@@ -305,18 +305,18 @@ to a frame that was eliminated by the transformation. *)
 Inductive match_stackframes: list stackframe -> list stackframe -> Prop :=
   | match_stackframes_nil:
       match_stackframes nil nil
-  | match_stackframes_normal: forall stk stk' res sp pc rs rs' f,
+  | match_stackframes_normal: forall stk stk' res ve pc rs rs' f,
       match_stackframes stk stk' ->
       regs_lessdef rs rs' ->
       match_stackframes
-        (Stackframe res f (Vptr sp Ptrofs.zero) pc rs :: stk)
-        (Stackframe res (transf_function f) (Vptr sp Ptrofs.zero) pc rs' :: stk')
-  | match_stackframes_tail: forall stk stk' res sp pc rs f,
+        (Stackframe res f (Stenv.of_venv ve flat_mid flat_maddr) pc rs :: stk)
+        (Stackframe res (transf_function f) (Stenv.of_venv ve flat_mid flat_maddr) pc rs' :: stk')
+  | match_stackframes_tail: forall stk stk' res ve pc rs f,
       match_stackframes stk stk' ->
       is_return_spec f pc res ->
-      f.(fn_stacksize) = 0 ->
+      stackspaces_length f = 0 ->
       match_stackframes
-        (Stackframe res f (Vptr sp Ptrofs.zero) pc rs :: stk)
+        (Stackframe res f (Stenv.of_venv ve flat_mid flat_maddr) pc rs :: stk)
         stk'.
 
 (** Here is the invariant relating two states.  The first three
@@ -326,12 +326,12 @@ Inductive match_stackframes: list stackframe -> list stackframe -> Prop :=
 
 Inductive match_states: state -> state -> Prop :=
   | match_states_normal:
-      forall s sp pc rs m s' rs' m' f
+      forall s ve pc rs m s' rs' m' f
              (STACKS: match_stackframes s s')
              (RLD: regs_lessdef rs rs')
              (MLD: Mem.extends m m'),
-      match_states (State s f (Vptr sp Ptrofs.zero) pc rs m)
-                   (State s' (transf_function f) (Vptr sp Ptrofs.zero) pc rs' m')
+      match_states (State s f (Stenv.of_venv ve flat_mid flat_maddr) pc rs m)
+                   (State s' (transf_function f) (Stenv.of_venv ve flat_mid flat_maddr) pc rs' m')
   | match_states_call:
       forall s f args m s' args' m',
       match_stackframes s s' ->
@@ -347,13 +347,13 @@ Inductive match_states: state -> state -> Prop :=
       match_states (Returnstate s v m)
                    (Returnstate s' v' m')
   | match_states_interm:
-      forall s sp pc rs m s' m' f r v'
+      forall s ve pc rs m s' m' f r v'
              (STACKS: match_stackframes s s')
              (MLD: Mem.extends m m'),
       is_return_spec f pc r ->
-      f.(fn_stacksize) = 0 ->
+      stackspaces_length f = 0 ->
       Val.lessdef (rs#r) v' ->
-      match_states (State s f (Vptr sp Ptrofs.zero) pc rs m)
+      match_states (State s f (Stenv.of_venv ve flat_mid flat_maddr) pc rs m)
                    (Returnstate s' v' m').
 
 (** The last case of [match_states] corresponds to the execution
@@ -375,7 +375,7 @@ Inductive match_states: state -> state -> Prop :=
 
 Definition measure (st: state) : nat :=
   match st with
-  | State s f sp pc rs m => (List.length s * (niter + 2) + return_measure f.(fn_code) pc + 1)%nat
+  | State s f ste pc rs m => (List.length s * (niter + 2) + return_measure f.(fn_code) pc + 1)%nat
   | Callstate s f args m => 0%nat
   | Returnstate s v m => (List.length s * (niter + 2))%nat
   end.
@@ -416,7 +416,7 @@ Proof.
   assert (Val.lessdef_list (rs##args) (rs'##args)). apply regs_lessdef_regs; auto.
   exploit eval_operation_lessdef; eauto.
   intros [v' [EVAL' VLD]].
-  left. exists (State s' (transf_function f) (Vptr sp0 Ptrofs.zero) pc' (rs'#res <- v') m'); split.
+  left. exists (State s' (transf_function f) (Stenv.of_venv ve flat_mid flat_maddr) pc' (rs'#res <- v') m'); split.
   eapply exec_Iop; eauto.  rewrite <- EVAL'.
   apply eval_operation_preserved. exact symbols_preserved.
   econstructor; eauto. apply set_reg_lessdef; auto.
@@ -432,7 +432,7 @@ Proof.
   intros [a' [ADDR' ALD]].
   exploit Mem.loadv_extends; eauto.
   intros [v' [LOAD' VLD]].
-  left. exists (State s' (transf_function f) (Vptr sp0 Ptrofs.zero) pc' (rs'#dst <- v') m'); split.
+  left. exists (State s' (transf_function f) (Stenv.of_venv ve flat_mid flat_maddr) pc' (rs'#dst <- v') m'); split.
   eapply exec_Iload with (a := a'). eauto.  rewrite <- ADDR'.
   apply eval_addressing_preserved. exact symbols_preserved. eauto.
   econstructor; eauto. apply set_reg_lessdef; auto.
@@ -444,7 +444,7 @@ Proof.
   intros [a' [ADDR' ALD]].
   exploit Mem.storev_extends. 2: eexact H1. eauto. eauto. apply RLD.
   intros [m'1 [STORE' MLD']].
-  left. exists (State s' (transf_function f) (Vptr sp0 Ptrofs.zero) pc' rs' m'1); split.
+  left. exists (State s' (transf_function f) (Stenv.of_venv ve flat_mid flat_maddr) pc' rs' m'1); split.
   eapply exec_Istore with (a := a'). eauto.  rewrite <- ADDR'.
   apply eval_addressing_preserved. exact symbols_preserved. eauto.
   destruct a; simpl in H1; try discriminate.
@@ -454,28 +454,28 @@ Proof.
   exploit find_function_translated; eauto. intro FIND'.
   TransfInstr.
 + (* call turned tailcall *)
-  assert ({ m'' | Mem.free m' sp0 0 (fn_stacksize (transf_function f)) = Some m''}).
-    apply Mem.range_perm_free. rewrite stacksize_preserved. rewrite H7.
-    red; intros; extlia.
+  assert ({m'' | Mem.free_list m' (Venv.blocks_of_venv ve nil) = Some m''}).
+    simpl. eexists m'. reflexivity.
   destruct X as [m'' FREE].
   left. exists (Callstate s' (transf_fundef fd) (rs'##args) m''); split.
   eapply exec_Itailcall; eauto. apply sig_preserved.
+  rewrite stackspaces_preserved. apply stackspaces_empty_nil in H7.
+  rewrite H7. apply FREE.
   constructor. eapply match_stackframes_tail; eauto. apply regs_lessdef_regs; auto.
-  eapply Mem.free_right_extends; eauto.
-  rewrite stacksize_preserved. rewrite H7. intros. extlia.
+  inv FREE. eauto.
 + (* call that remains a call *)
-  left. exists (Callstate (Stackframe res (transf_function f) (Vptr sp0 Ptrofs.zero) pc' rs' :: s')
+  left. exists (Callstate (Stackframe res (transf_function f) (Stenv.of_venv ve flat_mid flat_maddr) pc' rs' :: s')
                           (transf_fundef fd) (rs'##args) m'); split.
   eapply exec_Icall; eauto. apply sig_preserved.
   constructor. constructor; auto. apply regs_lessdef_regs; auto. auto.
 
 - (* tailcall *)
   exploit find_function_translated; eauto. intro FIND'.
-  exploit Mem.free_parallel_extends; eauto. intros [m'1 [FREE EXT]].
+  exploit Mem.free_list_parallel_extends; eauto. intros [m'1 [FREE EXT]].
   TransfInstr.
   left. exists (Callstate s' (transf_fundef fd) (rs'##args) m'1); split.
   eapply exec_Itailcall; eauto. apply sig_preserved.
-  rewrite stacksize_preserved; auto.
+  rewrite stackspaces_preserved; auto.
   constructor. auto.  apply regs_lessdef_regs; auto. auto.
 
 - (* builtin *)
@@ -484,7 +484,7 @@ Proof.
   intros (vargs' & P & Q).
   exploit external_call_mem_extends; eauto.
   intros [v' [m'1 [A [B [C D]]]]].
-  left. exists (State s' (transf_function f) (Vptr sp0 Ptrofs.zero) pc' (regmap_setres res v' rs') m'1); split.
+  left. exists (State s' (transf_function f) (Stenv.of_venv ve flat_mid flat_maddr) pc' (regmap_setres res v' rs') m'1); split.
   eapply exec_Ibuiltin; eauto.
   eapply eval_builtin_args_preserved with (ge1 := ge); eauto. exact symbols_preserved.
   eapply external_call_symbols_preserved; eauto. apply senv_preserved.
@@ -492,23 +492,23 @@ Proof.
 
 - (* cond *)
   TransfInstr.
-  left. exists (State s' (transf_function f) (Vptr sp0 Ptrofs.zero) (if b then ifso else ifnot) rs' m'); split.
+  left. exists (State s' (transf_function f) (Stenv.of_venv ve flat_mid flat_maddr) (if b then ifso else ifnot) rs' m'); split.
   eapply exec_Icond; eauto.
   apply eval_condition_lessdef with (rs##args) m; auto. apply regs_lessdef_regs; auto.
   constructor; auto.
 
 - (* jumptable *)
   TransfInstr.
-  left. exists (State s' (transf_function f) (Vptr sp0 Ptrofs.zero) pc' rs' m'); split.
+  left. exists (State s' (transf_function f) (Stenv.of_venv ve flat_mid flat_maddr) pc' rs' m'); split.
   eapply exec_Ijumptable; eauto.
   generalize (RLD arg). rewrite H0. intro. inv H2. auto.
   constructor; auto.
 
 - (* return *)
-  exploit Mem.free_parallel_extends; eauto. intros [m'1 [FREE EXT]].
+  exploit Mem.free_list_parallel_extends; eauto. intros [m'1 [FREE EXT]].
   TransfInstr.
   left. exists (Returnstate s' (regmap_optget or Vundef rs') m'1); split.
-  apply exec_Ireturn; auto. rewrite stacksize_preserved; auto.
+  apply exec_Ireturn; auto. rewrite stackspaces_preserved; auto.
   constructor. auto.
   destruct or; simpl. apply RLD. constructor.
   auto.
@@ -518,24 +518,22 @@ Proof.
   right. split. simpl. lia. split. auto.
   constructor. auto.
   simpl. constructor.
-  eapply Mem.free_left_extends; eauto.
+  eapply Mem.free_list_left_extends; eauto.
 
 - (* eliminated return Some *)
   assert (or = Some r) by congruence. subst or.
   right. split. simpl. lia. split. auto.
   constructor. auto.
   simpl. auto.
-  eapply Mem.free_left_extends; eauto.
+  eapply Mem.free_list_left_extends; eauto.
 
 - (* internal call *)
-  exploit Mem.alloc_extends; eauto.
-    instantiate (1 := 0). lia.
-    instantiate (1 := fn_stacksize f). lia.
+  exploit Venv.varenv_extends; eauto.
   intros [m'1 [ALLOC EXT]].
-  assert (fn_stacksize (transf_function f) = fn_stacksize f /\
+  assert (fn_stackspaces (transf_function f) = fn_stackspaces f /\
           fn_entrypoint (transf_function f) = fn_entrypoint f /\
           fn_params (transf_function f) = fn_params f).
-    unfold transf_function. destruct (zeq (fn_stacksize f) 0 && option_eq zeq (cc_vararg (sig_cc (fn_sig f))) None); auto.
+    unfold transf_function. destruct (stackspaces_empty f && option_eq zeq (cc_vararg (sig_cc (fn_sig f))) None); auto.
   destruct H0 as [EQ1 [EQ2 EQ3]].
   left. econstructor; split.
   simpl. eapply exec_function_internal; eauto. rewrite EQ1; eauto.

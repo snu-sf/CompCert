@@ -11,7 +11,7 @@
 (* *********************************************************************)
 
 Require Import Coqlib Maps Errors.
-Require Import AST Integers Floats Values Memory Globalenvs Events Smallstep.
+Require Import AST Integers Floats Values Memory Globalenvs Stackenvs Events Smallstep.
 Require Import Cminor.
 Require Import Unityping.
 
@@ -27,7 +27,7 @@ Definition type_constant (c: constant) : typ :=
   | Osingleconst _ => Tsingle
   | Olongconst _ => Tlong
   | Oaddrsymbol _ _ => Tptr
-  | Oaddrstack _ => Tptr
+  | Oaddrstack _ _ => Tptr
   end.
 
 Definition type_unop (op: unary_operation) : typ * typ :=
@@ -421,13 +421,13 @@ Definition def_env (f: function) (e: Cminor.env) : Prop :=
 Inductive wt_cont_call: cont -> rettype -> Prop :=
   | wt_cont_Kstop:
       wt_cont_call Kstop Tint
-  | wt_cont_Kcall: forall optid f sp e k tret env
+  | wt_cont_Kcall: forall optid f ste e k tret env
         (WT_FN: wt_function env f)
         (WT_CONT: wt_cont env f.(fn_sig).(sig_res) k)
         (WT_ENV: wt_env env e)
         (DEF_ENV: def_env f e)
         (WT_DEST: wt_opt_assign env optid tret),
-      wt_cont_call (Kcall optid f sp e k) tret
+      wt_cont_call (Kcall optid f ste e k) tret
 
 with wt_cont: typenv -> rettype -> cont -> Prop :=
   | wt_cont_Kseq: forall env tret s k,
@@ -442,13 +442,13 @@ with wt_cont: typenv -> rettype -> cont -> Prop :=
       wt_cont env tret k.
 
 Inductive wt_state: state -> Prop :=
-  | wt_normal_state: forall f s k sp e m env
+  | wt_normal_state: forall f s k ste e m env
         (WT_FN: wt_function env f)
         (WT_STMT: wt_stmt env f.(fn_sig).(sig_res) s)
         (WT_CONT: wt_cont env f.(fn_sig).(sig_res) k)
         (WT_ENV: wt_env env e)
         (DEF_ENV: def_env f e),
-      wt_state (State f s k sp e m)
+      wt_state (State f s k ste e m)
   | wt_call_state: forall f args k m
         (WT_FD: wt_fundef f)
         (WT_ARGS: Val.has_type_list args (funsig f).(sig_args))
@@ -580,8 +580,8 @@ Ltac VHT' :=
   | _ => idtac
   end.
 
-Lemma type_constant_sound: forall sp cst v,
-  eval_constant ge sp cst = Some v ->
+Lemma type_constant_sound: forall ste cst v,
+  eval_constant ge ste cst = Some v ->
   Val.has_type v (type_constant cst).
 Proof.
   intros until v; intros EV. destruct cst; simpl in *; inv EV; VHT.
@@ -600,8 +600,8 @@ Proof.
   destruct (eq_block b b0); VHT.
 Qed.
 
-Lemma wt_eval_expr: forall env sp e m a v,
-  eval_expr ge sp e m a v ->
+Lemma wt_eval_expr: forall env ste e m a v,
+  eval_expr ge ste e m a v ->
   forall t,
   wt_expr env a t ->
   wt_env env e ->
@@ -615,8 +615,8 @@ Proof.
 - inv WT. destruct vaddr; try discriminate. eapply Mem.load_type; eauto.
 Qed.
 
-Lemma wt_eval_exprlist: forall env sp e m al vl,
-  eval_exprlist ge sp e m al vl ->
+Lemma wt_eval_exprlist: forall env ste e m al vl,
+  eval_exprlist ge ste e m al vl ->
   forall tl,
   list_forall2 (wt_expr env) al tl ->
   wt_env env e ->
@@ -775,16 +775,16 @@ Qed.
 (** Expressions that satisfy [safe_expr] always evaluate to a value. *)
 
 Lemma eval_safe_expr:
-  forall ge f sp e m a,
+  forall ge f ste e m a,
   def_env f e ->
   safe_expr (known_id f) a = true ->
-  exists v, eval_expr ge sp e m a v.
+  exists v, eval_expr ge ste e m a v.
 Proof.
   induction a; simpl; intros.
   - apply known_id_sound_2 in H0.
     destruct (H i H0) as [v E].
     exists v; constructor; auto.
-  - destruct (eval_constant ge sp c) as [v|] eqn:E.
+  - destruct (eval_constant ge ste c) as [v|] eqn:E.
     exists v; constructor; auto.
     destruct c; discriminate.
   - InvBooleans. destruct IHa as [v1 E1]; auto.
@@ -799,5 +799,3 @@ Proof.
     destruct b; discriminate.
   - discriminate.
 Qed.
-
-

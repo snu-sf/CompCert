@@ -11,7 +11,7 @@
 (* *********************************************************************)
 
 Require Import Coqlib Compopts.
-Require Import AST Integers Floats Values Memory Globalenvs.
+Require Import AST Integers Floats Values Memory Globalenvs Stackenvs.
 Require Import Op RTL ValueDomain.
 
 (** Value analysis for x86_64 operators *)
@@ -44,7 +44,7 @@ Definition eval_static_addressing_32 (addr: addressing) (vl: list aval): aval :=
   | Aglobal s ofs, nil => Ptr (Gl s ofs)
   | Abased s ofs, v1::nil => add (Ptr (Gl s ofs)) v1
   | Abasedscaled sc s ofs, v1::nil => add (Ptr (Gl s ofs)) (mul v1 (I (Int.repr sc)))
-  | Ainstack ofs, nil => Ptr(Stk ofs)
+  | Ainstack id ofs, nil => Ptr(Stk id ofs)
   | _, _ => Vbot
   end.
 
@@ -57,7 +57,7 @@ Definition eval_static_addressing_64 (addr: addressing) (vl: list aval): aval :=
   | Aglobal s ofs, nil => Ptr (Gl s ofs)
   | Abased s ofs, v1::nil => addl (Ptr (Gl s ofs)) v1
   | Abasedscaled sc s ofs, v1::nil => addl (Ptr (Gl s ofs)) (mull v1 (L (Int64.repr sc)))
-  | Ainstack ofs, nil => Ptr(Stk ofs)
+  | Ainstack id ofs, nil => Ptr(Stk id ofs)
   | _, _ => Vbot
   end.
 
@@ -171,8 +171,8 @@ Section SOUNDNESS.
 Variable bc: block_classification.
 Variable ge: genv.
 Hypothesis GENV: genv_match bc ge.
-Variable sp: block.
-Hypothesis STACK: bc sp = BCstack.
+Variable ve: Venv.t.
+Hypothesis STACK: forall b, bc sp = BCstack.
 
 Theorem eval_static_condition_sound:
   forall cond vargs m aargs,
@@ -267,4 +267,3 @@ Proof.
 Qed.
 
 End SOUNDNESS.
-

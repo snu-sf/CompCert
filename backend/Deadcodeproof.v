@@ -15,7 +15,7 @@
 Require Import FunInd.
 Require Import Coqlib Maps Errors Integers Floats Lattice Kildall.
 Require Import AST Linking.
-Require Import Values Memory Globalenvs Events Smallstep.
+Require Import Values Memory Globalenvs Events Stackenvs Smallstep.
 Require Import Registers Op RTL.
 Require Import ValueDomain ValueAnalysis NeedDomain NeedOp Deadcode.
 
@@ -482,7 +482,7 @@ Qed.
 
 Inductive match_stackframes: stackframe -> stackframe -> Prop :=
   | match_stackframes_intro:
-      forall res f sp pc e tf te cu an
+      forall res f ve pc e tf te cu an
         (LINK: linkorder cu prog)
         (FUN: transf_function (romem_for cu) f = OK tf)
         (ANL: analyze (vanalyze cu f) f = Some an)
@@ -490,20 +490,20 @@ Inductive match_stackframes: stackframe -> stackframe -> Prop :=
               Val.lessdef v tv ->
               eagree (e#res <- v) (te#res<- tv)
                      (fst (transfer f (vanalyze cu f) pc an!!pc))),
-      match_stackframes (Stackframe res f (Vptr sp Ptrofs.zero) pc e)
-                        (Stackframe res tf (Vptr sp Ptrofs.zero) pc te).
+      match_stackframes (Stackframe res f (Stenv.of_venv ve flat_mid flat_maddr) pc e)
+                        (Stackframe res tf (Stenv.of_venv ve flat_mid flat_maddr) pc te).
 
 Inductive match_states: state -> state -> Prop :=
   | match_regular_states:
-      forall s f sp pc e m ts tf te tm cu an
+      forall s f ve pc e m ts tf te tm cu an
         (STACKS: list_forall2 match_stackframes s ts)
         (LINK: linkorder cu prog)
         (FUN: transf_function (romem_for cu) f = OK tf)
         (ANL: analyze (vanalyze cu f) f = Some an)
         (ENV: eagree e te (fst (transfer f (vanalyze cu f) pc an!!pc)))
         (MEM: magree m tm (nlive ge sp (snd (transfer f (vanalyze cu f) pc an!!pc)))),
-      match_states (State s f (Vptr sp Ptrofs.zero) pc e m)
-                   (State ts tf (Vptr sp Ptrofs.zero) pc te tm)
+      match_states (State s f (Stenv.of_venv ve flat_mid flat_maddr) pc e m)
+                   (State ts tf (Stenv.of_venv ve flat_mid flat_maddr) pc te tm)
   | match_call_states:
       forall s f args m ts tf targs tm cu
         (STACKS: list_forall2 match_stackframes s ts)
@@ -535,7 +535,7 @@ Proof.
 Qed.
 
 Lemma match_succ_states:
-  forall s f sp pc e m ts tf te tm an pc' cu instr ne nm
+  forall s f ve pc e m ts tf te tm an pc' cu instr ne nm
     (LINK: linkorder cu prog)
     (STACKS: list_forall2 match_stackframes s ts)
     (FUN: transf_function (romem_for cu) f = OK tf)
@@ -545,8 +545,8 @@ Lemma match_succ_states:
     (ANPC: an!!pc = (ne, nm))
     (ENV: eagree e te ne)
     (MEM: magree m tm (nlive ge sp nm)),
-  match_states (State s f (Vptr sp Ptrofs.zero) pc' e m)
-               (State ts tf (Vptr sp Ptrofs.zero) pc' te tm).
+  match_states (State s f (Stenv.of_venv ve flat_mid flat_maddr) pc' e m)
+               (State ts tf (Stenv.of_venv ve flat_mid flat_maddr) pc' te tm).
 Proof.
   intros. exploit analyze_successors; eauto. rewrite ANPC; simpl. intros [A B].
   econstructor; eauto.
@@ -567,19 +567,19 @@ Proof.
 Qed.
 
 Lemma transfer_builtin_arg_sound:
-  forall bc e e' sp m m' a v,
-  eval_builtin_arg ge (fun r => e#r) (Vptr sp Ptrofs.zero) m a v ->
+  forall bc e e' ve m m' a v,
+  eval_builtin_arg ge (fun r => e#r) (Stenv.of_venv ve flat_mid flat_maddr) m a v ->
   forall nv ne1 nm1 ne2 nm2,
   transfer_builtin_arg nv (ne1, nm1) a = (ne2, nm2) ->
   eagree e e' ne2 ->
-  magree m m' (nlive ge sp nm2) ->
+  magree m m' (nlive ge ve nm2) ->
   genv_match bc ge ->
-  bc sp = BCstack ->
+  bc ve = BCstack ->
   exists v',
-     eval_builtin_arg ge (fun r => e'#r) (Vptr sp Ptrofs.zero) m' a  v'
+     eval_builtin_arg ge (fun r => e'#r) (Stenv.of_venv ve flat_mid flat_maddr) m' a  v'
   /\ vagree v v' nv
   /\ eagree e e' ne1
-  /\ magree m m' (nlive ge sp nm1).
+  /\ magree m m' (nlive ge ve nm1).
 Proof.
   induction 1; simpl; intros until nm2; intros TR EA MA GM SPM; inv TR.
 - exists e'#x; intuition auto. constructor. eauto 2 with na. eauto 2 with na.
@@ -619,8 +619,8 @@ Proof.
 Qed.
 
 Lemma transfer_builtin_args_sound:
-  forall e sp m e' m' bc al vl,
-  eval_builtin_args ge (fun r => e#r) (Vptr sp Ptrofs.zero) m al vl ->
+  forall e ve m e' m' bc al vl,
+  eval_builtin_args ge (fun r => e#r) (Stenv.of_venv ve flat_mid flat_maddr) m al vl ->
   forall ne1 nm1 ne2 nm2,
   transfer_builtin_args (ne1, nm1) al = (ne2, nm2) ->
   eagree e e' ne2 ->
@@ -628,7 +628,7 @@ Lemma transfer_builtin_args_sound:
   genv_match bc ge ->
   bc sp = BCstack ->
   exists vl',
-     eval_builtin_args ge (fun r => e'#r) (Vptr sp Ptrofs.zero) m' al vl'
+     eval_builtin_args ge (fun r => e'#r) (Stenv.of_venv ve flat_mid flat_maddr) m' al vl'
   /\ Val.lessdef_list vl vl'
   /\ eagree e e' ne1
   /\ magree m m' (nlive ge sp nm1).
@@ -646,8 +646,8 @@ Lemma can_eval_builtin_arg:
   forall sp e m e' m' P,
   magree m m' P ->
   forall a v,
-  eval_builtin_arg ge (fun r => e#r) (Vptr sp Ptrofs.zero) m a v ->
-  exists v', eval_builtin_arg tge (fun r => e'#r) (Vptr sp Ptrofs.zero) m' a v'.
+  eval_builtin_arg ge (fun r => e#r) (Stenv.of_venv ve flat_mid flat_maddr) m a v ->
+  exists v', eval_builtin_arg tge (fun r => e'#r) (Stenv.of_venv ve flat_mid flat_maddr) m' a v'.
 Proof.
   intros until P; intros MA.
   assert (LD: forall chunk addr v,
@@ -670,11 +670,11 @@ Proof.
 Qed.
 
 Lemma can_eval_builtin_args:
-  forall sp e m e' m' P,
+  forall ve e m e' m' P,
   magree m m' P ->
   forall al vl,
-  eval_builtin_args ge (fun r => e#r) (Vptr sp Ptrofs.zero) m al vl ->
-  exists vl', eval_builtin_args tge (fun r => e'#r) (Vptr sp Ptrofs.zero) m' al vl'.
+  eval_builtin_args ge (fun r => e#r) (Stenv.of_venv ve flat_mid flat_maddr) m al vl ->
+  exists vl', eval_builtin_args tge (fun r => e'#r) (Stenv.of_venv ve flat_mid flat_maddr) m' al vl'.
 Proof.
   induction 2.
 - exists (@nil val); constructor.

@@ -17,7 +17,7 @@
 *)
 
 Require Import Coqlib Maps.
-Require Import AST Integers Values Events Memory Globalenvs Smallstep.
+Require Import AST Integers Values Events Memory Globalenvs Stackenvs Smallstep.
 Require Import Op Registers.
 
 (** * Abstract syntax *)
@@ -85,7 +85,7 @@ Definition code: Type := PTree.t instruction.
 Record function: Type := mkfunction {
   fn_sig: signature;
   fn_params: list reg;
-  fn_stacksize: Z;
+  fn_stackspaces: list (ident * Z);
   fn_code: code;
   fn_entrypoint: node
 }.
@@ -111,6 +111,7 @@ Definition funsig (fd: fundef) :=
 (** * Operational semantics *)
 
 Definition genv := Genv.t fundef unit.
+Definition stenv := Stenv.t.
 Definition regset := Regmap.t val.
 
 Fixpoint init_regs (vl: list val) (rl: list reg) {struct rl} : regset :=
@@ -123,9 +124,9 @@ Fixpoint init_regs (vl: list val) (rl: list reg) {struct rl} : regset :=
   set of transitions between states.  A state captures the current
   point in the execution.  Three kinds of states appear in the transitions:
 
-- [State cs f sp pc rs m] describes an execution point within a function.
+- [State cs f ste pc rs m] describes an execution point within a function.
   [f] is the current function.
-  [sp] is the pointer to the stack block for its current activation
+  [ste] is a map of stack pointers to the stack blocks for its current activation
      (as in Cminor).
   [pc] is the current program point (CFG node) within the code [c].
   [rs] gives the current values for the pseudo-registers.
@@ -144,7 +145,7 @@ It is a list of frames [Stackframe res f sp pc rs].  Each frame represents
 a function call in progress.
 [res] is the pseudo-register that will receive the result of the call.
 [f] is the calling function.
-[sp] is its stack pointer.
+[ste] is its stack environments.
 [pc] is the program point for the instruction that follows the call.
 [rs] is the state of registers in the calling function.
 *)
@@ -153,7 +154,7 @@ Inductive stackframe : Type :=
   | Stackframe:
       forall (res: reg)            (**r where to store the result *)
              (f: function)         (**r calling function *)
-             (sp: val)             (**r stack pointer in calling function *)
+             (ste: stenv)          (**r a map of stack pointers in calling function *)
              (pc: node)            (**r program point in calling function *)
              (rs: regset),         (**r register state in calling function *)
       stackframe.
@@ -162,7 +163,7 @@ Inductive state : Type :=
   | State:
       forall (stack: list stackframe) (**r call stack *)
              (f: function)            (**r current function *)
-             (sp: val)                (**r stack pointer *)
+             (ste: stenv)             (**r a map of stack pointers *)
              (pc: node)               (**r current program point in [c] *)
              (rs: regset)             (**r register state *)
              (m: mem),                (**r memory state *)
@@ -201,79 +202,79 @@ Definition find_function
 
 Inductive step: state -> trace -> state -> Prop :=
   | exec_Inop:
-      forall s f sp pc rs m pc',
+      forall s f ste pc rs m pc',
       (fn_code f)!pc = Some(Inop pc') ->
-      step (State s f sp pc rs m)
-        E0 (State s f sp pc' rs m)
+      step (State s f ste pc rs m)
+        E0 (State s f ste pc' rs m)
   | exec_Iop:
-      forall s f sp pc rs m op args res pc' v,
+      forall s f ste pc rs m op args res pc' v,
       (fn_code f)!pc = Some(Iop op args res pc') ->
-      eval_operation ge sp op rs##args m = Some v ->
-      step (State s f sp pc rs m)
-        E0 (State s f sp pc' (rs#res <- v) m)
+      eval_operation ge ste op rs##args m = Some v ->
+      step (State s f ste pc rs m)
+        E0 (State s f ste pc' (rs#res <- v) m)
   | exec_Iload:
-      forall s f sp pc rs m chunk addr args dst pc' a v,
+      forall s f ste pc rs m chunk addr args dst pc' a v,
       (fn_code f)!pc = Some(Iload chunk addr args dst pc') ->
-      eval_addressing ge sp addr rs##args = Some a ->
+      eval_addressing ge ste addr rs##args = Some a ->
       Mem.loadv chunk m a = Some v ->
-      step (State s f sp pc rs m)
-        E0 (State s f sp pc' (rs#dst <- v) m)
+      step (State s f ste pc rs m)
+        E0 (State s f ste pc' (rs#dst <- v) m)
   | exec_Istore:
-      forall s f sp pc rs m chunk addr args src pc' a m',
+      forall s f ste pc rs m chunk addr args src pc' a m',
       (fn_code f)!pc = Some(Istore chunk addr args src pc') ->
-      eval_addressing ge sp addr rs##args = Some a ->
+      eval_addressing ge ste addr rs##args = Some a ->
       Mem.storev chunk m a rs#src = Some m' ->
-      step (State s f sp pc rs m)
-        E0 (State s f sp pc' rs m')
+      step (State s f ste pc rs m)
+        E0 (State s f ste pc' rs m')
   | exec_Icall:
-      forall s f sp pc rs m sig ros args res pc' fd,
+      forall s f ste pc rs m sig ros args res pc' fd,
       (fn_code f)!pc = Some(Icall sig ros args res pc') ->
       find_function ros rs = Some fd ->
       funsig fd = sig ->
-      step (State s f sp pc rs m)
-        E0 (Callstate (Stackframe res f sp pc' rs :: s) fd rs##args m)
+      step (State s f ste pc rs m)
+        E0 (Callstate (Stackframe res f ste pc' rs :: s) fd rs##args m)
   | exec_Itailcall:
-      forall s f stk pc rs m sig ros args fd m',
+      forall s f ve pc rs m sig ros args fd m',
       (fn_code f)!pc = Some(Itailcall sig ros args) ->
       find_function ros rs = Some fd ->
       funsig fd = sig ->
-      Mem.free m stk 0 f.(fn_stacksize) = Some m' ->
-      step (State s f (Vptr stk Ptrofs.zero) pc rs m)
+      Mem.free_list m (Venv.blocks_of_venv ve f.(fn_stackspaces)) = Some m' ->
+      step (State s f (Stenv.of_venv ve flat_mid flat_maddr) pc rs m)
         E0 (Callstate s fd rs##args m')
   | exec_Ibuiltin:
-      forall s f sp pc rs m ef args res pc' vargs t vres m',
+      forall s f ste pc rs m ef args res pc' vargs t vres m',
       (fn_code f)!pc = Some(Ibuiltin ef args res pc') ->
-      eval_builtin_args ge (fun r => rs#r) sp m args vargs ->
+      eval_builtin_args ge (fun r => rs#r) ste m args vargs ->
       external_call ef ge vargs m t vres m' ->
-      step (State s f sp pc rs m)
-         t (State s f sp pc' (regmap_setres res vres rs) m')
+      step (State s f ste pc rs m)
+         t (State s f ste pc' (regmap_setres res vres rs) m')
   | exec_Icond:
-      forall s f sp pc rs m cond args ifso ifnot b pc',
+      forall s f ste pc rs m cond args ifso ifnot b pc',
       (fn_code f)!pc = Some(Icond cond args ifso ifnot) ->
       eval_condition cond rs##args m = Some b ->
       pc' = (if b then ifso else ifnot) ->
-      step (State s f sp pc rs m)
-        E0 (State s f sp pc' rs m)
+      step (State s f ste pc rs m)
+        E0 (State s f ste pc' rs m)
   | exec_Ijumptable:
-      forall s f sp pc rs m arg tbl n pc',
+      forall s f ste pc rs m arg tbl n pc',
       (fn_code f)!pc = Some(Ijumptable arg tbl) ->
       rs#arg = Vint n ->
       list_nth_z tbl (Int.unsigned n) = Some pc' ->
-      step (State s f sp pc rs m)
-        E0 (State s f sp pc' rs m)
+      step (State s f ste pc rs m)
+        E0 (State s f ste pc' rs m)
   | exec_Ireturn:
-      forall s f stk pc rs m or m',
+      forall s f ve pc rs m or m',
       (fn_code f)!pc = Some(Ireturn or) ->
-      Mem.free m stk 0 f.(fn_stacksize) = Some m' ->
-      step (State s f (Vptr stk Ptrofs.zero) pc rs m)
+      Mem.free_list m (Venv.blocks_of_venv ve f.(fn_stackspaces)) = Some m' ->
+      step (State s f (Stenv.of_venv ve flat_mid flat_maddr) pc rs m)
         E0 (Returnstate s (regmap_optget or Vundef rs) m')
   | exec_function_internal:
-      forall s f args m m' stk,
-      Mem.alloc m 0 f.(fn_stacksize) = (m', stk) ->
+      forall s f args m m' ve,
+      Venv.varenv m f.(fn_stackspaces) = (m', ve) ->
       step (Callstate s (Internal f) args m)
         E0 (State s
                   f
-                  (Vptr stk Ptrofs.zero)
+                  (Stenv.of_venv ve flat_mid flat_maddr)
                   f.(fn_entrypoint)
                   (init_regs args f.(fn_params))
                   m')
@@ -283,29 +284,29 @@ Inductive step: state -> trace -> state -> Prop :=
       step (Callstate s (External ef) args m)
          t (Returnstate s res m')
   | exec_return:
-      forall res f sp pc rs s vres m,
-      step (Returnstate (Stackframe res f sp pc rs :: s) vres m)
-        E0 (State s f sp pc (rs#res <- vres) m).
+      forall res f ste pc rs s vres m,
+      step (Returnstate (Stackframe res f ste pc rs :: s) vres m)
+        E0 (State s f ste pc (rs#res <- vres) m).
 
 Lemma exec_Iop':
-  forall s f sp pc rs m op args res pc' rs' v,
+  forall s f ste pc rs m op args res pc' rs' v,
   (fn_code f)!pc = Some(Iop op args res pc') ->
-  eval_operation ge sp op rs##args m = Some v ->
+  eval_operation ge ste op rs##args m = Some v ->
   rs' = (rs#res <- v) ->
-  step (State s f sp pc rs m)
-    E0 (State s f sp pc' rs' m).
+  step (State s f ste pc rs m)
+    E0 (State s f ste pc' rs' m).
 Proof.
   intros. subst rs'. eapply exec_Iop; eauto.
 Qed.
 
 Lemma exec_Iload':
-  forall s f sp pc rs m chunk addr args dst pc' rs' a v,
+  forall s f ste pc rs m chunk addr args dst pc' rs' a v,
   (fn_code f)!pc = Some(Iload chunk addr args dst pc') ->
-  eval_addressing ge sp addr rs##args = Some a ->
+  eval_addressing ge ste addr rs##args = Some a ->
   Mem.loadv chunk m a = Some v ->
   rs' = (rs#dst <- v) ->
-  step (State s f sp pc rs m)
-    E0 (State s f sp pc' rs' m).
+  step (State s f ste pc rs m)
+    E0 (State s f ste pc' rs' m).
 Proof.
   intros. subst rs'. eapply exec_Iload; eauto.
 Qed.
@@ -348,7 +349,7 @@ Proof.
     intros. subst. inv H0. exists s1; auto.
   inversion H; subst; auto.
   exploit external_call_receptive; eauto. intros [vres2 [m2 EC2]].
-  exists (State s0 f sp pc' (regmap_setres res vres2 rs) m2). eapply exec_Ibuiltin; eauto.
+  exists (State s0 f ste pc' (regmap_setres res vres2 rs) m2). eapply exec_Ibuiltin; eauto.
   exploit external_call_receptive; eauto. intros [vres2 [m2 EC2]].
   exists (Returnstate s0 vres2 m2). econstructor; eauto.
 (* trace length *)
@@ -371,7 +372,7 @@ Definition transf_function (f: function) : function :=
   mkfunction
     f.(fn_sig)
     f.(fn_params)
-    f.(fn_stacksize)
+    f.(fn_stackspaces)
     (PTree.map transf f.(fn_code))
     f.(fn_entrypoint).
 

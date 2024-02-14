@@ -96,31 +96,31 @@ Global Hint Resolve wf_num_eqs wf_num_reg wf_num_val: cse.
 
 Definition valuation := valnum -> val.
 
-Inductive rhs_eval_to (valu: valuation) (ge: genv) (sp: val) (m: mem):
+Inductive rhs_eval_to (valu: valuation) (ge: genv) (ste: stenv) (m: mem):
                                                      rhs -> val -> Prop :=
   | op_eval_to: forall op vl v,
-      eval_operation ge sp op (map valu vl) m = Some v ->
-      rhs_eval_to valu ge sp m (Op op vl) v
+      eval_operation ge ste op (map valu vl) m = Some v ->
+      rhs_eval_to valu ge ste m (Op op vl) v
   | load_eval_to: forall chunk addr vl a v,
-      eval_addressing ge sp addr (map valu vl) = Some a ->
+      eval_addressing ge ste addr (map valu vl) = Some a ->
       Mem.loadv chunk m a = Some v ->
-      rhs_eval_to valu ge sp m (Load chunk addr vl) v.
+      rhs_eval_to valu ge ste m (Load chunk addr vl) v.
 
-Inductive equation_holds (valu: valuation) (ge: genv) (sp: val) (m: mem):
+Inductive equation_holds (valu: valuation) (ge: genv) (ste: stenv) (m: mem):
                                                       equation -> Prop :=
   | eq_holds_strict: forall l r,
-      rhs_eval_to valu ge sp m r (valu l) ->
-      equation_holds valu ge sp m (Eq l true r)
+      rhs_eval_to valu ge ste m r (valu l) ->
+      equation_holds valu ge ste m (Eq l true r)
   | eq_holds_lessdef: forall l r v,
-      rhs_eval_to valu ge sp m r v -> Val.lessdef v (valu l) ->
-      equation_holds valu ge sp m (Eq l false r).
+      rhs_eval_to valu ge ste m r v -> Val.lessdef v (valu l) ->
+      equation_holds valu ge ste m (Eq l false r).
 
-Record numbering_holds (valu: valuation) (ge: genv) (sp: val)
+Record numbering_holds (valu: valuation) (ge: genv) (ste: stenv)
                        (rs: regset) (m: mem) (n: numbering) : Prop := {
   num_holds_wf:
      wf_numbering n;
   num_holds_eq: forall eq,
-     In eq n.(num_eqs) -> equation_holds valu ge sp m eq;
+     In eq n.(num_eqs) -> equation_holds valu ge ste m eq;
   num_holds_reg: forall r v,
      n.(num_reg)!r = Some v -> rs#r = valu v
 }.
@@ -130,8 +130,8 @@ Global Hint Resolve num_holds_wf num_holds_eq num_holds_reg: cse.
 (** The initial value numbering, at function entry. *)
 
 Lemma empty_numbering_holds:
-  forall valu ge sp rs m,
-  numbering_holds valu ge sp rs m empty_numbering.
+  forall valu ge ste rs m,
+  numbering_holds valu ge ste rs m empty_numbering.
 Proof.
   intros; split; simpl; intros.
 - split; simpl; intros.

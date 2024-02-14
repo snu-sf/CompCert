@@ -72,8 +72,8 @@ Definition type_of_builtin_arg (a: builtin_arg reg) : typ :=
   | BA_long _ => Tlong
   | BA_float _ => Tfloat
   | BA_single _ => Tsingle
-  | BA_loadstack chunk ofs => type_of_chunk chunk
-  | BA_addrstack ofs => Tptr
+  | BA_loadstack chunk id ofs => type_of_chunk chunk
+  | BA_addrstack id ofs => Tptr
   | BA_loadglobal chunk id ofs => type_of_chunk chunk
   | BA_addrglobal id ofs => Tptr
   | BA_splitlong hi lo => Tlong
@@ -246,8 +246,8 @@ Definition type_builtin_arg (e: S.typenv) (a: builtin_arg reg) (ty: typ) : res S
   | BA_long _ => type_expect e ty Tlong
   | BA_float _ => type_expect e ty Tfloat
   | BA_single _ => type_expect e ty Tsingle
-  | BA_loadstack chunk ofs => type_expect e ty (type_of_chunk chunk)
-  | BA_addrstack ofs => type_expect e ty Tptr
+  | BA_loadstack chunk id ofs => type_expect e ty (type_of_chunk chunk)
+  | BA_addrstack id ofs => type_expect e ty Tptr
   | BA_loadglobal chunk id ofs => type_expect e ty (type_of_chunk chunk)
   | BA_addrglobal id ofs => type_expect e ty Tptr
   | BA_splitlong hi lo => type_expect e ty Tlong
@@ -830,9 +830,9 @@ Proof.
 Qed.
 
 Lemma wt_exec_Iop:
-  forall (ge: genv) env f sp op args res s rs m v,
+  forall (ge: genv) env f ste op args res s rs m v,
   wt_instr f env (Iop op args res s) ->
-  eval_operation ge sp op rs##args m = Some v ->
+  eval_operation ge ste op rs##args m = Some v ->
   wt_regset env rs ->
   wt_regset env (rs#res <- v).
 Proof.
@@ -878,20 +878,20 @@ Inductive wt_stackframes: list stackframe -> signature -> Prop :=
       sg.(sig_res) = Tint ->
       wt_stackframes nil sg
   | wt_stackframes_cons:
-      forall s res f sp pc rs env sg,
+      forall s res f ste pc rs env sg,
       wt_function f env ->
       wt_regset env rs ->
       env res = proj_sig_res sg ->
       wt_stackframes s (fn_sig f) ->
-      wt_stackframes (Stackframe res f sp pc rs :: s) sg.
+      wt_stackframes (Stackframe res f ste pc rs :: s) sg.
 
 Inductive wt_state: state -> Prop :=
   | wt_state_intro:
-      forall s f sp pc rs m env
+      forall s f ste pc rs m env
         (WT_STK: wt_stackframes s (fn_sig f))
         (WT_FN: wt_function f env)
         (WT_RS: wt_regset env rs),
-      wt_state (State s f sp pc rs m)
+      wt_state (State s f ste pc rs m)
   | wt_state_call:
       forall s f args m,
       wt_stackframes s (funsig f) ->
@@ -990,8 +990,8 @@ Proof.
 Qed.
 
 Lemma wt_instr_inv:
-  forall s f sp pc rs m i,
-  wt_state (State s f sp pc rs m) ->
+  forall s f ste pc rs m i,
+  wt_state (State s f ste pc rs m) ->
   f.(fn_code)!pc = Some i ->
   exists env, wt_instr f env i /\ wt_regset env rs.
 Proof.
@@ -1000,5 +1000,3 @@ Proof.
 Qed.
 
 End SUBJECT_REDUCTION.
-
-

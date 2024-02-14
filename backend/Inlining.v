@@ -15,6 +15,7 @@
 Require Import Coqlib Wfsimpl Maps Errors Integers.
 Require Import AST Linking.
 Require Import Op Registers RTL.
+Require Import Stackenvs.
 
 (** ** Environment of inlinable functions *)
 
@@ -59,24 +60,57 @@ Record state : Type := mkstate {
   st_nextreg: positive;                 (**r last used pseudo-register *)
   st_nextnode: positive;                (**r last used CFG node *)
   st_code: code;                        (**r current CFG  *)
-  st_stksize: Z                         (**r current stack size *)
+  st_stkspaces: list (ident * Z)        (**r current stack allocations *)
 }.
+
+Definition stkspaces_next_id (stk: list (ident * Z)): ident :=
+  let ids := map Pos.succ (map fst stk) in
+  fold_left Pos.max ids 1%positive.
+
+Inductive stkspaces_extend (stk: list (ident * Z)): list (ident * Z) -> Prop :=
+| ext_base: stkspaces_extend stk stk
+| ext_app: forall x stk',
+  stkspaces_extend stk stk' -> stkspaces_extend stk (stk' ++ x :: nil).
+
+Lemma stkspaces_extend_refl:
+  forall stk, stkspaces_extend stk stk.
+Proof.
+  intros. induction stk; constructor; auto.
+Qed.
+
+Lemma stkspaces_extend_trans:
+  forall stk1 stk2 stk3,
+  stkspaces_extend stk1 stk2 -> stkspaces_extend stk2 stk3 -> stkspaces_extend stk1 stk3.
+Proof.
+  intros. induction H0.
+  - auto.
+  - constructor. auto.
+Qed.
+
+Lemma stkspaces_extend_app:
+  forall stk l, stkspaces_extend stk (stk ++ l).
+Proof.
+  intros. induction l using rev_ind.
+  - rewrite <- app_nil_end. constructor.
+  - rewrite app_assoc. constructor. auto.
+Qed.
 
 (** Monotone evolution of the state. *)
 
 Inductive sincr (s1 s2: state) : Prop :=
   Sincr (NEXTREG: Ple s1.(st_nextreg) s2.(st_nextreg))
         (NEXTNODE: Ple s1.(st_nextnode) s2.(st_nextnode))
-        (STKSIZE: s1.(st_stksize) <= s2.(st_stksize)).
+        (STKSPACES: stkspaces_extend s1.(st_stkspaces) s2.(st_stkspaces)).
 
 Remark sincr_refl: forall s, sincr s s.
 Proof.
-  intros; constructor; extlia.
+  intros; constructor; try extlia; apply stkspaces_extend_refl.
 Qed.
 
 Lemma sincr_trans: forall s1 s2 s3, sincr s1 s2 -> sincr s2 s3 -> sincr s1 s3.
 Proof.
-  intros. inv H; inv H0. constructor; extlia.
+  intros. inv H; inv H0. constructor; try extlia.
+  apply stkspaces_extend_trans with (stk2 := (st_stkspaces s2)); auto.
 Qed.
 
 (** Dependently-typed state monad, ensuring that the final state is
@@ -103,52 +137,52 @@ Notation "'do' X <- A ; B" := (bind A (fun X => B))
    (at level 200, X ident, A at level 100, B at level 200).
 
 Definition initstate :=
-  mkstate 1%positive 1%positive (PTree.empty instruction) 0.
+  mkstate 1%positive 1%positive (PTree.empty instruction) nil.
 
 Program Definition set_instr (pc: node) (i: instruction): mon unit :=
   fun s =>
     R tt
-      (mkstate s.(st_nextreg) s.(st_nextnode) (PTree.set pc i s.(st_code)) s.(st_stksize))
+      (mkstate s.(st_nextreg) s.(st_nextnode) (PTree.set pc i s.(st_code)) s.(st_stkspaces))
       _.
 Next Obligation.
-  intros; constructor; simpl; extlia.
+  intros; constructor; simpl; try extlia; apply stkspaces_extend_refl.
 Qed.
 
 Program Definition add_instr (i: instruction): mon node :=
   fun s =>
     let pc := s.(st_nextnode) in
     R pc
-      (mkstate s.(st_nextreg) (Pos.succ pc) (PTree.set pc i s.(st_code)) s.(st_stksize))
+      (mkstate s.(st_nextreg) (Pos.succ pc) (PTree.set pc i s.(st_code)) s.(st_stkspaces))
       _.
 Next Obligation.
-  intros; constructor; simpl; extlia.
+  intros; constructor; simpl; try extlia; apply stkspaces_extend_refl.
 Qed.
 
 Program Definition reserve_nodes (numnodes: positive): mon positive :=
   fun s =>
     R s.(st_nextnode)
-      (mkstate s.(st_nextreg) (Pos.add s.(st_nextnode) numnodes) s.(st_code) s.(st_stksize))
+      (mkstate s.(st_nextreg) (Pos.add s.(st_nextnode) numnodes) s.(st_code) s.(st_stkspaces))
       _.
 Next Obligation.
-  intros; constructor; simpl; extlia.
+  intros; constructor; simpl; try extlia; apply stkspaces_extend_refl.
 Qed.
 
 Program Definition reserve_regs (numregs: positive): mon positive :=
   fun s =>
     R s.(st_nextreg)
-      (mkstate (Pos.add s.(st_nextreg) numregs) s.(st_nextnode) s.(st_code) s.(st_stksize))
+      (mkstate (Pos.add s.(st_nextreg) numregs) s.(st_nextnode) s.(st_code) s.(st_stkspaces))
       _.
 Next Obligation.
-  intros; constructor; simpl; extlia.
+  intros; constructor; simpl; try extlia; apply stkspaces_extend_refl.
 Qed.
 
-Program Definition request_stack (sz: Z): mon unit :=
+Program Definition request_stack (stkspaces: list (ident * Z)) : mon unit :=
   fun s =>
     R tt
-      (mkstate s.(st_nextreg) s.(st_nextnode) s.(st_code) (Z.max s.(st_stksize) sz))
+      (mkstate s.(st_nextreg) s.(st_nextnode) s.(st_code) (s.(st_stkspaces) ++ stkspaces))
       _.
 Next Obligation.
-  intros; constructor; simpl; extlia.
+  intros; constructor; simpl; try extlia; apply stkspaces_extend_app.
 Qed.
 
 Program Definition ptree_mfold {A: Type} (f: positive -> A -> mon unit) (t: PTree.t A): mon unit :=
@@ -177,9 +211,9 @@ Qed.
 Record context: Type := mkcontext {
   dpc: positive;                        (**r offset for PCs *)
   dreg: positive;                       (**r offset for pseudo-regs *)
-  dstk: Z;                              (**r offset for stack references *)
   mreg: positive;                       (**r max pseudo-reg number *)
-  mstk: Z;                              (**r original stack block size *)
+  dstk: positive;                       (**r next possible id *)
+  mstk: positive;                       (**r next possible id of the original stack*)
   retinfo: option(node * reg)           (**r where to branch on return *)
                                         (**r and deposit return value *)
 }.
@@ -196,17 +230,22 @@ Definition sregs (ctx: context) (rl: list reg) := List.map (sreg ctx) rl.
 
 Definition sros (ctx: context) (ros: reg + ident) := sum_left_map (sreg ctx) ros.
 
-Definition sop (ctx: context) (op: operation) :=
-  shift_stack_operation ctx.(dstk) op.
+Definition sid (ctx: context) (id: ident) := shiftpos id ctx.(dstk).
 
 Definition saddr (ctx: context) (addr: addressing) :=
-  shift_stack_addressing ctx.(dstk) addr.
+  shift_stack_addressing (sid ctx) flat_maddr addr.
+
+Definition sop (ctx: context) (op: operation) :=
+  shift_stack_operation (sid ctx) flat_maddr op.
+
+Definition sstkspaces (ctx: context) (stkspaces: list (ident * Z)) :=
+  map (fun x => (sid ctx (fst x), snd x)) stkspaces.
 
 Fixpoint sbuiltinarg (ctx: context) (a: builtin_arg reg) : builtin_arg reg :=
   match a with
   | BA x => BA (sreg ctx x)
-  | BA_loadstack chunk ofs => BA_loadstack chunk (Ptrofs.add ofs (Ptrofs.repr ctx.(dstk)))
-  | BA_addrstack ofs => BA_addrstack (Ptrofs.add ofs (Ptrofs.repr ctx.(dstk)))
+  | BA_loadstack chunk id ofs => BA_loadstack chunk (sid ctx id) ofs
+  | BA_addrstack id ofs => BA_addrstack (sid ctx id) ofs
   | BA_splitlong hi lo => BA_splitlong (sbuiltinarg ctx hi) (sbuiltinarg ctx lo)
   | BA_addptr a1 a2 => BA_addptr (sbuiltinarg ctx a1) (sbuiltinarg ctx a2)
   | _ => a
@@ -220,12 +259,12 @@ Definition sbuiltinres (ctx: context) (a: builtin_res reg) : builtin_res reg :=
 
 (** The initial context, used to copy the CFG of a toplevel function. *)
 
-Definition initcontext (dpc dreg nreg: positive) (sz: Z) :=
+Definition initcontext (dpc dreg nreg: positive) (stkspaces: list (ident * Z)) :=
   {| dpc := dpc;
      dreg := dreg;
-     dstk := 0;
      mreg := nreg;
-     mstk := Z.max sz 0;
+     dstk := 1%positive;
+     mstk := stkspaces_next_id stkspaces;
      retinfo := None |}.
 
 (** The context used to inline a call to another function. *)
@@ -236,23 +275,23 @@ Definition min_alignment (sz: Z) :=
   else if zle sz 4 then 4 else 8.
 
 Definition callcontext (ctx: context)
-                      (dpc dreg nreg: positive) (sz: Z)
+                      (dpc dreg nreg: positive) (stkspaces: list (ident * Z))
                       (retpc: node) (retreg: reg) :=
   {| dpc := dpc;
      dreg := dreg;
-     dstk := align (ctx.(dstk) + ctx.(mstk)) (min_alignment sz);
      mreg := nreg;
-     mstk := Z.max sz 0;
+     dstk := shiftpos ctx.(dstk) ctx.(mstk);
+     mstk := stkspaces_next_id stkspaces;
      retinfo := Some (spc ctx retpc, sreg ctx retreg) |}.
 
 (** The context used to inline a tail call to another function. *)
 
-Definition tailcontext (ctx: context) (dpc dreg nreg: positive) (sz: Z) :=
+Definition tailcontext (ctx: context) (dpc dreg nreg: positive) (stkspaces: list (ident * Z)) :=
   {| dpc := dpc;
      dreg := dreg;
-     dstk := align ctx.(dstk) (min_alignment sz);
      mreg := nreg;
-     mstk := Z.max sz 0;
+     dstk := ctx.(dstk);
+     mstk := stkspaces_next_id stkspaces;
      retinfo := ctx.(retinfo) |}.
 
 (** ** Recursive expansion and copying of a CFG *)
@@ -314,7 +353,7 @@ Definition inline_function (ctx: context) (id: ident) (f: function)
   let nreg := max_reg_function f in
   do dpc <- reserve_nodes npc;
   do dreg <- reserve_regs nreg;
-  let ctx' := callcontext ctx dpc dreg nreg f.(fn_stacksize) retpc retreg in
+  let ctx' := callcontext ctx dpc dreg nreg (fn_stackspaces f) retpc retreg in
   do x <- rec (PTree.remove id fenv) (PTree_Properties.cardinal_remove P) ctx' f;
   add_moves (sregs ctx args) (sregs ctx' f.(fn_params)) (spc ctx' f.(fn_entrypoint)).
 
@@ -328,7 +367,7 @@ Definition inline_tail_function (ctx: context) (id: ident) (f: function)
   let nreg := max_reg_function f in
   do dpc <- reserve_nodes npc;
   do dreg <- reserve_regs nreg;
-  let ctx' := tailcontext ctx dpc dreg nreg f.(fn_stacksize) in
+  let ctx' := tailcontext ctx dpc dreg nreg (fn_stackspaces f) in
   do x <- rec (PTree.remove id fenv) (PTree_Properties.cardinal_remove P) ctx' f;
   add_moves (sregs ctx args) (sregs ctx' f.(fn_params)) (spc ctx' f.(fn_entrypoint)).
 
@@ -419,7 +458,7 @@ Definition expand_instr (ctx: context) (pc: node) (i: instruction): mon unit :=
   instructions, after recording how much stack it needs. *)
 
 Definition expand_cfg_rec (ctx: context) (f: function): mon unit :=
-  do x <- request_stack (ctx.(dstk) + ctx.(mstk));
+  do x <- request_stack (sstkspaces ctx (fn_stackspaces f));
   ptree_mfold (expand_instr ctx) f.(fn_code).
 
 End EXPAND_CFG.
@@ -437,7 +476,7 @@ Definition expand_function (fenv: funenv) (f: function): mon context :=
   let nreg := max_reg_function f in
   do dpc <- reserve_nodes npc;
   do dreg <- reserve_regs nreg;
-  let ctx := initcontext dpc dreg nreg f.(fn_stacksize) in
+  let ctx := initcontext dpc dreg nreg (fn_stackspaces f) in
   do x <- expand_cfg fenv ctx f;
   ret ctx.
 
@@ -445,21 +484,17 @@ Definition expand_function (fenv: funenv) (f: function): mon context :=
 
 Local Open Scope string_scope.
 
-(** Inlining can increase the size of the function's stack block.  We must
-  make sure that the new size does not exceed [Ptrofs.max_unsigned], otherwise
-  address computations within the stack would overflow and produce incorrect
-  results. *)
+(** Inlining can increase the number of the function's stack blocks. Since
+  our memory model assumes that the number of blocks are infinite, we
+  do not have to check the stack overflow. *)
 
 Definition transf_function (fenv: funenv) (f: function) : Errors.res function :=
   let '(R ctx s _) := expand_function fenv f initstate in
-  if zlt s.(st_stksize) Ptrofs.max_unsigned then
-    OK (mkfunction f.(fn_sig)
-                   (sregs ctx f.(fn_params))
-                   s.(st_stksize)
-                   s.(st_code)
-                   (spc ctx f.(fn_entrypoint)))
-  else
-    Error(msg "Inlining: stack too big").
+  OK (mkfunction f.(fn_sig)
+                 (sregs ctx f.(fn_params))
+                 s.(st_stkspaces)
+                 s.(st_code)
+                 (spc ctx f.(fn_entrypoint))).
 
 Definition transf_fundef (fenv: funenv) (fd: fundef) : Errors.res fundef :=
   AST.transf_partial_fundef (transf_function fenv) fd.
@@ -467,4 +502,3 @@ Definition transf_fundef (fenv: funenv) (fd: fundef) : Errors.res fundef :=
 Definition transf_program (p: program): Errors.res program :=
   let fenv := funenv_program p in
   AST.transform_partial_program (transf_fundef fenv) p.
-

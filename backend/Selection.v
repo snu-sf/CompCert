@@ -78,7 +78,7 @@ Definition sel_constant (cst: Cminor.constant) : expr :=
   | Cminor.Osingleconst f => Eop (Osingleconst f) Enil
   | Cminor.Olongconst n => longconst n
   | Cminor.Oaddrsymbol id ofs => addrsymbol id ofs
-  | Cminor.Oaddrstack ofs => addrstack ofs
+  | Cminor.Oaddrstack id ofs => addrstack id ofs
   end.
 
 Definition sel_unop (op: Cminor.unary_operation) (arg: expr) : expr :=
@@ -464,7 +464,7 @@ Definition sel_function (dm: PTree.t globdef) (hf: helper_functions) (f: Cminor.
         f.(Cminor.fn_sig)
         f.(Cminor.fn_params)
         f.(Cminor.fn_vars)
-        f.(Cminor.fn_stackspace)
+        f.(Cminor.fn_stackspaces)
         body').
 
 Definition sel_fundef (dm: PTree.t globdef) (hf: helper_functions) (f: Cminor.fundef) : res fundef :=
@@ -539,4 +539,3 @@ Definition sel_program (p: Cminor.program) : res program :=
   let dm := prog_defmap p in
   do hf <- get_helpers dm;
   transform_partial_program (sel_fundef dm hf) p.
-

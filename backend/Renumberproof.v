@@ -14,7 +14,7 @@
 
 Require Import Coqlib Maps Postorder.
 Require Import AST Linking.
-Require Import Values Memory Globalenvs Events Smallstep.
+Require Import Values Memory Globalenvs Stackenvs Events Smallstep.
 Require Import Op Registers RTL Renumber.
 
 Definition match_prog (p tp: RTL.program) :=
@@ -135,17 +135,17 @@ Proof.
 Qed.
 
 Inductive match_frames: RTL.stackframe -> RTL.stackframe -> Prop :=
-  | match_frames_intro: forall res f sp pc rs
+  | match_frames_intro: forall res f ste pc rs
         (REACH: reach f pc),
-      match_frames (Stackframe res f sp pc rs)
-                   (Stackframe res (transf_function f) sp (renum_pc (pnum f) pc) rs).
+      match_frames (Stackframe res f ste pc rs)
+                   (Stackframe res (transf_function f) ste (renum_pc (pnum f) pc) rs).
 
 Inductive match_states: RTL.state -> RTL.state -> Prop :=
-  | match_regular_states: forall stk f sp pc rs m stk'
+  | match_regular_states: forall stk f ste pc rs m stk'
         (STACKS: list_forall2 match_frames stk stk')
         (REACH: reach f pc),
-      match_states (State stk f sp pc rs m)
-                   (State stk' (transf_function f) sp (renum_pc (pnum f) pc) rs m)
+      match_states (State stk f ste pc rs m)
+                   (State stk' (transf_function f) ste (renum_pc (pnum f) pc) rs m)
   | match_callstates: forall stk f args m stk'
         (STACKS: list_forall2 match_frames stk stk'),
       match_states (Callstate stk f args m)
@@ -171,13 +171,13 @@ Proof.
   constructor; auto. eapply reach_succ; eauto. simpl; auto.
 (* load *)
   econstructor; split.
-  assert (eval_addressing tge sp addr rs ## args = Some a).
+  assert (eval_addressing tge ste addr rs ## args = Some a).
   rewrite <- H0. apply eval_addressing_preserved. exact symbols_preserved.
   eapply exec_Iload; eauto.
   constructor; auto. eapply reach_succ; eauto. simpl; auto.
 (* store *)
   econstructor; split.
-  assert (eval_addressing tge sp addr rs ## args = Some a).
+  assert (eval_addressing tge ste addr rs ## args = Some a).
   rewrite <- H0. apply eval_addressing_preserved. exact symbols_preserved.
   eapply exec_Istore; eauto.
   constructor; auto. eapply reach_succ; eauto. simpl; auto.
@@ -260,10 +260,3 @@ Proof.
 Qed.
 
 End PRESERVATION.
-
-
-
-
-
-
-

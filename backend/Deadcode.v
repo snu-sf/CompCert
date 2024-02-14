@@ -143,7 +143,7 @@ Definition transfer (f: function) (approx: PMap.t VA.t)
   | Some(Ibuiltin ef args res s) =>
       transfer_builtin approx!!pc ef args res ne nm
   | Some(Icond cond args s1 s2) =>
-      if peq s1 s2 then after else 
+      if peq s1 s2 then after else
         (add_needs args (needs_of_condition cond) ne, nm)
   | Some(Ijumptable arg tbl) =>
       (add_need_all arg ne, nm)
@@ -204,7 +204,7 @@ Definition transf_function (rm: romem) (f: function) : res function :=
   | Some an =>
       OK {| fn_sig := f.(fn_sig);
             fn_params := f.(fn_params);
-            fn_stacksize := f.(fn_stacksize);
+            fn_stackspaces := f.(fn_stackspaces);
             fn_code := PTree.map (transf_instr approx an) f.(fn_code);
             fn_entrypoint := f.(fn_entrypoint) |}
   | None =>
@@ -216,4 +216,3 @@ Definition transf_fundef (rm: romem) (fd: fundef) : res fundef :=
 
 Definition transf_program (p: program) : res program :=
   transform_partial_program (transf_fundef (romem_for p)) p.
-
