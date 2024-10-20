@@ -46,6 +46,13 @@ Definition int_caller_save_regs :=
        else AX :: CX :: DX :: SI :: DI :: R8 :: R9 :: R10 :: R11 :: nil
   else AX :: CX :: DX :: nil.
 
+Definition int_caller_save_regs' :=
+  if Archi.ptr64
+  then if Archi.win64
+       then AX :: CX :: DX :: R8 :: R9 :: R10 :: nil
+       else AX :: CX :: DX :: SI :: DI :: R8 :: R9 :: R10 :: nil
+  else AX :: CX :: DX :: nil.
+
 Definition float_caller_save_regs :=
   if Archi.ptr64
   then if Archi.win64
@@ -94,7 +101,7 @@ Record alloc_regs := mk_alloc_regs {
 }.
 
 Definition allocatable_registers (_: unit) :=
-  {| preferred_int_regs := int_caller_save_regs;
+  {| preferred_int_regs := int_caller_save_regs';
      remaining_int_regs := int_callee_save_regs;
      preferred_float_regs := float_caller_save_regs;
      remaining_float_regs := float_callee_save_regs |}.
